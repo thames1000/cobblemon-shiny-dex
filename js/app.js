@@ -425,6 +425,62 @@ function findSpawnByInput(raw) {
   els.spawnResults.innerHTML = renderSpawnByMon(sp.dex);
 }
 
+/* ---------- farm tab ---------- */
+function fmtDuration(hours) {
+  if (!Number.isFinite(hours) || hours <= 0) return "—";
+  const totalMin = hours * 60;
+  if (totalMin < 60) return `${Math.round(totalMin)} min`;
+  if (hours < 24) return `${hours.toFixed(1)} h`;
+  const days = hours / 24;
+  if (days < 7) return `${days.toFixed(1)} days (${hours.toFixed(0)} h)`;
+  return `${(days).toFixed(1)} days`;
+}
+// Encounters needed for a >=p chance of at least one shiny at 1/odds.
+function encountersForProb(p, odds) {
+  return Math.ceil(Math.log(1 - p) / Math.log(1 - 1 / odds));
+}
+
+function renderFarmApricorn() {
+  const trees = Number(els.farmTrees.value) || 0;
+  const growth = Number(els.farmGrowth.value) || 20;
+  const yld = Number(els.farmYield.value) || 1;
+  const perBall = Number(els.farmPerBall.value) || 1;
+  const target = Number(els.farmTarget.value) || 0;
+
+  const perHour = trees * yld * (60 / growth);   // ripens per hour = 60/growth
+  const ballsHr = perHour / perBall;
+  const targetHrs = perHour > 0 ? target / perHour : Infinity;
+
+  els.farmApricornOut.innerHTML =
+    `Output: <b>${perHour.toFixed(1)}</b> apricorns/hr · <b>${ballsHr.toFixed(1)}</b> balls/hr<br>` +
+    `<span class="muted">${target} apricorns ≈ <b>${fmtDuration(targetHrs)}</b> of growth` +
+    ` (${perHour > 0 ? Math.ceil(target / perHour) : "∞"} h, unattended)</span>`;
+}
+
+function renderFarmShiny() {
+  const odds = Number(els.farmOdds.value) || 8192;
+  const rate = Number(els.farmRate.value) || 0;   // per hour
+  const mean = odds;                               // geometric mean attempts
+  const rows = [["Expected (avg)", mean], ["50% chance", encountersForProb(0.5, odds)],
+    ["90% chance", encountersForProb(0.9, odds)], ["99% chance", encountersForProb(0.99, odds)]];
+  els.farmShinyOut.innerHTML =
+    `<table class="farm-tbl"><tr><th></th><th>Encounters</th><th>Time @ ${rate}/hr</th></tr>` +
+    rows.map(([label, n]) =>
+      `<tr><td>${label}</td><td><b>${n.toLocaleString()}</b></td><td>${rate > 0 ? fmtDuration(n / rate) : "—"}</td></tr>`
+    ).join("") + `</table>`;
+}
+
+function quickOdds(which) {
+  if (which === "base") els.farmOdds.value = state.config.baseShinyRate;
+  else if (which === "masuda") els.farmOdds.value = Math.round(state.config.baseShinyRate / state.config.masudaMultiplier);
+  else if (which === "chainmax") {
+    const maxBonus = Math.max(0, ...state.config.unchainedThresholds.map(([, b]) => b));
+    els.farmOdds.value = Math.round(state.config.baseShinyRate / (maxBonus + 1));
+  }
+  renderFarmShiny();
+}
+function renderFarm() { renderFarmApricorn(); renderFarmShiny(); }
+
 /* ---------- tabs ---------- */
 function showTab(name) {
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
@@ -482,6 +538,15 @@ function grabEls() {
     spawnInput: document.getElementById("spawn-input"),
     spawnBiomeSelect: document.getElementById("spawn-biome-select"),
     spawnResults: document.getElementById("spawn-results"),
+    farmTrees: document.getElementById("farm-trees"),
+    farmGrowth: document.getElementById("farm-growth"),
+    farmYield: document.getElementById("farm-yield"),
+    farmPerBall: document.getElementById("farm-perball"),
+    farmTarget: document.getElementById("farm-target"),
+    farmApricornOut: document.getElementById("farm-apricorn-out"),
+    farmOdds: document.getElementById("farm-odds"),
+    farmRate: document.getElementById("farm-rate"),
+    farmShinyOut: document.getElementById("farm-shiny-out"),
     exportBtn: document.getElementById("export-btn"),
     importBtn: document.getElementById("import-btn"),
     importFile: document.getElementById("import-file"),
@@ -562,6 +627,13 @@ function wire() {
     if (mon) { setSpawnMode("mon"); els.spawnInput.value = DEX_BY_NUM[Number(mon.dataset.dex)].name; findSpawnByInput(els.spawnInput.value); }
   });
 
+  // Farm tab
+  ["farmTrees", "farmGrowth", "farmYield", "farmPerBall", "farmTarget"].forEach((k) =>
+    els[k].addEventListener("input", renderFarmApricorn));
+  ["farmOdds", "farmRate"].forEach((k) => els[k].addEventListener("input", renderFarmShiny));
+  document.querySelectorAll(".quick-odds").forEach((b) =>
+    b.addEventListener("click", () => quickOdds(b.dataset.odds)));
+
   // Spacebar = +1 while on the Hunt tab (and not typing in a field).
   document.addEventListener("keydown", (e) => {
     if (e.code !== "Space") return;
@@ -631,6 +703,7 @@ async function boot() {
   renderDex();
   renderForms();
   renderHunt();
+  renderFarm();
   const hash = location.hash.replace("#", "");
   if (hash) showTab(hash);
 }

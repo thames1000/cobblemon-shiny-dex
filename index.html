@@ -158,13 +158,40 @@
       <div id="spawn-results"></div>
     </section>
 
-    <!-- ============ FARM TAB (placeholder) ============ -->
+    <!-- ============ FARM TAB ============ -->
     <section class="panel" id="panel-farm">
-      <div class="card todo">
-        <h2>🏭 Farm Planner</h2>
-        <p>Coming in Phase 4. Generic apricorn-farm sizing (trees × ~20-min growth → apricorns/hr)
-          and encounter-farm throughput → expected time-to-shiny for your target. No exact ball
-          recipes (your ball mod is closed-source).</p>
+      <p class="hint">Generic planning math — no mod-specific ball recipes (your ball mod is closed-source).
+        All numbers are editable; defaults use Cobblemon's documented apricorn growth (~1 MC day ≈ 20 min).</p>
+
+      <div class="card">
+        <h2>🌳 Apricorn farm sizing</h2>
+        <label class="field">Apricorn trees
+          <input type="number" id="farm-trees" class="search" min="0" value="16" /></label>
+        <label class="field">Growth time per ripen (minutes)
+          <input type="number" id="farm-growth" class="search" min="0.1" step="0.5" value="20" /></label>
+        <label class="field">Apricorns per harvest
+          <input type="number" id="farm-yield" class="search" min="1" value="1" /></label>
+        <label class="field">Apricorns per Poké Ball (your recipe — generic)
+          <input type="number" id="farm-perball" class="search" min="1" value="1" /></label>
+        <label class="field">Target apricorns needed
+          <input type="number" id="farm-target" class="search" min="0" value="256" /></label>
+        <div id="farm-apricorn-out" class="odds-readout"></div>
+      </div>
+
+      <div class="card">
+        <h2>⏱ Encounter farm → time-to-shiny</h2>
+        <label class="field">Shiny odds (1 / N)
+          <input type="number" id="farm-odds" class="search" min="1" value="8192" /></label>
+        <div class="controls" style="margin:-4px 0 8px">
+          <button class="ctrl-btn quick-odds" data-odds="base">Base</button>
+          <button class="ctrl-btn quick-odds" data-odds="masuda">Masuda</button>
+          <button class="ctrl-btn quick-odds" data-odds="chainmax">Chain max</button>
+        </div>
+        <label class="field">Encounters (or KOs / eggs) per hour
+          <input type="number" id="farm-rate" class="search" min="0.1" step="1" value="120" /></label>
+        <div id="farm-shiny-out" class="odds-readout"></div>
+        <p class="hint">"Expected" is the average; you have a 50/90/99% chance of a shiny by the listed counts.
+          Tip: time a few minutes of your actual farm to get a real encounters/hour.</p>
       </div>
     </section>
 

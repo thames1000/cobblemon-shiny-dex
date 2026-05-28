@@ -175,6 +175,14 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .r-rare { background: #a855f7; color: #fff; }
 .r-ultra-rare { background: var(--gold); color: #3a2c00; }
 
+/* Farm tab */
+.farm-tbl { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.farm-tbl th { text-align: left; color: var(--muted); font-weight: 600; font-size: .8rem; padding: 4px 6px; }
+.farm-tbl td { padding: 6px; border-top: 1px solid var(--line); }
+.farm-tbl td:first-child { color: var(--muted); }
+.farm-tbl b { color: var(--gold); }
+.quick-odds { padding: 5px 10px; font-size: .8rem; }
+
 /* Controls */
 .controls { display: flex; gap: 8px; flex-wrap: wrap; }
 .ctrl-btn {

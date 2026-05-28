@@ -14,7 +14,7 @@ deploys straight to GitHub Pages. All progress is **manual** and stored in your 
 | **Mega/GMax** | ✅ Phase 1 | Separate "wing" tracking Mega Stone / GMax-Factor **capability** (Mega/GMax are temporary battle states, not boxable forms). Doesn't dilute the main dex %. |
 | **Hunt** | ✅ Phase 2 | Chain (Unchained), Breeding (Cobbreeding Masuda), and raw-encounter logger with editable mod odds. |
 | **Spawns** | ✅ Phase 3 | Forward (by Pokémon → biomes/rarity/time + best AFK spot) and reverse (by biome → species) lookup. Complements the in-game PokéNav. |
-| **Farm** | 🚧 Phase 4 | Generic apricorn-farm sizing + encounter-farm throughput → expected time-to-shiny. |
+| **Farm** | ✅ Phase 4 | Apricorn-farm sizing (apricorns & balls/hr, time-to-target) + encounter-farm time-to-shiny (50/90/99% counts and ETAs). Generic — no mod-specific recipes. |
 | **Data** | ✅ | Export / import / reset your progress. |
 
 ## Run locally

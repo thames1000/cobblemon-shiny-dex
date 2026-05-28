@@ -132,6 +132,27 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .mon.f-unlocked { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
 .mon.f-unlocked .badge { background: var(--gold); color: #3a2c00; }
 
+/* Boxes tab (PC layout) */
+.box-nav { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+.box-nav .select { flex: 1 1 200px; }
+.pcbox {
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px;
+  max-width: 560px; margin: 0 auto;
+}
+.slot {
+  aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center;
+  background: var(--bg-2); border: 1px solid var(--line); border-radius: 8px;
+  cursor: pointer; user-select: none; -webkit-user-select: none; position: relative;
+}
+.slot:active { transform: scale(.94); }
+.slot img { width: 80%; height: 80%; image-rendering: pixelated; }
+.slot-no { font-size: .6rem; color: #45576c; }
+.slot.s-none { background: repeating-linear-gradient(45deg, var(--bg-2), var(--bg-2) 5px, var(--panel) 5px, var(--panel) 10px); }
+.slot.s-seen img, .slot.s-caught img { filter: grayscale(1) brightness(.8); opacity: .8; }
+.slot.s-shiny { border-color: var(--shiny); box-shadow: 0 0 6px var(--shiny); }
+.slot.s-boxed { border-color: var(--boxed); background: #0f2a22; }
+
 /* Hunt tab */
 .seg { display: flex; gap: 4px; background: var(--panel); border: 1px solid var(--line);
   border-radius: 10px; padding: 4px; margin-bottom: 8px; }

@@ -125,6 +125,74 @@ function renderDexStats() {
     `<span class="stat">caught <b>${caught}</b></span>`;
 }
 
+/* ---------- boxes tab (living dex PC layout) ---------- */
+const BOX_SIZE = 30;
+let curBox = 0; // 0-indexed
+function boxCount() { return Math.ceil(SPECIES.length / BOX_SIZE); }
+function boxRange(b) { return [b * BOX_SIZE + 1, Math.min((b + 1) * BOX_SIZE, SPECIES.length)]; }
+
+function slotCard(sp) {
+  const st = dexState(sp.dex);
+  const shiny = st === "shiny" || st === "boxed";
+  const el = document.createElement("div");
+  el.className = `slot s-${st}`;
+  el.dataset.dex = sp.dex;
+  el.title = `${sp.name} #${sp.dex} · ${st}`;
+  el.innerHTML = st === "none"
+    ? `<span class="slot-no">${String(sp.dex).padStart(4, "0")}</span>`
+    : `<img loading="lazy" src="${spriteUrl(sp.dex, shiny)}" alt="${sp.name}" />`;
+  return el;
+}
+
+function renderBoxes() {
+  if (!SPECIES.length) return;
+  const total = boxCount();
+  if (curBox >= total) curBox = total - 1;
+  if (curBox < 0) curBox = 0;
+  // (Re)build the box selector to match current data.
+  if (els.boxSelect.options.length !== total) {
+    els.boxSelect.innerHTML = Array.from({ length: total }, (_, b) => {
+      const [lo, hi] = boxRange(b);
+      return `<option value="${b}">Box ${b + 1} · #${String(lo).padStart(4, "0")}–#${String(hi).padStart(4, "0")}</option>`;
+    }).join("");
+  }
+  els.boxSelect.value = String(curBox);
+
+  const [lo, hi] = boxRange(curBox);
+  const grid = els.boxGrid;
+  grid.innerHTML = "";
+  const frag = document.createDocumentFragment();
+  for (let dex = lo; dex <= hi; dex++) {
+    const sp = DEX_BY_NUM[dex];
+    if (sp) frag.appendChild(slotCard(sp));
+  }
+  grid.appendChild(frag);
+
+  // Stats: this box + overall boxed.
+  let boxedHere = 0;
+  for (let dex = lo; dex <= hi; dex++) if (dexState(dex) === "boxed") boxedHere++;
+  const inBox = hi - lo + 1;
+  let boxedAll = 0, shinyAll = 0;
+  for (const sp of SPECIES) {
+    const s = dexState(sp.dex);
+    if (s === "boxed") boxedAll++;
+    if (s === "shiny" || s === "boxed") shinyAll++;
+  }
+  const pct = ((boxedAll / SPECIES.length) * 100).toFixed(1);
+  els.boxesStats.innerHTML =
+    `<span class="stat">This box <b>${boxedHere}</b>/${inBox} boxed</span>` +
+    `<div class="bar"><i style="width:${pct}%"></i></div>` +
+    `<span class="stat">Living dex <b>${boxedAll}</b>/${SPECIES.length} (${pct}%)</span>` +
+    `<span class="stat">${shinyAll - boxedAll} shiny to deposit</span>`;
+}
+
+function gotoBox(b) { curBox = b; renderBoxes(); }
+function gotoFirstGap() {
+  const miss = SPECIES.find((sp) => dexState(sp.dex) !== "boxed");
+  if (!miss) { alert("Living dex complete — every species boxed! ✨"); return; }
+  gotoBox(Math.floor((miss.dex - 1) / BOX_SIZE));
+}
+
 /* ---------- mega/gmax tab ---------- */
 function formCard(form) {
   const unlocked = !!state.forms[form.id];
@@ -485,6 +553,7 @@ function renderFarm() { renderFarmApricorn(); renderFarmShiny(); }
 function showTab(name) {
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
   document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("active", p.id === `panel-${name}`));
+  if (name === "boxes") renderBoxes(); // refresh in case dex changed on another tab
   location.hash = name;
 }
 
@@ -506,7 +575,7 @@ function importData(file) {
       state = Object.assign(freshState(), d);
       normalize();
       save();
-      renderDex(); renderForms(); fillConfigInputs(); renderHunt();
+      renderDex(); renderForms(); fillConfigInputs(); renderHunt(); renderBoxes();
       alert("Imported.");
     } catch (e) { alert("Import failed: " + e.message); }
   };
@@ -523,6 +592,9 @@ function grabEls() {
     dexGen: document.getElementById("dex-gen"),
     dexFilter: document.getElementById("dex-filter"),
     formsStats: document.getElementById("forms-stats"),
+    boxesStats: document.getElementById("boxes-stats"),
+    boxSelect: document.getElementById("box-select"),
+    boxGrid: document.getElementById("box-grid"),
     huntModeDesc: document.getElementById("hunt-mode-desc"),
     huntSprite: document.getElementById("hunt-sprite"),
     huntTarget: document.getElementById("hunt-target"),
@@ -589,6 +661,21 @@ function wire() {
   els.dexGen.addEventListener("change", renderDex);
   els.dexFilter.addEventListener("change", renderDex);
 
+  // Boxes tab
+  document.getElementById("box-prev").addEventListener("click", () => gotoBox(curBox - 1));
+  document.getElementById("box-next").addEventListener("click", () => gotoBox(curBox + 1));
+  document.getElementById("box-gap").addEventListener("click", gotoFirstGap);
+  els.boxSelect.addEventListener("change", () => gotoBox(Number(els.boxSelect.value)));
+  els.boxGrid.addEventListener("click", (e) => {
+    const slot = e.target.closest(".slot"); if (!slot) return;
+    cycleDex(Number(slot.dataset.dex), false); renderBoxes(); syncDexCard(Number(slot.dataset.dex));
+  });
+  els.boxGrid.addEventListener("contextmenu", (e) => {
+    const slot = e.target.closest(".slot"); if (!slot) return;
+    e.preventDefault();
+    cycleDex(Number(slot.dataset.dex), true); renderBoxes(); syncDexCard(Number(slot.dataset.dex));
+  });
+
   // Hunt tab
   document.getElementById("hunt-mode").addEventListener("click", (e) => {
     const b = e.target.closest(".seg-btn"); if (b) setMode(b.dataset.mode);
@@ -648,9 +735,19 @@ function wire() {
   els.resetAll.addEventListener("click", () => {
     if (confirm("Erase ALL progress? Export first if unsure.")) {
       state = freshState();
-      save(); renderDex(); renderForms(); fillConfigInputs(); renderHunt();
+      save(); renderDex(); renderForms(); fillConfigInputs(); renderHunt(); renderBoxes();
     }
   });
+}
+
+// Sync the Dex grid's card for one species after it was edited elsewhere (e.g. Boxes tab).
+function syncDexCard(dex) {
+  const card = els.dexGrid.querySelector(`.mon[data-dex="${dex}"]`);
+  if (card) {
+    const sp = DEX_BY_NUM[dex];
+    if (matchesDexFilter(sp)) card.replaceWith(monCard(sp)); else card.remove();
+  }
+  renderDexStats();
 }
 
 // Re-render a single dex card in place after a state change (cheaper than full grid).
@@ -704,6 +801,7 @@ async function boot() {
   renderForms();
   renderHunt();
   renderFarm();
+  renderBoxes();
   const hash = location.hash.replace("#", "");
   if (hash) showTab(hash);
 }

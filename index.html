@@ -21,6 +21,7 @@
 
   <nav class="tabs" id="tabs">
     <button class="tab active" data-tab="dex">Dex</button>
+    <button class="tab" data-tab="boxes">Boxes</button>
     <button class="tab" data-tab="forms">Mega/GMax</button>
     <button class="tab" data-tab="hunt">Hunt</button>
     <button class="tab" data-tab="spawns">Spawns</button>
@@ -58,6 +59,21 @@
         <span class="legend l-boxed">📦 Boxed</span> → blank. Right-click / long-press steps back.</p>
 
       <div class="grid" id="dex-grid"></div>
+    </section>
+
+    <!-- ============ BOXES TAB ============ -->
+    <section class="panel" id="panel-boxes">
+      <div class="stats-bar" id="boxes-stats"></div>
+      <div class="box-nav">
+        <button id="box-prev" class="ctrl-btn">◀</button>
+        <select id="box-select" class="select"></select>
+        <button id="box-next" class="ctrl-btn">▶</button>
+        <button id="box-gap" class="ctrl-btn good">↦ First gap</button>
+      </div>
+      <p class="hint">Living dex laid out in National-Dex order, 30 per box. Filled = <span class="legend l-boxed">📦 Boxed</span>;
+        a glowing <span class="legend l-shiny">✨</span> slot is a shiny ready to deposit; faint slots are gaps.
+        Tap a slot to cycle its state (right-click/long-press steps back).</p>
+      <div class="pcbox" id="box-grid"></div>
     </section>
 
     <!-- ============ MEGA/GMAX TAB ============ -->

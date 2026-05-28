@@ -1,6 +1,6 @@
 /* Service worker — caches the app shell + bundled data so the dex works offline.
  * Remote sprites are cached on demand (stale-while-revalidate-ish: cache-first). */
-const CACHE = "shinydex-hq-v4";
+const CACHE = "shinydex-hq-v5";
 const SHELL = [
   "./",
   "./index.html",

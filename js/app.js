@@ -14,16 +14,39 @@ const STATE_BADGE = { seen: "S", caught: "C", shiny: "✨", boxed: "📦" };
 
 let SPECIES = [];   // [{dex,name,types,gen}]
 let FORMS = null;   // {mega:[],primal:[],gmax:[]}
-let state = { dex: {}, forms: {}, config: { baseShinyRate: 8192 } };
+let DEX_BY_NUM = {}; // dex -> species
+
+// Pack defaults (Cobblemon + Unchained + Cobbreeding). All editable in-app.
+function defaultConfig() {
+  return {
+    baseShinyRate: 8192,
+    unchainedThresholds: [[100, 1], [300, 2], [500, 3]], // [koStreak, +shinyChances]
+    masudaMultiplier: 4,
+  };
+}
+function defaultHunt() {
+  return { mode: "chain", activeDex: null, sessions: {}, finds: [] };
+}
+function freshState() {
+  return { dex: {}, forms: {}, config: defaultConfig(), hunt: defaultHunt() };
+}
+let state = freshState();
 
 /* ---------- persistence ---------- */
+function normalize() {
+  if (!state.dex) state.dex = {};
+  if (!state.forms) state.forms = {};
+  state.config = Object.assign(defaultConfig(), state.config || {});
+  state.hunt = Object.assign(defaultHunt(), state.hunt || {});
+  if (!state.hunt.sessions) state.hunt.sessions = {};
+  if (!Array.isArray(state.hunt.finds)) state.hunt.finds = [];
+}
 function load() {
   try {
     const d = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (d && typeof d === "object") state = Object.assign(state, d);
-    if (!state.dex) state.dex = {};
-    if (!state.forms) state.forms = {};
+    if (d && typeof d === "object") state = Object.assign(freshState(), d);
   } catch (_) { /* keep defaults */ }
+  normalize();
 }
 function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 
@@ -136,6 +159,176 @@ function renderFormsStats() {
     `<span class="stat">GMax ${FORMS.gmax.filter(f=>state.forms[f.id]).length}/${FORMS.gmax.length}</span>`;
 }
 
+/* ---------- hunt tab ---------- */
+const MODE_DESC = {
+  chain: "Unchained chaining: each +1 is a KO of your target. Same-species KO streak raises shiny odds via threshold tiers. KO'ing a different species resets the streak.",
+  breeding: "Cobbreeding: each +1 is one egg checked. Masuda (different-OT parents) multiplies the egg's shiny rate.",
+  encounter: "Raw hunting: each +1 is one encounter at the flat base shiny rate.",
+};
+const COUNT_LABEL = { chain: "KO streak", breeding: "Eggs checked", encounter: "Encounters" };
+
+function huntKey(mode, dex) { return `${mode}:${dex}`; }
+function activeSession() {
+  const h = state.hunt;
+  if (h.activeDex == null) return null;
+  return h.sessions[huntKey(h.mode, h.activeDex)] || null;
+}
+function ensureSession(mode, dex) {
+  const k = huntKey(mode, dex);
+  if (!state.hunt.sessions[k]) {
+    state.hunt.sessions[k] = { mode, dex, count: 0, startedAt: Date.now() };
+  }
+  return state.hunt.sessions[k];
+}
+
+// Cobblemon shiny base; "1 in N". Cumulative chance of >=1 success over n equal-odds rolls.
+function cumulativeFlat(n, oneInN) {
+  if (n <= 0 || oneInN <= 0) return 0;
+  return 1 - Math.pow(1 - 1 / oneInN, n);
+}
+
+// Unchained tier for a given KO streak. Returns effective odds + next-tier info.
+function chainTier(streak) {
+  const base = state.config.baseShinyRate;
+  const ths = [...state.config.unchainedThresholds].sort((a, b) => a[0] - b[0]);
+  let bonus = 0, nextAt = null, nextBonus = null;
+  for (const [at, b] of ths) {
+    if (streak >= at) bonus = b;
+    else { nextAt = at; nextBonus = b; break; }
+  }
+  const chances = bonus + 1;            // Unchained: shinyChances = points + 1
+  const odds = base / chances;          // effective "1 in odds"
+  let next = null;
+  if (nextAt != null) next = { at: nextAt, in: nextAt - streak, odds: base / (nextBonus + 1) };
+  return { odds, chances, next };
+}
+
+// Cumulative chance across a KO streak, where each KO's odds depend on the streak at that step.
+function cumulativeChain(streak) {
+  let pNone = 1;
+  for (let k = 0; k < streak; k++) {
+    const odds = chainTier(k).odds; // odds faced on the k-th encounter (streak before this KO)
+    pNone *= 1 - 1 / odds;
+  }
+  return 1 - pNone;
+}
+
+function huntOddsLine(session) {
+  if (!session) return "";
+  const base = state.config.baseShinyRate;
+  const n = session.count;
+  if (state.hunt.mode === "chain") {
+    const t = chainTier(n);
+    const pct = (cumulativeChain(n) * 100).toFixed(2);
+    let line = `Current odds <b>1/${Math.round(t.odds)}</b> · ${pct}% chance by now`;
+    if (t.next) line += `<br><span class="muted">${t.next.in} KOs to next tier → 1/${Math.round(t.next.odds)}</span>`;
+    else line += `<br><span class="muted">max tier reached</span>`;
+    return line;
+  }
+  if (state.hunt.mode === "breeding") {
+    const odds = base / state.config.masudaMultiplier;
+    const pct = (cumulativeFlat(n, odds) * 100).toFixed(2);
+    return `Masuda ×${state.config.masudaMultiplier} → <b>1/${Math.round(odds)}</b> per egg · ${pct}% chance by now`;
+  }
+  const pct = (cumulativeFlat(n, base) * 100).toFixed(2);
+  return `Flat <b>1/${base}</b> · ${pct}% chance by now`;
+}
+
+function renderHunt() {
+  const h = state.hunt;
+  document.querySelectorAll("#hunt-mode .seg-btn").forEach((b) =>
+    b.classList.toggle("active", b.dataset.mode === h.mode));
+  els.huntModeDesc.textContent = MODE_DESC[h.mode];
+  els.huntCountLabel.textContent = COUNT_LABEL[h.mode];
+
+  const s = activeSession();
+  if (!s || h.activeDex == null) {
+    els.huntSprite.removeAttribute("src");
+    els.huntSprite.style.visibility = "hidden";
+    els.huntTarget.textContent = "No target selected";
+    els.huntCount.textContent = "0";
+    els.huntOdds.innerHTML = "";
+  } else {
+    const sp = DEX_BY_NUM[h.activeDex];
+    els.huntSprite.src = spriteUrl(h.activeDex, true);
+    els.huntSprite.style.visibility = "visible";
+    els.huntSprite.alt = sp ? sp.name : "";
+    els.huntTarget.textContent = sp ? `${sp.name.replace(/-/g, " ")} · #${String(sp.dex).padStart(4, "0")}` : "";
+    els.huntCount.textContent = String(s.count);
+    els.huntOdds.innerHTML = huntOddsLine(s);
+  }
+  renderFinds();
+}
+
+function renderFinds() {
+  const wrap = els.huntFinds;
+  const finds = state.hunt.finds;
+  if (!finds.length) {
+    wrap.innerHTML = `<p class="hint">No shinies logged yet — go get one. ✨</p>`;
+    return;
+  }
+  wrap.innerHTML = finds.slice().reverse().map((f) => {
+    const d = new Date(f.foundAt);
+    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return `<div class="find-row">
+      <img src="${spriteUrl(f.dex, true)}" alt="" />
+      <span class="find-name">${(f.name || "").replace(/-/g, " ")}</span>
+      <span class="muted">${f.mode} · ${f.count}${f.mode === "breeding" ? " eggs" : f.mode === "chain" ? " KOs" : ""} · ${date}</span>
+    </div>`;
+  }).join("");
+}
+
+function setMode(mode) { state.hunt.mode = mode; save(); renderHunt(); }
+function bumpCount(delta) {
+  const h = state.hunt;
+  if (h.activeDex == null) return;
+  const s = ensureSession(h.mode, h.activeDex);
+  s.count = Math.max(0, s.count + delta);
+  save(); renderHunt();
+}
+function loadTarget(raw) {
+  const q = String(raw || "").trim().toLowerCase().replace(/^#/, "");
+  if (!q) return;
+  let sp = SPECIES.find((s) => s.name === q);
+  if (!sp && /^\d+$/.test(q)) sp = DEX_BY_NUM[Number(q)];
+  if (!sp) sp = SPECIES.find((s) => s.name.startsWith(q));
+  if (!sp) { alert(`No species matching "${raw}".`); return; }
+  state.hunt.activeDex = sp.dex;
+  ensureSession(state.hunt.mode, sp.dex);
+  save(); renderHunt();
+}
+function foundShiny() {
+  const h = state.hunt;
+  if (h.activeDex == null) return;
+  const sp = DEX_BY_NUM[h.activeDex];
+  const s = ensureSession(h.mode, h.activeDex);
+  state.hunt.finds.push({ dex: h.activeDex, name: sp ? sp.name : String(h.activeDex), mode: h.mode, count: s.count, foundAt: Date.now() });
+  // Promote dex entry to at least Shiny (don't downgrade a Boxed one).
+  const cur = dexState(h.activeDex);
+  if (cur !== "boxed") state.dex[String(h.activeDex)] = "shiny";
+  // Reset this session's count for a fresh hunt.
+  s.count = 0;
+  save(); renderHunt(); renderDex();
+}
+
+function applyConfigInputs() {
+  const base = Number(els.cfgBase.value);
+  if (base > 0) state.config.baseShinyRate = base;
+  const mas = Number(els.cfgMasuda.value);
+  if (mas > 0) state.config.masudaMultiplier = mas;
+  const parsed = (els.cfgThresholds.value || "").split(",").map((p) => {
+    const m = p.trim().match(/^(\d+)\s*:\s*(\d+)$/);
+    return m ? [Number(m[1]), Number(m[2])] : null;
+  }).filter(Boolean);
+  if (parsed.length) state.config.unchainedThresholds = parsed.sort((a, b) => a[0] - b[0]);
+  save(); fillConfigInputs(); renderHunt();
+}
+function fillConfigInputs() {
+  els.cfgBase.value = state.config.baseShinyRate;
+  els.cfgMasuda.value = state.config.masudaMultiplier;
+  els.cfgThresholds.value = state.config.unchainedThresholds.map(([a, b]) => `${a}:${b}`).join(", ");
+}
+
 /* ---------- tabs ---------- */
 function showTab(name) {
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
@@ -158,9 +351,10 @@ function importData(file) {
     try {
       const d = JSON.parse(reader.result);
       if (!d || typeof d !== "object") throw new Error("bad file");
-      state = Object.assign({ dex: {}, forms: {}, config: { baseShinyRate: 8192 } }, d);
+      state = Object.assign(freshState(), d);
+      normalize();
       save();
-      renderDex(); renderForms();
+      renderDex(); renderForms(); fillConfigInputs(); renderHunt();
       alert("Imported.");
     } catch (e) { alert("Import failed: " + e.message); }
   };
@@ -177,6 +371,18 @@ function grabEls() {
     dexGen: document.getElementById("dex-gen"),
     dexFilter: document.getElementById("dex-filter"),
     formsStats: document.getElementById("forms-stats"),
+    huntModeDesc: document.getElementById("hunt-mode-desc"),
+    huntSprite: document.getElementById("hunt-sprite"),
+    huntTarget: document.getElementById("hunt-target"),
+    huntCount: document.getElementById("hunt-count"),
+    huntCountLabel: document.getElementById("hunt-count-label"),
+    huntOdds: document.getElementById("hunt-odds"),
+    huntInput: document.getElementById("hunt-input"),
+    speciesList: document.getElementById("species-list"),
+    huntFinds: document.getElementById("hunt-finds"),
+    cfgBase: document.getElementById("cfg-base"),
+    cfgThresholds: document.getElementById("cfg-thresholds"),
+    cfgMasuda: document.getElementById("cfg-masuda"),
     exportBtn: document.getElementById("export-btn"),
     importBtn: document.getElementById("import-btn"),
     importFile: document.getElementById("import-file"),
@@ -219,13 +425,43 @@ function wire() {
   els.dexGen.addEventListener("change", renderDex);
   els.dexFilter.addEventListener("change", renderDex);
 
+  // Hunt tab
+  document.getElementById("hunt-mode").addEventListener("click", (e) => {
+    const b = e.target.closest(".seg-btn"); if (b) setMode(b.dataset.mode);
+  });
+  document.getElementById("hunt-inc").addEventListener("click", () => bumpCount(1));
+  document.getElementById("hunt-dec").addEventListener("click", () => bumpCount(-1));
+  document.getElementById("hunt-set").addEventListener("click", () => {
+    const s = activeSession(); if (!s) { alert("Load a target first."); return; }
+    const v = prompt("Set count to:", s.count); const n = Number(v);
+    if (Number.isFinite(n) && n >= 0) { s.count = Math.floor(n); save(); renderHunt(); }
+  });
+  document.getElementById("hunt-reset").addEventListener("click", () => {
+    const s = activeSession(); if (s) { s.count = 0; save(); renderHunt(); }
+  });
+  document.getElementById("hunt-found").addEventListener("click", foundShiny);
+  document.getElementById("hunt-load").addEventListener("click", () => loadTarget(els.huntInput.value));
+  els.huntInput.addEventListener("keydown", (e) => { if (e.key === "Enter") loadTarget(els.huntInput.value); });
+  document.getElementById("cfg-save").addEventListener("click", applyConfigInputs);
+  document.getElementById("cfg-reset").addEventListener("click", () => {
+    state.config = defaultConfig(); save(); fillConfigInputs(); renderHunt();
+  });
+
+  // Spacebar = +1 while on the Hunt tab (and not typing in a field).
+  document.addEventListener("keydown", (e) => {
+    if (e.code !== "Space") return;
+    const onHunt = document.getElementById("panel-hunt").classList.contains("active");
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+    if (onHunt && !typing) { e.preventDefault(); bumpCount(1); }
+  });
+
   els.exportBtn.addEventListener("click", exportData);
   els.importBtn.addEventListener("click", () => els.importFile.click());
   els.importFile.addEventListener("change", (e) => { if (e.target.files[0]) importData(e.target.files[0]); });
   els.resetAll.addEventListener("click", () => {
     if (confirm("Erase ALL progress? Export first if unsure.")) {
-      state = { dex: {}, forms: {}, config: { baseShinyRate: 8192 } };
-      save(); renderDex(); renderForms();
+      state = freshState();
+      save(); renderDex(); renderForms(); fillConfigInputs(); renderHunt();
     }
   });
 }
@@ -261,9 +497,18 @@ async function boot() {
   ]);
   SPECIES = sp;
   FORMS = { mega: fm.mega, primal: fm.primal, gmax: fm.gmax };
+  DEX_BY_NUM = {};
+  SPECIES.forEach((s) => (DEX_BY_NUM[s.dex] = s));
+
+  // Populate the target datalist once.
+  els.speciesList.innerHTML = SPECIES
+    .map((s) => `<option value="${s.name}">#${String(s.dex).padStart(4, "0")}</option>`).join("");
+
   wire();
+  fillConfigInputs();
   renderDex();
   renderForms();
+  renderHunt();
   const hash = location.hash.replace("#", "");
   if (hash) showTab(hash);
 }

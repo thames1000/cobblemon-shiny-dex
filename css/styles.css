@@ -132,6 +132,35 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .mon.f-unlocked { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
 .mon.f-unlocked .badge { background: var(--gold); color: #3a2c00; }
 
+/* Hunt tab */
+.seg { display: flex; gap: 4px; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 10px; padding: 4px; margin-bottom: 8px; }
+.seg-btn { flex: 1; background: transparent; color: var(--muted); border: 0; border-radius: 7px;
+  padding: 10px; font-weight: 700; cursor: pointer; font-size: .9rem; }
+.seg-btn.active { background: var(--panel-2); color: var(--text); }
+.hunt-card { text-align: center; }
+.target { margin: 0 0 8px; }
+.target img { width: 96px; height: 96px; image-rendering: pixelated; visibility: hidden; }
+.target figcaption { color: var(--muted); font-size: .9rem; text-transform: capitalize; margin-top: 2px; }
+.counter-block { margin: 6px 0 12px; }
+.counter-label { color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .5px; }
+.counter-value { font-size: 3.2rem; font-weight: 800; line-height: 1; color: var(--gold); }
+.increment-btn { width: 100%; background: var(--accent); color: #04201d; border: 0; border-radius: 10px;
+  padding: 16px; font-size: 1.2rem; font-weight: 800; cursor: pointer; margin-bottom: 8px; }
+.increment-btn:active { transform: scale(.98); }
+.hunt-card .controls { justify-content: center; }
+.odds-readout { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line);
+  color: var(--muted); font-size: .9rem; line-height: 1.6; }
+.odds-readout b { color: var(--gold); }
+.summary-h { cursor: pointer; font-weight: 700; }
+.field { display: block; margin: 12px 0; font-size: .85rem; color: var(--muted); }
+.field input { margin-top: 6px; width: 100%; }
+.muted { color: var(--muted); }
+.find-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.find-row img { width: 40px; height: 40px; image-rendering: pixelated; }
+.find-name { font-weight: 700; text-transform: capitalize; }
+.find-row .muted { margin-left: auto; font-size: .8rem; text-transform: capitalize; }
+
 /* Controls */
 .controls { display: flex; gap: 8px; flex-wrap: wrap; }
 .ctrl-btn {

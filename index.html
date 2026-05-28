@@ -74,17 +74,64 @@
       <div class="grid" id="forms-grid-gmax"></div>
     </section>
 
-    <!-- ============ HUNT TAB (placeholder) ============ -->
+    <!-- ============ HUNT TAB ============ -->
     <section class="panel" id="panel-hunt">
-      <div class="card todo">
-        <h2>🎯 Hunt Logger</h2>
-        <p>Coming in Phase 2. Three co-equal modes, all with editable odds from your pack's mods:</p>
-        <ul>
-          <li><strong>KO-Chain (Unchained):</strong> per-species KO streak → threshold readout
-            (100→1/4096, 300→~1/2731, 500+→1/2048) with live cumulative odds.</li>
-          <li><strong>Breeding (Cobbreeding):</strong> egg counter with Masuda ×4 / Crystal toggle.</li>
-          <li><strong>Raw encounter:</strong> flat-odds counter + cumulative probability.</li>
-        </ul>
+      <div class="seg" id="hunt-mode">
+        <button class="seg-btn active" data-mode="chain">KO-Chain</button>
+        <button class="seg-btn" data-mode="breeding">Breeding</button>
+        <button class="seg-btn" data-mode="encounter">Encounter</button>
+      </div>
+      <p class="hint" id="hunt-mode-desc"></p>
+
+      <div class="card hunt-card">
+        <figure class="target">
+          <img id="hunt-sprite" alt="" />
+          <figcaption id="hunt-target">No target selected</figcaption>
+        </figure>
+
+        <div class="counter-block">
+          <div class="counter-label" id="hunt-count-label">KO streak</div>
+          <div id="hunt-count" class="counter-value">0</div>
+        </div>
+
+        <button id="hunt-inc" class="increment-btn">+1</button>
+        <div class="controls">
+          <button id="hunt-dec" class="ctrl-btn" title="Subtract one">−1</button>
+          <button id="hunt-set" class="ctrl-btn">Set</button>
+          <button id="hunt-reset" class="ctrl-btn">Reset</button>
+          <button id="hunt-found" class="ctrl-btn good">✨ Found!</button>
+        </div>
+
+        <div id="hunt-odds" class="odds-readout"></div>
+      </div>
+
+      <div class="card">
+        <h2>Target</h2>
+        <input list="species-list" id="hunt-input" class="search" placeholder="Type a name or #dex, then Load…" />
+        <datalist id="species-list"></datalist>
+        <div class="controls" style="margin-top:8px">
+          <button id="hunt-load" class="ctrl-btn">Load target</button>
+        </div>
+      </div>
+
+      <details class="card">
+        <summary class="summary-h">⚙ Odds settings (your pack's mod values)</summary>
+        <label class="field">Base shiny rate (1 / N)
+          <input type="number" id="cfg-base" class="search" min="1" />
+        </label>
+        <label class="field">Unchained KO-streak thresholds — <span class="muted">streak : +shiny chances</span>
+          <input type="text" id="cfg-thresholds" class="search" placeholder="100:1, 300:2, 500:3" />
+        </label>
+        <label class="field">Breeding shiny multiplier (Masuda ×N)
+          <input type="number" id="cfg-masuda" class="search" min="1" step="0.5" />
+        </label>
+        <div class="controls"><button id="cfg-save" class="ctrl-btn good">Save settings</button>
+          <button id="cfg-reset" class="ctrl-btn">Defaults</button></div>
+      </details>
+
+      <div class="card">
+        <h2>Recent finds</h2>
+        <div id="hunt-finds"><p class="hint" id="hunt-no-finds">No shinies logged yet — go get one. ✨</p></div>
       </div>
     </section>
 

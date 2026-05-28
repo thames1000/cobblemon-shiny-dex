@@ -329,6 +329,102 @@ function fillConfigInputs() {
   els.cfgThresholds.value = state.config.unchainedThresholds.map(([a, b]) => `${a}:${b}`).join(", ");
 }
 
+/* ---------- spawns tab ---------- */
+let SPAWNS = {};        // dex -> [entry]
+let BIOME_INDEX = {};   // biome -> [{dex, entry}]
+const RARITY_ORDER = { common: 0, uncommon: 1, rare: 2, "ultra-rare": 3 };
+let spawnMode = "mon";
+
+function buildBiomeIndex() {
+  BIOME_INDEX = {};
+  for (const dex in SPAWNS) {
+    for (const e of SPAWNS[dex]) {
+      for (const b of e.b) {
+        (BIOME_INDEX[b] = BIOME_INDEX[b] || []).push({ dex: Number(dex), entry: e });
+      }
+    }
+  }
+}
+
+function rarityChip(r) { return `<span class="r-chip r-${r}">${r}</span>`; }
+
+function entryDetail(e) {
+  const bits = [];
+  if (e.lv) bits.push(`Lv ${e.lv}`);
+  if (e.t) bits.push(`🕘 ${e.t}`);
+  if (e.wx) bits.push(`🌧 ${e.wx.join("/")}`);
+  if (e.sky === true) bits.push("needs sky");
+  if (e.sky === false) bits.push("underground");
+  if (e.pos && e.pos !== "grounded") bits.push(e.pos);
+  if (e.px) bits.push(`📍 ${e.px.join(", ")}`);
+  return bits.join(" · ");
+}
+
+function renderSpawnByMon(dex) {
+  const sp = DEX_BY_NUM[dex];
+  const rows = SPAWNS[dex];
+  if (!rows) {
+    return `<div class="card"><div class="find-row"><img src="${spriteUrl(dex)}" alt=""/>
+      <span class="find-name">${sp ? sp.name.replace(/-/g, " ") : "#" + dex}</span></div>
+      <p class="hint">No natural spawn in base Cobblemon. Likely obtained via evolution, breeding, fossil,
+      trade, an addon datapack, or an event.</p></div>`;
+  }
+  // "Best AFK biome" = entry with the highest weight.
+  const best = rows.slice().sort((a, b) => (b.w || 0) - (a.w || 0))[0];
+  const bestLine = best && best.b.length
+    ? `<p class="hint">⭐ Best AFK spot: <b>${best.b[0]}</b> (${best.r}${best.t ? ", " + best.t : ""})</p>` : "";
+  const list = rows
+    .sort((a, b) => RARITY_ORDER[a.r] - RARITY_ORDER[b.r] || (b.w || 0) - (a.w || 0))
+    .map((e) => `<div class="spawn-row">
+      <div class="spawn-biomes">${e.b.map((b) => `<span class="biome-chip" data-biome="${b}">${b}</span>`).join("")}</div>
+      <div class="spawn-meta">${rarityChip(e.r)} <span class="muted">${entryDetail(e)}</span></div>
+    </div>`).join("");
+  return `<div class="card">
+    <div class="find-row"><img src="${spriteUrl(dex, true)}" alt=""/>
+      <span class="find-name">${sp ? sp.name.replace(/-/g, " ") : "#" + dex}</span>
+      <button class="ctrl-btn hunt-link" data-dex="${dex}" style="margin-left:auto">🎯 Hunt</button></div>
+    ${bestLine}${list}</div>`;
+}
+
+function renderSpawnByBiome(biome) {
+  const list = (BIOME_INDEX[biome] || [])
+    .sort((a, b) => RARITY_ORDER[a.entry.r] - RARITY_ORDER[b.entry.r] || (b.entry.w || 0) - (a.entry.w || 0));
+  if (!list.length) return `<div class="card"><p class="hint">Nothing indexed for that biome.</p></div>`;
+  const cards = list.map(({ dex, entry }) => {
+    const sp = DEX_BY_NUM[dex];
+    return `<div class="mon" data-dex="${dex}" title="${entryDetail(entry)}">
+      <span class="badge r-${entry.r}">${entry.r[0].toUpperCase()}</span>
+      <img loading="lazy" src="${spriteUrl(dex)}" alt="${sp ? sp.name : dex}"/>
+      <div class="dexno">#${String(dex).padStart(4, "0")}</div>
+      <div class="nm">${sp ? sp.name.replace(/-/g, " ") : dex}</div></div>`;
+  }).join("");
+  return `<div class="card"><h2 style="text-transform:capitalize">${biome} <span class="muted" style="font-weight:400">· ${list.length} spawns</span></h2></div>
+    <div class="grid" id="spawn-biome-grid">${cards}</div>`;
+}
+
+function setSpawnMode(mode) {
+  spawnMode = mode;
+  document.querySelectorAll("#spawn-mode .seg-btn").forEach((b) => b.classList.toggle("active", b.dataset.smode === mode));
+  document.getElementById("spawn-mon-controls").hidden = mode !== "mon";
+  document.getElementById("spawn-biome-controls").hidden = mode !== "biome";
+  els.spawnResults.innerHTML = "";
+  if (mode === "biome") renderSpawnResults();
+}
+function renderSpawnResults() {
+  if (spawnMode === "biome") {
+    els.spawnResults.innerHTML = renderSpawnByBiome(els.spawnBiomeSelect.value);
+  }
+}
+function findSpawnByInput(raw) {
+  const q = String(raw || "").trim().toLowerCase().replace(/^#/, "");
+  if (!q) return;
+  let sp = SPECIES.find((s) => s.name === q);
+  if (!sp && /^\d+$/.test(q)) sp = DEX_BY_NUM[Number(q)];
+  if (!sp) sp = SPECIES.find((s) => s.name.startsWith(q));
+  if (!sp) { alert(`No species matching "${raw}".`); return; }
+  els.spawnResults.innerHTML = renderSpawnByMon(sp.dex);
+}
+
 /* ---------- tabs ---------- */
 function showTab(name) {
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
@@ -383,6 +479,9 @@ function grabEls() {
     cfgBase: document.getElementById("cfg-base"),
     cfgThresholds: document.getElementById("cfg-thresholds"),
     cfgMasuda: document.getElementById("cfg-masuda"),
+    spawnInput: document.getElementById("spawn-input"),
+    spawnBiomeSelect: document.getElementById("spawn-biome-select"),
+    spawnResults: document.getElementById("spawn-results"),
     exportBtn: document.getElementById("export-btn"),
     importBtn: document.getElementById("import-btn"),
     importFile: document.getElementById("import-file"),
@@ -447,6 +546,22 @@ function wire() {
     state.config = defaultConfig(); save(); fillConfigInputs(); renderHunt();
   });
 
+  // Spawns tab
+  document.getElementById("spawn-mode").addEventListener("click", (e) => {
+    const b = e.target.closest(".seg-btn"); if (b) setSpawnMode(b.dataset.smode);
+  });
+  document.getElementById("spawn-find").addEventListener("click", () => findSpawnByInput(els.spawnInput.value));
+  els.spawnInput.addEventListener("keydown", (e) => { if (e.key === "Enter") findSpawnByInput(els.spawnInput.value); });
+  els.spawnBiomeSelect.addEventListener("change", renderSpawnResults);
+  els.spawnResults.addEventListener("click", (e) => {
+    const huntLink = e.target.closest(".hunt-link");
+    if (huntLink) { loadTarget(DEX_BY_NUM[Number(huntLink.dataset.dex)].name); showTab("hunt"); return; }
+    const chip = e.target.closest(".biome-chip");
+    if (chip) { setSpawnMode("biome"); els.spawnBiomeSelect.value = chip.dataset.biome; renderSpawnResults(); return; }
+    const mon = e.target.closest(".mon[data-dex]");
+    if (mon) { setSpawnMode("mon"); els.spawnInput.value = DEX_BY_NUM[Number(mon.dataset.dex)].name; findSpawnByInput(els.spawnInput.value); }
+  });
+
   // Spacebar = +1 while on the Hunt tab (and not typing in a field).
   document.addEventListener("keydown", (e) => {
     if (e.code !== "Space") return;
@@ -491,18 +606,25 @@ if ("serviceWorker" in navigator) {
 async function boot() {
   grabEls();
   load();
-  const [sp, fm] = await Promise.all([
+  const [sp, fm, spawns] = await Promise.all([
     fetch("js/data/species.json").then((r) => r.json()),
     fetch("js/data/forms.json").then((r) => r.json()),
+    fetch("js/data/spawns.json").then((r) => r.json()).catch(() => ({})),
   ]);
   SPECIES = sp;
   FORMS = { mega: fm.mega, primal: fm.primal, gmax: fm.gmax };
+  SPAWNS = spawns;
   DEX_BY_NUM = {};
   SPECIES.forEach((s) => (DEX_BY_NUM[s.dex] = s));
+  buildBiomeIndex();
 
   // Populate the target datalist once.
   els.speciesList.innerHTML = SPECIES
     .map((s) => `<option value="${s.name}">#${String(s.dex).padStart(4, "0")}</option>`).join("");
+
+  // Populate biome dropdown (sorted, with spawn counts).
+  els.spawnBiomeSelect.innerHTML = Object.keys(BIOME_INDEX).sort()
+    .map((b) => `<option value="${b}">${b} (${BIOME_INDEX[b].length})</option>`).join("");
 
   wire();
   fillConfigInputs();

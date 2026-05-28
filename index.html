@@ -135,14 +135,27 @@
       </div>
     </section>
 
-    <!-- ============ SPAWNS TAB (placeholder) ============ -->
+    <!-- ============ SPAWNS TAB ============ -->
     <section class="panel" id="panel-spawns">
-      <div class="card todo">
-        <h2>🗺️ Spawn Locator</h2>
-        <p>Coming in Phase 3. Out-of-game planning that complements the in-game PokeNav:
-          reverse biome lookup and "best AFK biome for target X". Needs the spawn dataset
-          (parsed from Cobblemon's <code>spawn_pool_world</code> JSON).</p>
+      <div class="seg" id="spawn-mode">
+        <button class="seg-btn active" data-smode="mon">By Pokémon</button>
+        <button class="seg-btn" data-smode="biome">By Biome</button>
       </div>
+      <p class="hint">Out-of-game planning that complements the in-game PokéNav. Spawn data is base Cobblemon's
+        <code>spawn_pool_world</code> — species added only by addon datapacks may show "no natural spawn."</p>
+
+      <div class="card" id="spawn-mon-controls">
+        <h2>Find where a Pokémon spawns</h2>
+        <input list="species-list" id="spawn-input" class="search" placeholder="Type a name or #dex, then Find…" />
+        <div class="controls" style="margin-top:8px"><button id="spawn-find" class="ctrl-btn">Find spawns</button></div>
+      </div>
+
+      <div class="card" id="spawn-biome-controls" hidden>
+        <h2>See what spawns in a biome</h2>
+        <select id="spawn-biome-select" class="select" style="width:100%"></select>
+      </div>
+
+      <div id="spawn-results"></div>
     </section>
 
     <!-- ============ FARM TAB (placeholder) ============ -->

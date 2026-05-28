@@ -12,8 +12,8 @@ deploys straight to GitHub Pages. All progress is **manual** and stored in your 
 |-----|--------|--------------|
 | **Dex** | ✅ Phase 1 | Grid of all 1025 National Dex species. Tap to cycle `Seen → Caught → ✨Shiny → 📦Boxed`. Filter by gen / state, search, live shiny %. |
 | **Mega/GMax** | ✅ Phase 1 | Separate "wing" tracking Mega Stone / GMax-Factor **capability** (Mega/GMax are temporary battle states, not boxable forms). Doesn't dilute the main dex %. |
-| **Hunt** | 🚧 Phase 2 | Chain (Unchained), Breeding (Cobbreeding Masuda), and raw-encounter logger with editable mod odds. |
-| **Spawns** | 🚧 Phase 3 | Out-of-game spawn planning (reverse biome lookup, best AFK biome) — complements the in-game PokeNav. |
+| **Hunt** | ✅ Phase 2 | Chain (Unchained), Breeding (Cobbreeding Masuda), and raw-encounter logger with editable mod odds. |
+| **Spawns** | ✅ Phase 3 | Forward (by Pokémon → biomes/rarity/time + best AFK spot) and reverse (by biome → species) lookup. Complements the in-game PokéNav. |
 | **Farm** | 🚧 Phase 4 | Generic apricorn-farm sizing + encounter-farm throughput → expected time-to-shiny. |
 | **Data** | ✅ | Export / import / reset your progress. |
 
@@ -43,6 +43,9 @@ All paths are relative (`./...`), so it works under the `/<repo>/` subpath witho
 
 - `scripts/build-species.js` regenerates `js/data/species.json` (all 1025: dex/name/types/gen) from PokeAPI.
   Run `node scripts/build-species.js` when the pack updates Cobblemon.
+- `scripts/build-spawns.js` regenerates `js/data/spawns.json` from Cobblemon's `spawn_pool_world` JSON
+  (sparse-clone command in the script header). Base Cobblemon ships natural spawns for ~823 species; the rest
+  are obtained via evolution/breeding/fossil/trade/addon datapacks.
 - `js/data/forms.json` is the Mega/Primal/GMax list from the **Mega Showdown** mod (hand-authored; verify
   against your installed version).
 - Sprites are loaded on demand from the public PokeAPI sprite repo and cached by the service worker.

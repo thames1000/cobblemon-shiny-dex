@@ -161,6 +161,20 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .find-name { font-weight: 700; text-transform: capitalize; }
 .find-row .muted { margin-left: auto; font-size: .8rem; text-transform: capitalize; }
 
+/* Spawns tab */
+.spawn-row { padding: 8px 0; border-bottom: 1px solid var(--line); }
+.spawn-row:last-child { border-bottom: 0; }
+.spawn-biomes { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
+.biome-chip { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px;
+  padding: 2px 8px; font-size: .78rem; text-transform: capitalize; cursor: pointer; }
+.biome-chip:hover { border-color: var(--accent); }
+.spawn-meta { font-size: .82rem; }
+.r-chip { padding: 1px 7px; border-radius: 6px; font-size: .72rem; font-weight: 800; text-transform: capitalize; }
+.r-common { background: #5b6b7e; color: #fff; }
+.r-uncommon { background: #3b82f6; color: #fff; }
+.r-rare { background: #a855f7; color: #fff; }
+.r-ultra-rare { background: var(--gold); color: #3a2c00; }
+
 /* Controls */
 .controls { display: flex; gap: 8px; flex-wrap: wrap; }
 .ctrl-btn {

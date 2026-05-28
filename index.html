@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0e1726" />
+  <meta name="description" content="ShinyDex HQ — track a shiny living dex for the Cobblemon x Create modpack." />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>ShinyDex HQ</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>✨ ShinyDex HQ</h1>
+    <button id="install-btn" class="install-btn" hidden>Install</button>
+  </header>
+
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-tab="dex">Dex</button>
+    <button class="tab" data-tab="forms">Mega/GMax</button>
+    <button class="tab" data-tab="hunt">Hunt</button>
+    <button class="tab" data-tab="spawns">Spawns</button>
+    <button class="tab" data-tab="farm">Farm</button>
+    <button class="tab" data-tab="data">Data</button>
+  </nav>
+
+  <main class="app-main">
+    <!-- ============ DEX TAB ============ -->
+    <section class="panel active" id="panel-dex">
+      <div class="stats-bar" id="dex-stats"></div>
+
+      <div class="toolbar">
+        <input type="search" id="dex-search" class="search" placeholder="Search name or #dex…" />
+        <select id="dex-gen" class="select">
+          <option value="">All gens</option>
+          <option value="1">Gen 1</option><option value="2">Gen 2</option>
+          <option value="3">Gen 3</option><option value="4">Gen 4</option>
+          <option value="5">Gen 5</option><option value="6">Gen 6</option>
+          <option value="7">Gen 7</option><option value="8">Gen 8</option>
+          <option value="9">Gen 9</option>
+        </select>
+        <select id="dex-filter" class="select">
+          <option value="">All states</option>
+          <option value="need-shiny">Need shiny</option>
+          <option value="shiny-not-boxed">Shiny, not boxed</option>
+          <option value="boxed">Boxed</option>
+          <option value="missing">Not caught</option>
+        </select>
+      </div>
+
+      <p class="hint">Tap a card to cycle: <span class="legend l-seen">Seen</span> →
+        <span class="legend l-caught">Caught</span> →
+        <span class="legend l-shiny">✨ Shiny</span> →
+        <span class="legend l-boxed">📦 Boxed</span> → blank. Right-click / long-press steps back.</p>
+
+      <div class="grid" id="dex-grid"></div>
+    </section>
+
+    <!-- ============ MEGA/GMAX TAB ============ -->
+    <section class="panel" id="panel-forms">
+      <div class="stats-bar" id="forms-stats"></div>
+      <p class="hint">Mega &amp; Gigantamax are <strong>temporary battle states</strong>, so this wing tracks
+        <strong>capability</strong>: tap to mark a Mega Stone obtained / GMax Factor applied. Tracked separately so it
+        doesn't dilute your main dex %.</p>
+      <h2 class="section-h">Mega Evolutions</h2>
+      <div class="grid" id="forms-grid-mega"></div>
+      <h2 class="section-h">Primal Reversions</h2>
+      <div class="grid" id="forms-grid-primal"></div>
+      <h2 class="section-h">Gigantamax</h2>
+      <div class="grid" id="forms-grid-gmax"></div>
+    </section>
+
+    <!-- ============ HUNT TAB (placeholder) ============ -->
+    <section class="panel" id="panel-hunt">
+      <div class="card todo">
+        <h2>🎯 Hunt Logger</h2>
+        <p>Coming in Phase 2. Three co-equal modes, all with editable odds from your pack's mods:</p>
+        <ul>
+          <li><strong>KO-Chain (Unchained):</strong> per-species KO streak → threshold readout
+            (100→1/4096, 300→~1/2731, 500+→1/2048) with live cumulative odds.</li>
+          <li><strong>Breeding (Cobbreeding):</strong> egg counter with Masuda ×4 / Crystal toggle.</li>
+          <li><strong>Raw encounter:</strong> flat-odds counter + cumulative probability.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ============ SPAWNS TAB (placeholder) ============ -->
+    <section class="panel" id="panel-spawns">
+      <div class="card todo">
+        <h2>🗺️ Spawn Locator</h2>
+        <p>Coming in Phase 3. Out-of-game planning that complements the in-game PokeNav:
+          reverse biome lookup and "best AFK biome for target X". Needs the spawn dataset
+          (parsed from Cobblemon's <code>spawn_pool_world</code> JSON).</p>
+      </div>
+    </section>
+
+    <!-- ============ FARM TAB (placeholder) ============ -->
+    <section class="panel" id="panel-farm">
+      <div class="card todo">
+        <h2>🏭 Farm Planner</h2>
+        <p>Coming in Phase 4. Generic apricorn-farm sizing (trees × ~20-min growth → apricorns/hr)
+          and encounter-farm throughput → expected time-to-shiny for your target. No exact ball
+          recipes (your ball mod is closed-source).</p>
+      </div>
+    </section>
+
+    <!-- ============ DATA TAB ============ -->
+    <section class="panel" id="panel-data">
+      <div class="card">
+        <h2>Backup &amp; restore</h2>
+        <p class="hint">Your progress lives only in this browser. Export regularly — it's your only backup.</p>
+        <div class="controls">
+          <button id="export-btn" class="ctrl-btn good">⬇ Export JSON</button>
+          <button id="import-btn" class="ctrl-btn">⬆ Import JSON</button>
+          <input type="file" id="import-file" accept="application/json" hidden />
+        </div>
+      </div>
+      <div class="card">
+        <h2>Danger zone</h2>
+        <button id="reset-all" class="ctrl-btn danger">Reset all progress</button>
+      </div>
+      <div class="card">
+        <h2>About</h2>
+        <p class="hint">Built for the Cobblemon × Create modpack shiny living dex. Reference roster: 1025 National
+          Dex species + Mega/Primal/GMax (Mega Showdown). Progress is manual; data sourced from PokeAPI sprites
+          &amp; public Cobblemon data.</p>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

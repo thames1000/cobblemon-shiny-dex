@@ -200,9 +200,7 @@ function findSpecies(raw) {
 
 function gotoBox(b) { curBox = b; renderBoxes(); }
 
-function jumpToMon(raw, silent) {
-  const sp = findSpecies(raw);
-  if (!sp) { if (!silent && String(raw || "").trim()) alert(`No species matching "${raw}".`); return; }
+function jumpToSpecies(sp) {
   gotoBox(Math.floor((sp.dex - 1) / BOX_SIZE));
   const slot = els.boxGrid.querySelector(`.slot[data-dex="${sp.dex}"]`);
   if (slot) {
@@ -210,6 +208,18 @@ function jumpToMon(raw, silent) {
     slot.scrollIntoView({ block: "center", behavior: "smooth" });
     setTimeout(() => slot.classList.remove("slot-flash"), 1600);
   }
+}
+function jumpToMon(raw, silent) {
+  const sp = findSpecies(raw);
+  if (!sp) { if (!silent && String(raw || "").trim()) alert(`No species matching "${raw}".`); return; }
+  jumpToSpecies(sp);
+}
+// Exact match only — used on the `input` event so picking a datalist suggestion
+// jumps immediately, without jumping on every partial keystroke.
+function exactSpecies(raw) {
+  const q = String(raw || "").trim().toLowerCase().replace(/^#/, "");
+  if (!q) return null;
+  return SPECIES.find((s) => s.name === q) || (/^\d+$/.test(q) ? DEX_BY_NUM[Number(q)] : null) || null;
 }
 function gotoFirstGap() {
   const miss = SPECIES.find((sp) => dexState(sp.dex) !== "boxed");
@@ -691,7 +701,9 @@ function wire() {
   document.getElementById("box-next").addEventListener("click", () => gotoBox(curBox + 1));
   document.getElementById("box-gap").addEventListener("click", gotoFirstGap);
   els.boxSelect.addEventListener("change", () => gotoBox(Number(els.boxSelect.value)));
-  els.boxSearch.addEventListener("change", () => jumpToMon(els.boxSearch.value, true)); // datalist pick / blur (silent)
+  // `input` fires when a datalist suggestion is picked (and on each keystroke);
+  // jump only on an exact match so picking a suggestion works without a Go tap.
+  els.boxSearch.addEventListener("input", () => { const sp = exactSpecies(els.boxSearch.value); if (sp) jumpToSpecies(sp); });
   els.boxSearch.addEventListener("keydown", (e) => { if (e.key === "Enter") jumpToMon(els.boxSearch.value); });
   document.getElementById("box-go").addEventListener("click", () => jumpToMon(els.boxSearch.value));
   els.boxGrid.addEventListener("click", (e) => {
@@ -815,9 +827,10 @@ async function boot() {
   SPECIES.forEach((s) => (DEX_BY_NUM[s.dex] = s));
   buildBiomeIndex();
 
-  // Populate the target datalist once.
+  // Populate the target datalist once. Put the name in the label too, so browsers
+  // that filter suggestions by the label (not the value) still match name typing.
   els.speciesList.innerHTML = SPECIES
-    .map((s) => `<option value="${s.name}">#${String(s.dex).padStart(4, "0")}</option>`).join("");
+    .map((s) => `<option value="${s.name}">#${String(s.dex).padStart(4, "0")} ${s.name}</option>`).join("");
 
   // Populate biome dropdown (sorted, with spawn counts).
   els.spawnBiomeSelect.innerHTML = Object.keys(BIOME_INDEX).sort()

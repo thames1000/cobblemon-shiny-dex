@@ -200,9 +200,9 @@ function findSpecies(raw) {
 
 function gotoBox(b) { curBox = b; renderBoxes(); }
 
-function jumpToMon(raw) {
+function jumpToMon(raw, silent) {
   const sp = findSpecies(raw);
-  if (!sp) { if (String(raw || "").trim()) alert(`No species matching "${raw}".`); return; }
+  if (!sp) { if (!silent && String(raw || "").trim()) alert(`No species matching "${raw}".`); return; }
   gotoBox(Math.floor((sp.dex - 1) / BOX_SIZE));
   const slot = els.boxGrid.querySelector(`.slot[data-dex="${sp.dex}"]`);
   if (slot) {
@@ -691,8 +691,9 @@ function wire() {
   document.getElementById("box-next").addEventListener("click", () => gotoBox(curBox + 1));
   document.getElementById("box-gap").addEventListener("click", gotoFirstGap);
   els.boxSelect.addEventListener("change", () => gotoBox(Number(els.boxSelect.value)));
-  els.boxSearch.addEventListener("change", () => jumpToMon(els.boxSearch.value)); // datalist pick
+  els.boxSearch.addEventListener("change", () => jumpToMon(els.boxSearch.value, true)); // datalist pick / blur (silent)
   els.boxSearch.addEventListener("keydown", (e) => { if (e.key === "Enter") jumpToMon(els.boxSearch.value); });
+  document.getElementById("box-go").addEventListener("click", () => jumpToMon(els.boxSearch.value));
   els.boxGrid.addEventListener("click", (e) => {
     const slot = e.target.closest(".slot"); if (!slot) return;
     cycleDex(Number(slot.dataset.dex), false); renderBoxes(); syncDexCard(Number(slot.dataset.dex));

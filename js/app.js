@@ -188,7 +188,29 @@ function renderBoxes() {
     `<span class="stat">${shinyAll - boxedAll} shiny to deposit</span>`;
 }
 
+// Resolve a typed query (name or #dex) to a species; null if no match.
+function findSpecies(raw) {
+  const q = String(raw || "").trim().toLowerCase().replace(/^#/, "");
+  if (!q) return null;
+  return SPECIES.find((s) => s.name === q)
+    || (/^\d+$/.test(q) ? DEX_BY_NUM[Number(q)] : null)
+    || SPECIES.find((s) => s.name.startsWith(q))
+    || null;
+}
+
 function gotoBox(b) { curBox = b; renderBoxes(); }
+
+function jumpToMon(raw) {
+  const sp = findSpecies(raw);
+  if (!sp) { if (String(raw || "").trim()) alert(`No species matching "${raw}".`); return; }
+  gotoBox(Math.floor((sp.dex - 1) / BOX_SIZE));
+  const slot = els.boxGrid.querySelector(`.slot[data-dex="${sp.dex}"]`);
+  if (slot) {
+    slot.classList.add("slot-flash");
+    slot.scrollIntoView({ block: "center", behavior: "smooth" });
+    setTimeout(() => slot.classList.remove("slot-flash"), 1600);
+  }
+}
 function gotoFirstGap() {
   const miss = SPECIES.find((sp) => dexState(sp.dex) !== "boxed");
   if (!miss) { alert("Living dex complete — every species boxed! ✨"); return; }
@@ -597,6 +619,7 @@ function grabEls() {
     boxesStats: document.getElementById("boxes-stats"),
     boxSelect: document.getElementById("box-select"),
     boxGrid: document.getElementById("box-grid"),
+    boxSearch: document.getElementById("box-search"),
     huntModeDesc: document.getElementById("hunt-mode-desc"),
     huntSprite: document.getElementById("hunt-sprite"),
     huntTarget: document.getElementById("hunt-target"),
@@ -668,6 +691,8 @@ function wire() {
   document.getElementById("box-next").addEventListener("click", () => gotoBox(curBox + 1));
   document.getElementById("box-gap").addEventListener("click", gotoFirstGap);
   els.boxSelect.addEventListener("change", () => gotoBox(Number(els.boxSelect.value)));
+  els.boxSearch.addEventListener("change", () => jumpToMon(els.boxSearch.value)); // datalist pick
+  els.boxSearch.addEventListener("keydown", (e) => { if (e.key === "Enter") jumpToMon(els.boxSearch.value); });
   els.boxGrid.addEventListener("click", (e) => {
     const slot = e.target.closest(".slot"); if (!slot) return;
     cycleDex(Number(slot.dataset.dex), false); renderBoxes(); syncDexCard(Number(slot.dataset.dex));

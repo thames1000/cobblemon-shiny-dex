@@ -159,6 +159,11 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .slot.s-shiny .slot-no { color: var(--shiny); }
 .slot.s-boxed { border-color: var(--boxed); background: #0f2a22; }
 .slot.s-boxed .slot-no { color: var(--boxed); }
+.slot.slot-flash { animation: slot-flash 1.6s ease-out; }
+@keyframes slot-flash {
+  0%, 30% { box-shadow: 0 0 0 2px var(--accent), 0 0 14px var(--accent); border-color: var(--accent); }
+  100% { box-shadow: none; }
+}
 
 /* Hunt tab */
 .seg { display: flex; gap: 4px; background: var(--panel); border: 1px solid var(--line);

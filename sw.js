@@ -1,6 +1,14 @@
-/* Service worker — caches the app shell + bundled data so the dex works offline.
- * Remote sprites are cached on demand (stale-while-revalidate-ish: cache-first). */
-const CACHE = "shinydex-hq-v5";
+/* Service worker.
+ *
+ * Strategy:
+ *  - App's own files (HTML/JS/CSS/JSON, same-origin): NETWORK-FIRST. Always try
+ *    the network so new deploys show up immediately; fall back to cache offline.
+ *    (Cache-first here caused stale code to stick on devices between updates.)
+ *  - Remote sprites: CACHE-FIRST (immutable, fine to keep forever).
+ *
+ * Bump CACHE on every release so old caches are purged on activate.
+ */
+const CACHE = "shinydex-hq-v6";
 const SHELL = [
   "./",
   "./index.html",
@@ -29,18 +37,29 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   const req = e.request;
   if (req.method !== "GET") return;
-  const isSprite = req.url.includes("/sprites/pokemon/");
-  e.respondWith(
-    caches.match(req).then((hit) => {
-      if (hit) return hit;
-      return fetch(req).then((res) => {
-        // Cache successful shell + sprite responses for offline use.
-        if (res.ok && (isSprite || new URL(req.url).origin === location.origin)) {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(req, copy));
-        }
+  const url = new URL(req.url);
+  const isSprite = url.pathname.includes("/sprites/pokemon/");
+
+  if (isSprite) {
+    // Cache-first for immutable sprite assets.
+    e.respondWith(
+      caches.match(req).then((hit) => hit || fetch(req).then((res) => {
+        if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
         return res;
-      }).catch(() => hit);
-    })
+      }).catch(() => hit))
+    );
+    return;
+  }
+
+  // Network-first for everything same-origin (and anything else): freshest wins,
+  // cache is the offline fallback and is refreshed on every successful fetch.
+  e.respondWith(
+    fetch(req).then((res) => {
+      if (res.ok && url.origin === location.origin) {
+        const copy = res.clone();
+        caches.open(CACHE).then((c) => c.put(req, copy));
+      }
+      return res;
+    }).catch(() => caches.match(req))
   );
 });

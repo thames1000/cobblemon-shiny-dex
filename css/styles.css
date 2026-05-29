@@ -143,15 +143,22 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .slot {
   aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center;
   background: var(--bg-2); border: 1px solid var(--line); border-radius: 8px;
-  cursor: pointer; user-select: none; -webkit-user-select: none; position: relative;
+  cursor: pointer; user-select: none; -webkit-user-select: none; position: relative; overflow: hidden;
 }
 .slot:active { transform: scale(.94); }
-.slot img { width: 80%; height: 80%; image-rendering: pixelated; }
-.slot-no { font-size: .6rem; color: #45576c; }
-.slot.s-none { background: repeating-linear-gradient(45deg, var(--bg-2), var(--bg-2) 5px, var(--panel) 5px, var(--panel) 10px); }
-.slot.s-seen img, .slot.s-caught img { filter: grayscale(1) brightness(.8); opacity: .8; }
+.slot img { width: 84%; height: 84%; image-rendering: pixelated; }
+.slot-no {
+  position: absolute; bottom: 0; right: 0; font-size: .52rem; line-height: 1; font-weight: 700;
+  color: var(--muted); background: rgba(8, 14, 24, .72); padding: 1px 3px; border-top-left-radius: 5px;
+}
+/* Un-boxed slots: show the sprite so you can plan placement, but dim it. */
+.slot.s-none img { filter: grayscale(1) brightness(.55); opacity: .5; }
+.slot.s-seen img { filter: grayscale(1) brightness(.85); opacity: .7; }
+.slot.s-caught img { filter: grayscale(.4); opacity: .9; }
 .slot.s-shiny { border-color: var(--shiny); box-shadow: 0 0 6px var(--shiny); }
+.slot.s-shiny .slot-no { color: var(--shiny); }
 .slot.s-boxed { border-color: var(--boxed); background: #0f2a22; }
+.slot.s-boxed .slot-no { color: var(--boxed); }
 
 /* Hunt tab */
 .seg { display: flex; gap: 4px; background: var(--panel); border: 1px solid var(--line);

@@ -138,9 +138,11 @@ function slotCard(sp) {
   el.className = `slot s-${st}`;
   el.dataset.dex = sp.dex;
   el.title = `${sp.name} #${sp.dex} · ${st}`;
-  el.innerHTML = st === "none"
-    ? `<span class="slot-no">${String(sp.dex).padStart(4, "0")}</span>`
-    : `<img loading="lazy" src="${spriteUrl(sp.dex, shiny)}" alt="${sp.name}" />`;
+  // Always show the sprite + dex number so the box doubles as a placement planner.
+  // Un-boxed slots use the normal sprite (dimmed); boxed/shiny use the shiny sprite.
+  el.innerHTML =
+    `<img loading="lazy" src="${spriteUrl(sp.dex, shiny)}" alt="${sp.name}" />` +
+    `<span class="slot-no">${String(sp.dex).padStart(4, "0")}</span>`;
   return el;
 }
 

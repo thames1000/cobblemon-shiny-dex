@@ -633,14 +633,17 @@ function snackMult(sp, seasonings) {
 }
 
 function snackTotals(seasonings) {
-  let tier = 0, shiny = 1, biteKeep = 1, level = 0;
+  // Shiny modifiers stack ADDITIVELY: a "Nx" seasoning is a +(N-1) bonus, and the
+  // bonuses sum. Starf (5x = +400%) + Enchanted Golden Apple (10x = +900%) = 14x,
+  // not 50x. So total = 1 + Σ(bonus).
+  let tier = 0, shinyBonus = 0, biteKeep = 1, level = 0;
   for (const s of seasonings) {
     tier += s.rarityTier || 0;
-    shiny *= s.shiny || 1;
+    if (s.shiny) shinyBonus += s.shiny - 1;
     if (s.biteTime) biteKeep *= 1 + s.biteTime; // biteTime is negative (a reduction)
     level += s.level || 0;
   }
-  return { tier, shiny, level, biteReduction: Math.round((1 - biteKeep) * 100) };
+  return { tier, shiny: 1 + shinyBonus, level, biteReduction: Math.round((1 - biteKeep) * 100) };
 }
 
 const typeChip = (t) => `<span class="type-chip">${t}</span>`;
@@ -659,7 +662,7 @@ function renderSnackSummary(seasonings) {
   const evs = [...new Set(seasonings.filter((s) => s.ev).map((s) => s.ev))];
   const head = [];
   if (t.tier > 0) head.push(`<span class="snack-stat">Rarity <b>+${t.tier}</b></span>`);
-  if (t.shiny > 1) head.push(`<span class="snack-stat">✨ shiny <b>×${t.shiny}</b></span>`);
+  if (t.shiny > 1) head.push(`<span class="snack-stat">✨ shiny <b>×${t.shiny}</b> (+${(t.shiny - 1) * 100}%)</span>`);
   if (types.length) head.push(`<span class="snack-stat">Type bias ${types.map(typeChip).join(" ")}</span>`);
   if (eggs.length) head.push(`<span class="snack-stat">Egg group ${eggs.map(typeChip).join(" ")}</span>`);
   if (evs.length) head.push(`<span class="snack-stat">EV yield ${evs.map(typeChip).join(" ")}</span>`);
@@ -682,15 +685,14 @@ function renderSnackSummary(seasonings) {
     `<div class="snack-chips">${chips}</div>${note}`;
 }
 
-function renderSnackResults(biome, seasonings) {
+// Per-species attraction probability for a biome + seasonings. Returns a ranked
+// array [{dex, p, boosted}] where p sums to 1 across the pool (empty if no pool).
+function computeAttraction(biome, seasonings) {
   const pool = BIOME_INDEX[biome] || [];
-  if (!pool.length) {
-    els.snackResults.innerHTML = `<div class="card"><p class="hint">No spawn data indexed for this biome.</p></div>`;
-    return;
-  }
+  if (!pool.length) return [];
   const odds = bucketOdds(seasonings.reduce((a, s) => a + (s.rarityTier || 0), 0));
 
-  // Bucket each spawn entry, weighted by spawn weight × type multiplier.
+  // Bucket each spawn entry, weighted by spawn weight × type/egg/EV multiplier.
   const buckets = { common: [], uncommon: [], rare: [], "ultra-rare": [] };
   for (const { dex, entry } of pool) {
     if (!buckets[entry.r]) continue;
@@ -711,10 +713,16 @@ function renderSnackResults(biome, seasonings) {
       if (x.boosted) cur.boosted = true;
     }
   }
-  const ranked = Object.entries(attraction)
+  return Object.entries(attraction)
     .map(([dex, v]) => ({ dex: Number(dex), ...v }))
     .sort((a, b) => b.p - a.p);
+}
 
+function renderSnackResults(ranked) {
+  if (!ranked.length) {
+    els.snackResults.innerHTML = `<div class="card"><p class="hint">No spawn data indexed for this biome.</p></div>`;
+    return;
+  }
   const max = ranked[0].p || 1;
   const top = ranked.slice(0, 30);
   const rows = top.map((r) => {
@@ -736,12 +744,65 @@ function renderSnackResults(biome, seasonings) {
   els.snackResults.innerHTML = `<div class="card snack-list">${rows}</div>${more}`;
 }
 
+const SNACK_BITES = 9; // a Poké Snack is eaten in 9 bites = 9 attracted Pokémon.
+let snackRanked = [];  // current ranked attraction (cached so target/rate changes are cheap)
+let snackTarget = "any";
+
+// Rebuild the target dropdown from the current ranking, preserving the pick if still present.
+function populateSnackTargets(ranked) {
+  const prev = snackTarget;
+  els.snackTarget.innerHTML = `<option value="any">Any species (any shiny)</option>` +
+    ranked.slice(0, 30).map((r) => {
+      const sp = DEX_BY_NUM[r.dex];
+      return `<option value="${r.dex}">${(sp ? sp.name.replace(/-/g, " ") : "#" + r.dex)} — ${(r.p * 100).toFixed(1)}%</option>`;
+    }).join("");
+  if (prev !== "any" && ranked.some((r) => String(r.dex) === String(prev))) els.snackTarget.value = prev;
+  else { snackTarget = "any"; els.snackTarget.value = "any"; }
+}
+
+function renderSnackShiny(seasonings) {
+  if (!els.snackBaseRate.value) els.snackBaseRate.value = state.config.baseShinyRate;
+  const baseRate = Number(els.snackBaseRate.value) || state.config.baseShinyRate;
+  const shiny = snackTotals(seasonings).shiny;        // additive multiplier (e.g. 14)
+  const effOdds = baseRate / shiny;                   // 1-in-N that any one bite is shiny
+
+  if (!snackRanked.length) {
+    els.snackShinyOut.innerHTML = `<span class="muted">Pick a biome with spawn data to estimate snacks.</span>`;
+    return;
+  }
+  // Whole-pool ("any shiny") uses p = 1; a target species folds in how often it shows up.
+  let p = 1, label = "Any shiny (whole pool)";
+  if (snackTarget !== "any") {
+    const r = snackRanked.find((x) => String(x.dex) === String(snackTarget));
+    if (r) { p = r.p; const sp = DEX_BY_NUM[r.dex]; label = `${(sp ? sp.name.replace(/-/g, " ") : "#" + r.dex)} · ${(p * 100).toFixed(1)}% of visitors`; }
+  }
+  const targetOdds = effOdds / p;                     // 1-in-N that a bite is a shiny of the target
+  const snacks = (enc) => Math.max(1, Math.ceil(enc / SNACK_BITES));
+  const rows = [
+    ["Expected (avg)", Math.round(targetOdds)],
+    ["50% chance", encountersForProb(0.5, targetOdds)],
+    ["90% chance", encountersForProb(0.9, targetOdds)],
+    ["99% chance", encountersForProb(0.99, targetOdds)],
+  ];
+  const shinyNote = shiny > 1 ? ` (base 1/${baseRate} × ✨×${shiny})` : "";
+  els.snackShinyOut.innerHTML =
+    `Effective shiny odds <b>1/${Math.round(effOdds).toLocaleString()}</b> per Pokémon${shinyNote}<br>` +
+    `<span class="muted">Target: ${label} → 1 shiny per <b>1/${Math.round(targetOdds).toLocaleString()}</b> bites</span>` +
+    `<table class="farm-tbl" style="margin-top:10px"><tr><th></th><th>Pokémon (bites)</th><th>Snacks</th></tr>` +
+    rows.map(([l, n]) =>
+      `<tr><td>${l}</td><td><b>${n.toLocaleString()}</b></td><td>${snacks(n).toLocaleString()}</td></tr>`
+    ).join("") + `</table>`;
+}
+
 function renderSnack() {
   if (!els.snackBiome) return;
   const biome = els.snackBiome.value;
   const seasonings = selectedSeasonings();
+  snackRanked = computeAttraction(biome, seasonings);
   renderSnackSummary(seasonings);
-  renderSnackResults(biome, seasonings);
+  renderSnackResults(snackRanked);
+  populateSnackTargets(snackRanked);
+  renderSnackShiny(seasonings);
 }
 
 /* ---------- tabs ---------- */
@@ -809,6 +870,9 @@ function grabEls() {
     snackBiome: document.getElementById("snack-biome"),
     snackBase: document.getElementById("snack-base"),
     snackSummary: document.getElementById("snack-summary"),
+    snackBaseRate: document.getElementById("snack-base-rate"),
+    snackTarget: document.getElementById("snack-target"),
+    snackShinyOut: document.getElementById("snack-shiny-out"),
     snackResults: document.getElementById("snack-results"),
     farmTrees: document.getElementById("farm-trees"),
     farmGrowth: document.getElementById("farm-growth"),
@@ -923,6 +987,9 @@ function wire() {
   els.snackBiome.addEventListener("change", renderSnack);
   ["snack-s0", "snack-s1", "snack-s2"].forEach((id) =>
     document.getElementById(id).addEventListener("change", renderSnack));
+  // Target / base-rate only affect the shiny estimate — no need to recompute attraction.
+  els.snackTarget.addEventListener("change", () => { snackTarget = els.snackTarget.value; renderSnackShiny(selectedSeasonings()); });
+  els.snackBaseRate.addEventListener("input", () => renderSnackShiny(selectedSeasonings()));
   els.snackResults.addEventListener("click", (e) => {
     const row = e.target.closest(".snack-row[data-dex]");
     if (!row) return;

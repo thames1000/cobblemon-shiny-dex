@@ -210,9 +210,9 @@
 
       <div class="card" id="snack-summary"></div>
 
-      <div class="card">
-        <h2>🍪 Snacks to a shiny</h2>
-        <div class="seasoning-slots">
+      <details class="card">
+        <summary class="summary-h">🍪 Snacks to a shiny</summary>
+        <div class="seasoning-slots" style="margin-top:12px">
           <label class="field" style="margin:0">Base shiny rate (1 / N)
             <input type="number" id="snack-base-rate" class="search" min="1" />
           </label>
@@ -224,7 +224,7 @@
         <p class="hint">A Poké Snack is eaten in <strong>9 bites</strong>, so one snack ≈ 9 attracted Pokémon — each
           rolled at your effective shiny odds (base rate ÷ the snack's shiny multiplier). Pick a target species to
           fold in how often it actually shows up; "Any shiny" counts a shiny of <em>any</em> visitor.</p>
-      </div>
+      </details>
 
       <h2 class="section-h">Most likely visitors</h2>
       <div id="snack-results"></div>

@@ -208,6 +208,34 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .r-rare { background: #a855f7; color: #fff; }
 .r-ultra-rare { background: var(--gold); color: #3a2c00; }
 
+/* PokéSnack tab */
+.seasoning-slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 6px; }
+.snack-slot { width: 100%; }
+.type-chip {
+  display: inline-block; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px;
+  padding: 0 7px; font-size: .72rem; text-transform: capitalize; color: var(--text); vertical-align: middle;
+}
+.snack-head { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-bottom: 10px; }
+.snack-stat { font-size: .85rem; color: var(--muted); }
+.snack-stat b { color: var(--gold); }
+.snack-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.snack-chip {
+  display: flex; flex-direction: column; gap: 1px; background: var(--panel-2); border: 1px solid var(--line);
+  border-radius: 8px; padding: 6px 10px; font-size: .82rem;
+}
+.snack-chip .muted { font-size: .75rem; }
+.snack-list { padding: 4px 14px; }
+.snack-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+.snack-row:last-child { border-bottom: 0; }
+.snack-row:hover { background: var(--panel-2); }
+.snack-row img { width: 44px; height: 44px; image-rendering: pixelated; flex: 0 0 auto; }
+.snack-row-main { flex: 1 1 auto; min-width: 0; }
+.snack-row-name { font-weight: 700; text-transform: capitalize; font-size: .9rem; margin-bottom: 5px;
+  display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.snack-row .bar { height: 8px; }
+.snack-boost { background: var(--gold); color: #3a2c00; border-radius: 6px; padding: 0 6px; font-size: .68rem; font-weight: 800; }
+.snack-pct { flex: 0 0 auto; font-weight: 800; color: var(--gold); font-size: .95rem; min-width: 48px; text-align: right; }
+
 /* Farm tab */
 .farm-tbl { width: 100%; border-collapse: collapse; font-size: .9rem; }
 .farm-tbl th { text-align: left; color: var(--muted); font-weight: 600; font-size: .8rem; padding: 4px 6px; }

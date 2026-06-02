@@ -583,6 +583,158 @@ function quickOdds(which) {
 }
 function renderFarm() { renderFarmApricorn(); renderFarmShiny(); }
 
+/* ---------- pokésnack tab ---------- */
+/* Cobblemon 1.7: a Poké Snack draws Pokémon from the biome's spawn pool; the Bait
+ * Seasonings cooked in bias which ones bite. We model the two effects that decide
+ * *which species* shows up — type berries (×10 to a matching type) and rarity-tier
+ * boosts (shift the common→ultra-rare bucket odds). Other seasonings (shiny, level,
+ * IV/EV, nature, egg group, gender, ability) tune the *traits* of who's attracted,
+ * not which species, so they're surfaced in the summary but don't re-rank the list. */
+let BERRIES = [];        // [{id,name,group,effect,type?,rarityTier?,shiny?,...}]
+let BERRY_BY_ID = {};
+
+// Official Poké Snack rarity-bucket odds at seasoning tiers 0, 3 and 10 (Cobblemon Wiki).
+// Intermediate tiers are interpolated; this is an approximation of the in-game roll.
+const TIER_TABLE = {
+  0:  { common: 0.862,  uncommon: 0.1028, rare: 0.0251, "ultra-rare": 0.0101 },
+  3:  { common: 0.5937, uncommon: 0.2131, rare: 0.1235, "ultra-rare": 0.0697 },
+  10: { common: 0.2848, uncommon: 0.2408, rare: 0.2732, "ultra-rare": 0.2013 },
+};
+const BUCKETS = ["common", "uncommon", "rare", "ultra-rare"];
+function bucketOdds(tier) {
+  const t = Math.max(0, Math.min(10, tier));
+  const [lo, hi] = t <= 3 ? [0, 3] : [3, 10];
+  const f = (t - lo) / (hi - lo);
+  const out = {};
+  for (const b of BUCKETS) out[b] = TIER_TABLE[lo][b] + (TIER_TABLE[hi][b] - TIER_TABLE[lo][b]) * f;
+  return out;
+}
+
+function selectedSeasonings() {
+  return ["snack-s0", "snack-s1", "snack-s2"]
+    .map((id) => document.getElementById(id).value)
+    .filter(Boolean)
+    .map((id) => BERRY_BY_ID[id])
+    .filter(Boolean);
+}
+
+// ×10 per selected type berry whose type the species has (stacks across berries).
+function snackTypeMult(types, seasonings) {
+  let m = 1;
+  for (const s of seasonings) if (s.type && types.includes(s.type)) m *= 10;
+  return m;
+}
+
+function snackTotals(seasonings) {
+  let tier = 0, shiny = 1, biteKeep = 1, level = 0;
+  for (const s of seasonings) {
+    tier += s.rarityTier || 0;
+    shiny *= s.shiny || 1;
+    if (s.biteTime) biteKeep *= 1 + s.biteTime; // biteTime is negative (a reduction)
+    level += s.level || 0;
+  }
+  return { tier, shiny, level, biteReduction: Math.round((1 - biteKeep) * 100) };
+}
+
+const typeChip = (t) => `<span class="type-chip">${t}</span>`;
+
+function renderSnackSummary(seasonings) {
+  const wrap = els.snackSummary;
+  if (!seasonings.length) {
+    wrap.innerHTML = `<p class="hint">No seasonings yet — the list below shows the biome's <em>natural</em> spawn
+      distribution. Add a <strong>type berry</strong> (e.g. Occa → Fire) to bias attraction, or a rarity item
+      (Golden Apple, Enchanted Golden Apple…) to lure rarer Pokémon.</p>`;
+    return;
+  }
+  const t = snackTotals(seasonings);
+  const types = [...new Set(seasonings.filter((s) => s.type).map((s) => s.type))];
+  const head = [];
+  if (t.tier > 0) head.push(`<span class="snack-stat">Rarity <b>+${t.tier}</b></span>`);
+  if (t.shiny > 1) head.push(`<span class="snack-stat">✨ shiny <b>×${t.shiny}</b></span>`);
+  if (types.length) head.push(`<span class="snack-stat">Type bias ${types.map(typeChip).join(" ")}</span>`);
+  if (t.level > 0) head.push(`<span class="snack-stat">Level <b>+${t.level}</b></span>`);
+  if (t.biteReduction > 0) head.push(`<span class="snack-stat">Bite time <b>−${t.biteReduction}%</b></span>`);
+
+  const chips = seasonings.map((s) =>
+    `<div class="snack-chip"><b>${s.name}</b><span class="muted">${s.effect}</span></div>`).join("");
+
+  // Note effects that flavour the catch but can't re-rank species without trait data.
+  const traitOnly = seasonings.some((s) => s.eggGroups || s.nature || s.iv || s.ev || s.gender || s.ability);
+  const note = traitOnly
+    ? `<p class="hint" style="margin-bottom:0">Egg-group, nature, IV/EV, gender and ability seasonings change the
+       <em>traits</em> of the Pokémon that bite (not which species spawn), so they're listed here but don't reorder
+       the visitors below.</p>` : "";
+
+  wrap.innerHTML =
+    `<h2>This snack favours</h2>` +
+    `<div class="snack-head">${head.join("") || '<span class="muted">flavour only — no attraction change</span>'}</div>` +
+    `<div class="snack-chips">${chips}</div>${note}`;
+}
+
+function renderSnackResults(biome, seasonings) {
+  const pool = BIOME_INDEX[biome] || [];
+  if (!pool.length) {
+    els.snackResults.innerHTML = `<div class="card"><p class="hint">No spawn data indexed for this biome.</p></div>`;
+    return;
+  }
+  const odds = bucketOdds(seasonings.reduce((a, s) => a + (s.rarityTier || 0), 0));
+
+  // Bucket each spawn entry, weighted by spawn weight × type multiplier.
+  const buckets = { common: [], uncommon: [], rare: [], "ultra-rare": [] };
+  for (const { dex, entry } of pool) {
+    if (!buckets[entry.r]) continue;
+    const sp = DEX_BY_NUM[dex];
+    const types = sp ? sp.types : [];
+    const mult = snackTypeMult(types, seasonings);
+    buckets[entry.r].push({ dex, w: (entry.w || 1) * mult, boosted: mult > 1 });
+  }
+  // Only buckets with entries carry probability mass; renormalise across those present.
+  const present = BUCKETS.filter((b) => buckets[b].length);
+  const oddsSum = present.reduce((a, b) => a + odds[b], 0) || 1;
+
+  const attraction = {}; // dex -> { p, boosted }
+  for (const b of present) {
+    const tot = buckets[b].reduce((a, x) => a + x.w, 0) || 1;
+    const bucketProb = odds[b] / oddsSum;
+    for (const x of buckets[b]) {
+      const cur = attraction[x.dex] || (attraction[x.dex] = { p: 0, boosted: false });
+      cur.p += bucketProb * (x.w / tot);
+      if (x.boosted) cur.boosted = true;
+    }
+  }
+  const ranked = Object.entries(attraction)
+    .map(([dex, v]) => ({ dex: Number(dex), ...v }))
+    .sort((a, b) => b.p - a.p);
+
+  const max = ranked[0].p || 1;
+  const top = ranked.slice(0, 30);
+  const rows = top.map((r) => {
+    const sp = DEX_BY_NUM[r.dex];
+    const types = sp ? sp.types.map(typeChip).join(" ") : "";
+    const pct = (r.p * 100).toFixed(1);
+    return `<div class="snack-row" data-dex="${r.dex}">
+      <img loading="lazy" src="${spriteUrl(r.dex)}" alt="${sp ? sp.name : r.dex}" />
+      <div class="snack-row-main">
+        <div class="snack-row-name">${sp ? sp.name.replace(/-/g, " ") : "#" + r.dex} ${types}
+          ${r.boosted ? '<span class="snack-boost">▲ lured</span>' : ""}</div>
+        <div class="bar"><i style="width:${(r.p / max) * 100}%"></i></div>
+      </div>
+      <div class="snack-pct">${pct}%</div>
+    </div>`;
+  }).join("");
+
+  const more = ranked.length > top.length ? `<p class="hint">…and ${ranked.length - top.length} more rarer visitors.</p>` : "";
+  els.snackResults.innerHTML = `<div class="card snack-list">${rows}</div>${more}`;
+}
+
+function renderSnack() {
+  if (!els.snackBiome) return;
+  const biome = els.snackBiome.value;
+  const seasonings = selectedSeasonings();
+  renderSnackSummary(seasonings);
+  renderSnackResults(biome, seasonings);
+}
+
 /* ---------- tabs ---------- */
 function showTab(name) {
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
@@ -645,6 +797,10 @@ function grabEls() {
     spawnInput: document.getElementById("spawn-input"),
     spawnBiomeSelect: document.getElementById("spawn-biome-select"),
     spawnResults: document.getElementById("spawn-results"),
+    snackBiome: document.getElementById("snack-biome"),
+    snackBase: document.getElementById("snack-base"),
+    snackSummary: document.getElementById("snack-summary"),
+    snackResults: document.getElementById("snack-results"),
     farmTrees: document.getElementById("farm-trees"),
     farmGrowth: document.getElementById("farm-growth"),
     farmYield: document.getElementById("farm-yield"),
@@ -754,6 +910,19 @@ function wire() {
     if (mon) { setSpawnMode("mon"); els.spawnInput.value = DEX_BY_NUM[Number(mon.dataset.dex)].name; findSpawnByInput(els.spawnInput.value); }
   });
 
+  // PokéSnack tab
+  els.snackBiome.addEventListener("change", renderSnack);
+  ["snack-s0", "snack-s1", "snack-s2"].forEach((id) =>
+    document.getElementById(id).addEventListener("change", renderSnack));
+  els.snackResults.addEventListener("click", (e) => {
+    const row = e.target.closest(".snack-row[data-dex]");
+    if (!row) return;
+    setSpawnMode("mon");
+    els.spawnInput.value = DEX_BY_NUM[Number(row.dataset.dex)].name;
+    findSpawnByInput(els.spawnInput.value);
+    showTab("spawns");
+  });
+
   // Farm tab
   ["farmTrees", "farmGrowth", "farmYield", "farmPerBall", "farmTarget"].forEach((k) =>
     els[k].addEventListener("input", renderFarmApricorn));
@@ -815,14 +984,18 @@ if ("serviceWorker" in navigator) {
 async function boot() {
   grabEls();
   load();
-  const [sp, fm, spawns] = await Promise.all([
+  const [sp, fm, spawns, berries] = await Promise.all([
     fetch("js/data/species.json").then((r) => r.json()),
     fetch("js/data/forms.json").then((r) => r.json()),
     fetch("js/data/spawns.json").then((r) => r.json()).catch(() => ({})),
+    fetch("js/data/berries.json").then((r) => r.json()).catch(() => []),
   ]);
   SPECIES = sp;
   FORMS = { mega: fm.mega, primal: fm.primal, gmax: fm.gmax };
   SPAWNS = spawns;
+  BERRIES = berries;
+  BERRY_BY_ID = {};
+  BERRIES.forEach((b) => (BERRY_BY_ID[b.id] = b));
   DEX_BY_NUM = {};
   SPECIES.forEach((s) => (DEX_BY_NUM[s.dex] = s));
   buildBiomeIndex();
@@ -833,8 +1006,18 @@ async function boot() {
     .map((s) => `<option value="${s.name}">#${String(s.dex).padStart(4, "0")} ${s.name}</option>`).join("");
 
   // Populate biome dropdown (sorted, with spawn counts).
-  els.spawnBiomeSelect.innerHTML = Object.keys(BIOME_INDEX).sort()
+  const biomeOpts = Object.keys(BIOME_INDEX).sort()
     .map((b) => `<option value="${b}">${b} (${BIOME_INDEX[b].length})</option>`).join("");
+  els.spawnBiomeSelect.innerHTML = biomeOpts;
+  els.snackBiome.innerHTML = biomeOpts;
+
+  // Populate the 3 PokéSnack seasoning slots: "none" + grouped berries/items.
+  const groups = [...new Set(BERRIES.map((b) => b.group))];
+  const seasoningOpts = `<option value="">— none —</option>` + groups.map((g) =>
+    `<optgroup label="${g}">` +
+    BERRIES.filter((b) => b.group === g).map((b) => `<option value="${b.id}">${b.name}</option>`).join("") +
+    `</optgroup>`).join("");
+  ["snack-s0", "snack-s1", "snack-s2"].forEach((id) => { document.getElementById(id).innerHTML = seasoningOpts; });
 
   wire();
   fillConfigInputs();
@@ -843,6 +1026,7 @@ async function boot() {
   renderHunt();
   renderFarm();
   renderBoxes();
+  renderSnack();
   const hash = location.hash.replace("#", "");
   if (hash) showTab(hash);
 }

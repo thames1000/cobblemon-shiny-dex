@@ -25,6 +25,7 @@
     <button class="tab" data-tab="forms">Mega/GMax</button>
     <button class="tab" data-tab="hunt">Hunt</button>
     <button class="tab" data-tab="spawns">Spawns</button>
+    <button class="tab" data-tab="snack">PokéSnack</button>
     <button class="tab" data-tab="farm">Farm</button>
     <button class="tab" data-tab="data">Data</button>
   </nav>
@@ -177,6 +178,40 @@
       </div>
 
       <div id="spawn-results"></div>
+    </section>
+
+    <!-- ============ POKÉSNACK TAB ============ -->
+    <section class="panel" id="panel-snack">
+      <p class="hint">PokéSnack builder (Cobblemon 1.7). A snack placed in the world attracts Pokémon from the
+        <strong>local biome's spawn pool</strong>; the <strong>Bait Seasonings</strong> you cook into it bias
+        <em>which</em> ones show up. Pick a biome and up to 3 seasonings to simulate the most likely visitors.
+        Attraction % = chance the next Pokémon to bite is that species.</p>
+
+      <div class="card">
+        <h2>🍳 Build your snack</h2>
+        <label class="field">Biome (where you'll place it)
+          <select id="snack-biome" class="select" style="width:100%"></select>
+        </label>
+        <label class="field">Base recipe <span class="muted">(flavor only — doesn't change attraction)</span>
+          <select id="snack-base" class="select" style="width:100%">
+            <option value="milk">Milk-based (3× Moomoo Milk)</option>
+            <option value="honey">Honey (Honey Bottle + Vivichoke)</option>
+            <option value="grain">Grain (3× Hearty Grains)</option>
+          </select>
+        </label>
+        <div class="field">Bait Seasonings <span class="muted">(up to 3)</span>
+          <div class="seasoning-slots">
+            <select id="snack-s0" class="select snack-slot"></select>
+            <select id="snack-s1" class="select snack-slot"></select>
+            <select id="snack-s2" class="select snack-slot"></select>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" id="snack-summary"></div>
+
+      <h2 class="section-h">Most likely visitors</h2>
+      <div id="snack-results"></div>
     </section>
 
     <!-- ============ FARM TAB ============ -->

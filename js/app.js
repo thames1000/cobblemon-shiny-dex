@@ -868,7 +868,6 @@ function grabEls() {
     spawnBiomeSelect: document.getElementById("spawn-biome-select"),
     spawnResults: document.getElementById("spawn-results"),
     snackBiome: document.getElementById("snack-biome"),
-    snackBase: document.getElementById("snack-base"),
     snackSummary: document.getElementById("snack-summary"),
     snackBaseRate: document.getElementById("snack-base-rate"),
     snackTarget: document.getElementById("snack-target"),

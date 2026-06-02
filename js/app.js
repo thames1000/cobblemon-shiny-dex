@@ -1021,10 +1021,17 @@ async function boot() {
   els.snackBiome.innerHTML = biomeOpts;
 
   // Populate the 3 PokéSnack seasoning slots: "none" + grouped berries/items.
+  // Each option shows the berry's target (type / EV stat / egg group / nature …)
+  // so what it does is obvious without opening the summary.
+  const optTag = (b) => b.type || b.ev || b.iv || b.nature || (b.eggGroups && b.eggGroups.join("/"))
+    || (b.level ? `+${b.level} lv` : "");
   const groups = [...new Set(BERRIES.map((b) => b.group))];
   const seasoningOpts = `<option value="">— none —</option>` + groups.map((g) =>
     `<optgroup label="${g}">` +
-    BERRIES.filter((b) => b.group === g).map((b) => `<option value="${b.id}">${b.name}</option>`).join("") +
+    BERRIES.filter((b) => b.group === g).map((b) => {
+      const tag = optTag(b);
+      return `<option value="${b.id}">${b.name}${tag ? ` — ${tag}` : ""}</option>`;
+    }).join("") +
     `</optgroup>`).join("");
   ["snack-s0", "snack-s1", "snack-s2"].forEach((id) => { document.getElementById(id).innerHTML = seasoningOpts; });
 

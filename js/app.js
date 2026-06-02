@@ -585,11 +585,12 @@ function renderFarm() { renderFarmApricorn(); renderFarmShiny(); }
 
 /* ---------- pokésnack tab ---------- */
 /* Cobblemon 1.7: a Poké Snack draws Pokémon from the biome's spawn pool; the Bait
- * Seasonings cooked in bias which ones bite. We model the two effects that decide
- * *which species* shows up — type berries (×10 to a matching type) and rarity-tier
- * boosts (shift the common→ultra-rare bucket odds). Other seasonings (shiny, level,
- * IV/EV, nature, egg group, gender, ability) tune the *traits* of who's attracted,
- * not which species, so they're surfaced in the summary but don't re-rank the list. */
+ * Seasonings cooked in bias which ones bite. We model the effects that decide
+ * *which species* shows up — type, egg-group and EV-yield berries (each ×10 to a
+ * matching species) plus rarity-tier boosts (shift the common→ultra-rare bucket
+ * odds). The remaining seasonings (shiny, level, IV, nature, gender, ability) tune
+ * the *traits* of who's attracted, not which species, so they're surfaced in the
+ * summary but don't re-rank the list. */
 let BERRIES = [];        // [{id,name,group,effect,type?,rarityTier?,shiny?,...}]
 let BERRY_BY_ID = {};
 
@@ -618,10 +619,16 @@ function selectedSeasonings() {
     .filter(Boolean);
 }
 
-// ×10 per selected type berry whose type the species has (stacks across berries).
-function snackTypeMult(types, seasonings) {
+// ×10 per selected seasoning the species matches (type / egg group / EV yield).
+// Multipliers stack across seasonings, mirroring Cobblemon's bait math.
+function snackMult(sp, seasonings) {
+  if (!sp) return 1;
   let m = 1;
-  for (const s of seasonings) if (s.type && types.includes(s.type)) m *= 10;
+  for (const s of seasonings) {
+    if (s.type && sp.types.includes(s.type)) m *= 10;
+    if (s.eggGroups && sp.eggGroups && s.eggGroups.some((g) => sp.eggGroups.includes(g))) m *= 10;
+    if (s.ev && sp.ev && sp.ev.includes(s.ev)) m *= 10;
+  }
   return m;
 }
 
@@ -648,20 +655,24 @@ function renderSnackSummary(seasonings) {
   }
   const t = snackTotals(seasonings);
   const types = [...new Set(seasonings.filter((s) => s.type).map((s) => s.type))];
+  const eggs = [...new Set(seasonings.flatMap((s) => s.eggGroups || []))];
+  const evs = [...new Set(seasonings.filter((s) => s.ev).map((s) => s.ev))];
   const head = [];
   if (t.tier > 0) head.push(`<span class="snack-stat">Rarity <b>+${t.tier}</b></span>`);
   if (t.shiny > 1) head.push(`<span class="snack-stat">✨ shiny <b>×${t.shiny}</b></span>`);
   if (types.length) head.push(`<span class="snack-stat">Type bias ${types.map(typeChip).join(" ")}</span>`);
+  if (eggs.length) head.push(`<span class="snack-stat">Egg group ${eggs.map(typeChip).join(" ")}</span>`);
+  if (evs.length) head.push(`<span class="snack-stat">EV yield ${evs.map(typeChip).join(" ")}</span>`);
   if (t.level > 0) head.push(`<span class="snack-stat">Level <b>+${t.level}</b></span>`);
   if (t.biteReduction > 0) head.push(`<span class="snack-stat">Bite time <b>−${t.biteReduction}%</b></span>`);
 
   const chips = seasonings.map((s) =>
     `<div class="snack-chip"><b>${s.name}</b><span class="muted">${s.effect}</span></div>`).join("");
 
-  // Note effects that flavour the catch but can't re-rank species without trait data.
-  const traitOnly = seasonings.some((s) => s.eggGroups || s.nature || s.iv || s.ev || s.gender || s.ability);
+  // Note effects that flavour the catch but can't re-rank species (no per-species data).
+  const traitOnly = seasonings.some((s) => s.nature || s.iv || s.gender || s.ability);
   const note = traitOnly
-    ? `<p class="hint" style="margin-bottom:0">Egg-group, nature, IV/EV, gender and ability seasonings change the
+    ? `<p class="hint" style="margin-bottom:0">Nature, IV, gender and ability seasonings change the
        <em>traits</em> of the Pokémon that bite (not which species spawn), so they're listed here but don't reorder
        the visitors below.</p>` : "";
 
@@ -683,9 +694,7 @@ function renderSnackResults(biome, seasonings) {
   const buckets = { common: [], uncommon: [], rare: [], "ultra-rare": [] };
   for (const { dex, entry } of pool) {
     if (!buckets[entry.r]) continue;
-    const sp = DEX_BY_NUM[dex];
-    const types = sp ? sp.types : [];
-    const mult = snackTypeMult(types, seasonings);
+    const mult = snackMult(DEX_BY_NUM[dex], seasonings);
     buckets[entry.r].push({ dex, w: (entry.w || 1) * mult, boosted: mult > 1 });
   }
   // Only buckets with entries carry probability mass; renormalise across those present.

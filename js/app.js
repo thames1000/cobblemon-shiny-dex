@@ -873,17 +873,16 @@ function fmtCombo(combo) {
 
 function planCard(title, plan, sp, baseRate) {
   if (!plan) return "";
-  const eff = baseRate / plan.shiny;
+  const eff = baseRate / plan.shiny;                 // effective 1-in-N per Pokémon at the provided base rate
   const targetOdds = eff / plan.p;
-  const snacks = Math.max(1, Math.ceil(targetOdds / SNACK_BITES));
-  const snacks90 = Math.max(1, Math.ceil(encountersForProb(0.9, targetOdds) / SNACK_BITES));
+  const snacks = Math.max(1, Math.ceil(targetOdds / SNACK_BITES)); // expected snacks (avg)
   return `<div class="snack-plan">
     <h3>${title}</h3>
     <div class="plan-row"><span>Biome</span><b style="text-transform:capitalize">${plan.biome}</b></div>
     <div class="plan-row"><span>Snack</span><b>${fmtCombo(plan.combo)}</b></div>
     <div class="plan-row"><span>Spawn rate</span><b>${(plan.p * 100).toFixed(1)}%</b></div>
     <div class="plan-row"><span>Shiny odds</span><b>1/${Math.round(eff).toLocaleString()}</b> (✨×${plan.shiny})</div>
-    <div class="plan-row"><span>Snacks to shiny</span><b>~${snacks.toLocaleString()}</b> <span class="muted">(90%: ${snacks90.toLocaleString()})</span></div>
+    <div class="plan-row"><span>Snacks to shiny</span><b>~${snacks.toLocaleString()}</b> <span class="muted">expected</span></div>
     <button class="ctrl-btn plan-apply" data-biome="${plan.biome}" data-combo="${plan.combo.map((b) => b.id).join(",")}" data-dex="${sp.dex}">Load into builder</button>
   </div>`;
 }

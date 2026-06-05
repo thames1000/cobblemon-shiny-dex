@@ -188,6 +188,16 @@
         Attraction % = chance the next Pokémon to bite is that species.</p>
 
       <div class="card">
+        <h2>🏆 Best place &amp; snack</h2>
+        <p class="hint" style="margin-top:0">Enter a target — I'll search every biome it spawns in and every seasoning
+          combo (up to 3) for the setup that lands a shiny in the fewest snacks, balancing spawn rate against the shiny
+          boost. You get a budget plan and one that's allowed an Enchanted Golden Apple.</p>
+        <input list="species-list" id="snack-best-input" class="search" placeholder="Target Pokémon (name or #dex)…" style="width:100%" />
+        <div class="controls" style="margin-top:8px"><button id="snack-best-go" class="ctrl-btn good">Find best setup</button></div>
+        <div id="snack-best-out" style="margin-top:12px"></div>
+      </div>
+
+      <div class="card">
         <h2>🍳 Build your snack</h2>
         <label class="field">Biome (where you'll place it)
           <select id="snack-biome" class="select" style="width:100%"></select>

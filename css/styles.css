@@ -235,6 +235,14 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .snack-row .bar { height: 8px; }
 .snack-boost { background: var(--gold); color: #3a2c00; border-radius: 6px; padding: 0 6px; font-size: .68rem; font-weight: 800; }
 .snack-pct { flex: 0 0 auto; font-weight: 800; color: var(--gold); font-size: .95rem; min-width: 48px; text-align: right; }
+.snack-best-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.snack-plan { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.snack-plan h3 { margin: 0 0 8px; font-size: .95rem; color: var(--accent); }
+.plan-row { display: flex; justify-content: space-between; gap: 10px; align-items: baseline;
+  font-size: .85rem; padding: 4px 0; border-bottom: 1px solid var(--line); }
+.plan-row span { color: var(--muted); flex: 0 0 auto; }
+.plan-row b { text-align: right; }
+.plan-apply { width: 100%; margin-top: 10px; }
 
 /* Farm tab */
 .farm-tbl { width: 100%; border-collapse: collapse; font-size: .9rem; }

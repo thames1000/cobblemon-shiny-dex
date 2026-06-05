@@ -805,6 +805,126 @@ function renderSnack() {
   renderSnackShiny(seasonings);
 }
 
+/* ---------- best place & snack optimiser ---------- */
+/* Find the biome + ≤3 seasonings that get a shiny of a target in the fewest
+ * snacks. Snacks-to-shiny ∝ 1/(p × shinyMult), so we maximise spawn-share p
+ * times the shiny multiplier — jointly over every biome the species spawns in
+ * and every seasoning multiset. Only seasonings that move those two levers are
+ * candidates (matching type/egg/EV berries, and shiny/rarity boosters). */
+function relevantSeasonings(sp, allowEGA) {
+  const out = [], seen = new Set();
+  for (const b of BERRIES) {
+    let keep = false;
+    if (b.type) keep = sp.types.includes(b.type);
+    else if (b.eggGroups) keep = !!(sp.eggGroups && b.eggGroups.some((g) => sp.eggGroups.includes(g)));
+    else if (b.ev) keep = !!(sp.ev && sp.ev.includes(b.ev));
+    else if (b.shiny || b.rarityTier) keep = b.id === "enchanted-golden-apple" ? allowEGA : true;
+    if (!keep) continue;
+    // Collapse interchangeable boosters (same rarityTier+shiny) so combos stay small.
+    const sig = b.type || (b.eggGroups && b.eggGroups.join("/")) || b.ev || `boost:${b.rarityTier || 0}:${b.shiny || 0}`;
+    if (seen.has(sig)) continue;
+    seen.add(sig);
+    out.push(b);
+  }
+  return out;
+}
+
+// All multisets (with replacement) of size 0..maxK — the 3 slots can repeat a berry.
+function multisetCombos(items, maxK) {
+  const out = [[]];
+  const rec = (start, cur) => {
+    if (cur.length === maxK) return;
+    for (let i = start; i < items.length; i++) {
+      cur.push(items[i]);
+      out.push(cur.slice());
+      rec(i, cur);
+      cur.pop();
+    }
+  };
+  rec(0, []);
+  return out;
+}
+
+function bestSnackFor(dex, allowEGA) {
+  const sp = DEX_BY_NUM[dex];
+  if (!sp) return null;
+  const biomes = [...new Set((SPAWNS[dex] || []).flatMap((e) => e.b))].filter((b) => BIOME_INDEX[b]);
+  if (!biomes.length) return null;
+  const combos = multisetCombos(relevantSeasonings(sp, allowEGA), 3);
+  let best = null;
+  for (const biome of biomes) {
+    for (const combo of combos) {
+      const r = computeAttraction(biome, combo).find((x) => x.dex === dex);
+      if (!r || r.p <= 0) continue;
+      const shiny = snackTotals(combo).shiny;
+      const metric = 1 / (r.p * shiny); // ∝ snacks-to-shiny (baseRate is a constant scale)
+      if (!best || metric < best.metric) best = { biome, combo, p: r.p, shiny, metric };
+    }
+  }
+  return best;
+}
+
+function fmtCombo(combo) {
+  if (!combo.length) return "no seasonings (plain snack)";
+  const c = {};
+  combo.forEach((b) => (c[b.id] = (c[b.id] || 0) + 1));
+  return Object.entries(c).map(([id, n]) => `${n > 1 ? n + "× " : ""}${BERRY_BY_ID[id].name}`).join(" + ");
+}
+
+function planCard(title, plan, sp, baseRate) {
+  if (!plan) return "";
+  const eff = baseRate / plan.shiny;
+  const targetOdds = eff / plan.p;
+  const snacks = Math.max(1, Math.ceil(targetOdds / SNACK_BITES));
+  const snacks90 = Math.max(1, Math.ceil(encountersForProb(0.9, targetOdds) / SNACK_BITES));
+  return `<div class="snack-plan">
+    <h3>${title}</h3>
+    <div class="plan-row"><span>Biome</span><b style="text-transform:capitalize">${plan.biome}</b></div>
+    <div class="plan-row"><span>Snack</span><b>${fmtCombo(plan.combo)}</b></div>
+    <div class="plan-row"><span>Spawn rate</span><b>${(plan.p * 100).toFixed(1)}%</b></div>
+    <div class="plan-row"><span>Shiny odds</span><b>1/${Math.round(eff).toLocaleString()}</b> (✨×${plan.shiny})</div>
+    <div class="plan-row"><span>Snacks to shiny</span><b>~${snacks.toLocaleString()}</b> <span class="muted">(90%: ${snacks90.toLocaleString()})</span></div>
+    <button class="ctrl-btn plan-apply" data-biome="${plan.biome}" data-combo="${plan.combo.map((b) => b.id).join(",")}" data-dex="${sp.dex}">Load into builder</button>
+  </div>`;
+}
+
+function renderBestSnack(raw) {
+  const sp = findSpecies(raw);
+  if (!sp) { els.snackBestOut.innerHTML = `<p class="hint">No species matching "${raw}".</p>`; return; }
+  const without = bestSnackFor(sp.dex, false);
+  if (!without) {
+    els.snackBestOut.innerHTML = `<p class="hint">${sp.name.replace(/-/g, " ")} has no natural Poké Snack spawn in base
+      Cobblemon, so a snack can't lure it.</p>`;
+    return;
+  }
+  const baseRate = Number(els.snackBaseRate.value) || state.config.baseShinyRate;
+  const withEGA = bestSnackFor(sp.dex, true);
+  const usesEGA = withEGA && withEGA.combo.some((b) => b.id === "enchanted-golden-apple");
+  const egaNote = !usesEGA
+    ? `<p class="hint">An Enchanted Golden Apple doesn't beat the budget plan for ${sp.name.replace(/-/g, " ")} — it's
+       common enough that the rarity shift costs more than the shiny boost gains, so both plans match.</p>` : "";
+  els.snackBestOut.innerHTML =
+    `<div class="find-row" style="border:0;padding:0 0 8px"><img src="${spriteUrl(sp.dex, true)}" alt=""/>
+       <span class="find-name">Best plan · ${sp.name.replace(/-/g, " ")}</span></div>` +
+    `<div class="snack-best-grid">` +
+      planCard("Budget · no EGA", without, sp, baseRate) +
+      planCard("Premium · with EGA", withEGA, sp, baseRate) +
+    `</div>${egaNote}` +
+    `<p class="hint">Optimised for the fewest snacks to a <em>shiny of this species</em> (spawn rate × shiny boost).
+      Base shiny rate ${baseRate} (edit it in "Snacks to a shiny"). "Load into builder" fills the controls above.</p>`;
+}
+
+// Apply a recommended plan to the manual builder so the full visitor list + estimate show.
+function applySnackPlan(biome, ids, dex) {
+  els.snackBiome.value = biome;
+  ["snack-s0", "snack-s1", "snack-s2"].forEach((s, i) => { document.getElementById(s).value = ids[i] || ""; });
+  snackTarget = String(dex);
+  renderSnack();
+  els.snackTarget.value = String(dex);
+  renderSnackShiny(selectedSeasonings());
+  els.snackBiome.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
 /* ---------- tabs ---------- */
 function showTab(name) {
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
@@ -872,6 +992,8 @@ function grabEls() {
     snackBaseRate: document.getElementById("snack-base-rate"),
     snackTarget: document.getElementById("snack-target"),
     snackShinyOut: document.getElementById("snack-shiny-out"),
+    snackBestInput: document.getElementById("snack-best-input"),
+    snackBestOut: document.getElementById("snack-best-out"),
     snackResults: document.getElementById("snack-results"),
     farmTrees: document.getElementById("farm-trees"),
     farmGrowth: document.getElementById("farm-growth"),
@@ -989,6 +1111,13 @@ function wire() {
   // Target / base-rate only affect the shiny estimate — no need to recompute attraction.
   els.snackTarget.addEventListener("change", () => { snackTarget = els.snackTarget.value; renderSnackShiny(selectedSeasonings()); });
   els.snackBaseRate.addEventListener("input", () => renderSnackShiny(selectedSeasonings()));
+  // Best place & snack optimiser
+  document.getElementById("snack-best-go").addEventListener("click", () => renderBestSnack(els.snackBestInput.value));
+  els.snackBestInput.addEventListener("keydown", (e) => { if (e.key === "Enter") renderBestSnack(els.snackBestInput.value); });
+  els.snackBestOut.addEventListener("click", (e) => {
+    const btn = e.target.closest(".plan-apply"); if (!btn) return;
+    applySnackPlan(btn.dataset.biome, btn.dataset.combo ? btn.dataset.combo.split(",") : [], Number(btn.dataset.dex));
+  });
   els.snackResults.addEventListener("click", (e) => {
     const row = e.target.closest(".snack-row[data-dex]");
     if (!row) return;

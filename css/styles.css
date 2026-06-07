@@ -201,6 +201,10 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .biome-chip { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px;
   padding: 2px 8px; font-size: .78rem; text-transform: capitalize; cursor: pointer; }
 .biome-chip:hover { border-color: var(--accent); }
+/* Legendary / structure spawn sites (not clickable biomes) — accent-tinted. */
+.struct-chip { background: color-mix(in srgb, var(--accent) 16%, var(--panel-2));
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); border-radius: 6px;
+  padding: 2px 8px; font-size: .78rem; text-transform: capitalize; }
 .spawn-meta { font-size: .82rem; }
 .r-chip { padding: 1px 7px; border-radius: 6px; font-size: .72rem; font-weight: 800; text-transform: capitalize; }
 .r-common { background: #5b6b7e; color: #fff; }

@@ -458,7 +458,11 @@ function entryDetail(e) {
   if (e.sky === true) bits.push("needs sky");
   if (e.sky === false) bits.push("underground");
   if (e.pos && e.pos !== "grounded") bits.push(e.pos);
-  if (e.px) bits.push(`📍 ${e.px.join(", ")}`);
+  // Presets/structures are the headline location when there's no biome (rendered
+  // as chips); only repeat them in the detail line when a biome leads.
+  if (e.px && e.b.length) bits.push(`📍 ${e.px.join(", ")}`);
+  if (e.st && e.b.length) bits.push(`🏛 ${e.st.join(", ")}`);
+  if (e.bo) bits.push(e.bo.join(" "));
   return bits.join(" · ");
 }
 
@@ -468,19 +472,28 @@ function renderSpawnByMon(dex) {
   if (!rows) {
     return `<div class="card"><div class="find-row"><img src="${spriteUrl(dex)}" alt=""/>
       <span class="find-name">${sp ? sp.name.replace(/-/g, " ") : "#" + dex}</span></div>
-      <p class="hint">No natural spawn in base Cobblemon. Likely obtained via evolution, breeding, fossil,
-      trade, an addon datapack, or an event.</p></div>`;
+      <p class="hint">No wild spawn in Cobbleverse. Obtained via evolution, breeding, a fossil/craft
+      (e.g. Type: Null, Melmetal, Gholdengo), trade, or a special event.</p></div>`;
   }
-  // "Best AFK biome" = entry with the highest weight.
+  // "Best spot" = entry with the highest weight (biome name, or structure/site
+  // for legendaries that only appear at a fixed location).
   const best = rows.slice().sort((a, b) => (b.w || 0) - (a.w || 0))[0];
-  const bestLine = best && best.b.length
-    ? `<p class="hint">⭐ Best AFK spot: <b>${best.b[0]}</b> (${best.r}${best.t ? ", " + best.t : ""})</p>` : "";
+  const bestLoc = best ? (best.b[0] || (best.st && best.st[0])) : null;
+  const bestLine = bestLoc
+    ? `<p class="hint">⭐ ${best.b.length ? "Best AFK spot" : "Find at"}: <b>${bestLoc}</b> (${best.r}${best.t ? ", " + best.t : ""})</p>` : "";
   const list = rows
     .sort((a, b) => RARITY_ORDER[a.r] - RARITY_ORDER[b.r] || (b.w || 0) - (a.w || 0))
-    .map((e) => `<div class="spawn-row">
-      <div class="spawn-biomes">${e.b.map((b) => `<span class="biome-chip" data-biome="${b}">${b}</span>`).join("")}</div>
+    .map((e) => {
+      const loc = e.b.length
+        ? e.b.map((b) => `<span class="biome-chip" data-biome="${b}">${b}</span>`).join("")
+        : e.st ? e.st.map((s) => `<span class="struct-chip">🏛 ${s}</span>`).join("")
+        : e.px ? e.px.map((p) => `<span class="struct-chip">📍 ${p}</span>`).join("")
+        : `<span class="muted">special / event</span>`;
+      return `<div class="spawn-row">
+      <div class="spawn-biomes">${loc}</div>
       <div class="spawn-meta">${rarityChip(e.r)} <span class="muted">${entryDetail(e)}</span></div>
-    </div>`).join("");
+    </div>`;
+    }).join("");
   return `<div class="card">
     <div class="find-row"><img src="${spriteUrl(dex, true)}" alt=""/>
       <span class="find-name">${sp ? sp.name.replace(/-/g, " ") : "#" + dex}</span>

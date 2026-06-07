@@ -44,9 +44,13 @@ All paths are relative (`./...`), so it works under the `/<repo>/` subpath witho
 
 - `scripts/build-species.js` regenerates `js/data/species.json` (all 1025: dex/name/types/gen) from PokeAPI.
   Run `node scripts/build-species.js` when the pack updates Cobblemon.
-- `scripts/build-spawns.js` regenerates `js/data/spawns.json` from Cobblemon's `spawn_pool_world` JSON
-  (sparse-clone command in the script header). Base Cobblemon ships natural spawns for ~823 species; the rest
-  are obtained via evolution/breeding/fossil/trade/addon datapacks.
+- `scripts/build-spawns.js` regenerates `js/data/spawns.json` from a `spawn_pool_world` directory.
+  This pack uses **Cobbleverse** spawn rules (its bundled `COBBLEVERSE-DP-*.zip` datapack), which cover
+  **1017 species** — including legendaries, mythicals and paradox mons that have *no* spawn in base Cobblemon.
+  Those legendaries are found at named structures / custom sites (e.g. Articuno Tower, Whirl Island, Sky Pillar),
+  surfaced in the Spawns tab as 🏛 site chips alongside any weather/moon weight boosts. See the script header for
+  how to point it at the datapack. Only 8 craft/fossil mons (Type: Null, Silvally, Melmetal, the fossil duos,
+  Gholdengo) have no wild spawn.
 - `js/data/forms.json` is the Mega/Primal/GMax list from the **Mega Showdown** mod (hand-authored; verify
   against your installed version).
 - Sprites are loaded on demand from the public PokeAPI sprite repo and cached by the service worker.

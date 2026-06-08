@@ -122,7 +122,232 @@ function load() {
   } catch (_) { /* keep defaults */ }
   normalize();
 }
-function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+function save() {
+  state.updatedAt = Date.now();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (cloudActive && !applyingRemote) scheduleCloudPush();
+}
+
+/* ---------- cloud sync (optional) ----------
+ * All Firebase code lives in the cloud.js ES module; we talk to it only through
+ * window.ShinyCloud and the "cloud-auth"/"cloud-status" events (wired in boot()).
+ * Guest mode is the default — none of this runs until the user signs in, and a
+ * sign-in NEVER silently overwrites local progress (conflicts prompt the user). */
+let cloudActive = false;    // true once signed in and the initial sync has resolved
+let applyingRemote = false; // guard so applying a cloud copy doesn't echo back up
+let cloudPushTimer = null;
+let cloudUser = null;       // {uid,email,displayName} | null
+let lastSyncAt = 0;
+let pendingRemote = null;   // remote copy awaiting a conflict choice
+
+// Exposed synchronously so it exists before the deferred cloud.js module runs.
+window.ShinyApp = {
+  getStateJson: () => JSON.stringify(state),
+  applyRemote: (json) => applyRemoteState(json),
+  hasProgress: () => localHasProgress(),
+  updatedAt: () => state.updatedAt || 0,
+};
+
+// Does local state hold real progress (vs fresh defaults)? Drives "seed cloud" vs
+// "conflict" on first sign-in so we never clobber a populated cloud or device.
+function localHasProgress() {
+  const h = state.hunt || {};
+  return (
+    Object.keys(state.dex || {}).length > 0 ||
+    Object.keys(state.forms || {}).length > 0 ||
+    Object.keys(state.variants || {}).length > 0 ||
+    Object.keys(state.berries || {}).length > 0 ||
+    Object.keys(h.sessions || {}).length > 0
+  );
+}
+
+function emitCloudStatus(stateName, extra) {
+  window.dispatchEvent(new CustomEvent("cloud-status", { detail: Object.assign({ state: stateName }, extra || {}) }));
+}
+function scheduleCloudPush() {
+  if (!cloudActive || !window.ShinyCloud || !window.ShinyCloud.configured) return;
+  if (cloudPushTimer) clearTimeout(cloudPushTimer);
+  cloudPushTimer = setTimeout(pushToCloud, 1500);
+  emitCloudStatus("syncing");
+}
+async function pushToCloud() {
+  cloudPushTimer = null;
+  if (!cloudActive || !window.ShinyCloud) return;
+  try {
+    await window.ShinyCloud.save(JSON.stringify(state));
+    emitCloudStatus("synced", { at: Date.now() });
+  } catch (e) {
+    emitCloudStatus("error", { message: (e && e.message) || "Sync failed" });
+  }
+}
+
+// Replace local state with a cloud copy WITHOUT pushing it straight back up.
+function applyRemoteState(json) {
+  let d;
+  try { d = JSON.parse(json); } catch (_) { return; }
+  if (!d || typeof d !== "object") return;
+  applyingRemote = true;
+  state = Object.assign(freshState(), d);
+  normalize();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  renderAll();
+  applyingRemote = false;
+}
+function renderAll() {
+  renderDex(); renderForms(); renderVariants(); renderBerries(); renderParty();
+  fillConfigInputs(); renderHunt(); renderBoxes(); renderSnack();
+}
+
+/* ----- account UI ----- */
+const SYNC_TEXT = {
+  syncing: "Syncing…",
+  synced: "All changes synced ✓",
+  error: "Sync error — changes saved on this device",
+  offline: "Offline — will sync when reconnected",
+};
+function showAccountView() {
+  const configured = !!(window.ShinyCloud && window.ShinyCloud.configured);
+  if (els.accountUnconfigured) els.accountUnconfigured.hidden = configured;
+  if (els.accountSignedout) els.accountSignedout.hidden = !configured || !!cloudUser;
+  if (els.accountSignedin) els.accountSignedin.hidden = !configured || !cloudUser;
+  if (cloudUser && els.accountWho) els.accountWho.textContent = cloudUser.email || cloudUser.displayName || "Signed in";
+}
+function setSyncBadge(stateName, message) {
+  const el = els.accountStatus;
+  if (!el) return;
+  const known = SYNC_TEXT[stateName];
+  el.dataset.sync = known ? stateName : "";
+  el.textContent = stateName === "error" && message ? message : (known || "");
+}
+function showAuthError(msg) {
+  if (!els.authError) return;
+  els.authError.textContent = msg || "";
+  els.authError.hidden = !msg;
+}
+function fmtWhen(ms) {
+  if (!ms) return "unknown time";
+  try { return new Date(ms).toLocaleString(); } catch (_) { return "unknown time"; }
+}
+
+// Reacts to a Firebase auth change relayed by cloud.js.
+async function onCloudAuth(user) {
+  cloudUser = user;
+  showAuthError("");
+  if (els.accountConflict) els.accountConflict.hidden = true;
+  if (!user) { cloudActive = false; setSyncBadge(""); showAccountView(); return; }
+  showAccountView();
+  setSyncBadge("syncing");
+  try {
+    const remote = await window.ShinyCloud.load();
+    cloudActive = true;
+    if (!remote) {
+      // First time on this account — seed the cloud from whatever is local.
+      if (localHasProgress()) await pushToCloud(); else setSyncBadge("synced");
+    } else if (!localHasProgress()) {
+      // Nothing to lose on this device — just take the cloud copy.
+      applyRemoteState(remote.json);
+      setSyncBadge("synced");
+    } else {
+      // Both sides have data — never auto-clobber; let the user choose.
+      resolveConflict(remote);
+    }
+  } catch (e) {
+    cloudActive = true; // stay signed in; saves will retry
+    setSyncBadge("error", (e && e.message) || "Could not load cloud data");
+  }
+}
+
+function resolveConflict(remote) {
+  pendingRemote = remote;
+  const localAt = state.updatedAt || 0;
+  const cloudAt = remote.updatedAt || 0;
+  if (els.conflictLocal) els.conflictLocal.textContent = "This device — updated " + fmtWhen(localAt);
+  if (els.conflictCloud) els.conflictCloud.textContent = "Cloud — updated " + fmtWhen(cloudAt);
+  if (els.accountConflict) els.accountConflict.hidden = false;
+  setSyncBadge(""); // paused until the user decides
+}
+function finishConflict(choice) {
+  const remote = pendingRemote;
+  pendingRemote = null;
+  if (els.accountConflict) els.accountConflict.hidden = true;
+  if (!remote) return;
+  if (choice === "cloud") {
+    applyRemoteState(remote.json);
+    setSyncBadge("synced");
+  } else if (choice === "merge") {
+    const merged = mergeRemote(remote.json);
+    if (merged) { state = merged; normalize(); renderAll(); save(); }
+  } else { // keep this device
+    save();
+  }
+}
+
+// Non-destructive merge: per key, keep whichever side is "further along" (higher
+// number, more-advanced dex state, or any set value). Can only ADD progress, never
+// remove it. Collection maps merge; party/settings keep this device's copy.
+function scoreVal(v) {
+  if (typeof v === "number") return v;
+  if (typeof v === "string") { const i = DEX_STATES.indexOf(v); return i >= 0 ? i : (v ? 0.5 : 0); }
+  return v ? 0.5 : 0;
+}
+function mergeMap(a, b) {
+  const out = {};
+  for (const k of new Set([...Object.keys(a || {}), ...Object.keys(b || {})])) {
+    out[k] = scoreVal((b || {})[k]) > scoreVal((a || {})[k]) ? b[k] : a[k];
+  }
+  return out;
+}
+function mergeRemote(remoteJson) {
+  let r;
+  try { r = JSON.parse(remoteJson); } catch (_) { return null; }
+  if (!r || typeof r !== "object") return null;
+  const merged = Object.assign(freshState(), JSON.parse(JSON.stringify(state)));
+  merged.dex = mergeMap(state.dex, r.dex);
+  merged.forms = mergeMap(state.forms, r.forms);
+  merged.variants = mergeMap(state.variants, r.variants);
+  merged.berries = mergeMap(state.berries, r.berries);
+  // Hunt sessions: keep the higher encounter count per hunt.
+  const ls = (state.hunt && state.hunt.sessions) || {};
+  const rs = (r.hunt && r.hunt.sessions) || {};
+  const sessions = {};
+  for (const k of new Set([...Object.keys(ls), ...Object.keys(rs)])) {
+    const a = ls[k], b = rs[k];
+    sessions[k] = (b && (!a || (b.count || 0) > (a.count || 0))) ? b : a;
+  }
+  merged.hunt = Object.assign(defaultHunt(), state.hunt || {});
+  merged.hunt.sessions = sessions;
+  return merged;
+}
+
+async function pullFromCloud() {
+  if (!window.ShinyCloud || !cloudUser) return;
+  setSyncBadge("syncing");
+  try {
+    const remote = await window.ShinyCloud.load();
+    if (!remote) { setSyncBadge("synced"); return; }
+    if (confirm("Replace this device's progress with the cloud copy?")) {
+      applyRemoteState(remote.json);
+    }
+    setSyncBadge("synced");
+  } catch (e) {
+    setSyncBadge("error", (e && e.message) || "Pull failed");
+  }
+}
+
+// Run a ShinyCloud auth call, surfacing any error in the account card.
+async function cloudCall(fn, okMsg) {
+  showAuthError("");
+  try { await fn(); if (okMsg) showAuthError(okMsg); }
+  catch (e) { showAuthError((e && e.message) || "Something went wrong."); }
+}
+function emailAuth(isSignup) {
+  const email = (els.accEmail.value || "").trim();
+  const pw = els.accPassword.value || "";
+  if (!email || !pw) { showAuthError("Enter an email and password."); return; }
+  cloudCall(() => isSignup
+    ? window.ShinyCloud.signUpEmail(email, pw)
+    : window.ShinyCloud.signInEmail(email, pw));
+}
 
 /* ---------- sprite helpers ---------- */
 function spriteUrl(dex, shiny) {
@@ -1945,6 +2170,27 @@ function grabEls() {
     importFile: document.getElementById("import-file"),
     resetAll: document.getElementById("reset-all"),
     installBtn: document.getElementById("install-btn"),
+    // Account / cloud sync
+    accountUnconfigured: document.getElementById("account-unconfigured"),
+    accountSignedout: document.getElementById("account-signedout"),
+    accountSignedin: document.getElementById("account-signedin"),
+    accountWho: document.getElementById("account-who"),
+    accountStatus: document.getElementById("account-status"),
+    accGoogle: document.getElementById("acc-google"),
+    accEmail: document.getElementById("acc-email"),
+    accPassword: document.getElementById("acc-password"),
+    accLogin: document.getElementById("acc-login"),
+    accSignup: document.getElementById("acc-signup"),
+    accReset: document.getElementById("acc-reset"),
+    authError: document.getElementById("auth-error"),
+    accPull: document.getElementById("acc-pull"),
+    accSignout: document.getElementById("acc-signout"),
+    accountConflict: document.getElementById("account-conflict"),
+    conflictLocal: document.getElementById("conflict-local"),
+    conflictCloud: document.getElementById("conflict-cloud"),
+    conflictKeepCloud: document.getElementById("conflict-keep-cloud"),
+    conflictKeepLocal: document.getElementById("conflict-keep-local"),
+    conflictMerge: document.getElementById("conflict-merge"),
   });
 }
 
@@ -2196,6 +2442,26 @@ function wire() {
       save(); renderDex(); renderForms(); renderVariants(); fillConfigInputs(); renderHunt(); renderBoxes();
     }
   });
+
+  // Account / cloud sync controls (no-ops until cloud.js is configured).
+  if (els.accGoogle) {
+    els.accGoogle.addEventListener("click", () => cloudCall(() => window.ShinyCloud.signInGoogle()));
+    els.accLogin.addEventListener("click", () => emailAuth(false));
+    els.accSignup.addEventListener("click", () => emailAuth(true));
+    els.accPassword.addEventListener("keydown", (e) => { if (e.key === "Enter") emailAuth(false); });
+    els.accReset.addEventListener("click", () => {
+      const email = (els.accEmail.value || "").trim();
+      if (!email) { showAuthError("Enter your email above first, then tap Reset."); return; }
+      cloudCall(() => window.ShinyCloud.sendReset(email), "Password reset email sent — check your inbox.");
+    });
+    els.accSignout.addEventListener("click", () => cloudCall(() => window.ShinyCloud.signOutUser()));
+    els.accPull.addEventListener("click", pullFromCloud);
+    els.conflictKeepCloud.addEventListener("click", () => finishConflict("cloud"));
+    els.conflictKeepLocal.addEventListener("click", () => finishConflict("local"));
+    els.conflictMerge.addEventListener("click", () => finishConflict("merge"));
+  }
+  window.addEventListener("offline", () => { if (cloudActive) setSyncBadge("offline"); });
+  window.addEventListener("online", () => { if (cloudActive) scheduleCloudPush(); });
 }
 
 // Sync the Dex grid's card for one species after it was edited elsewhere (e.g. Boxes tab).
@@ -2233,6 +2499,16 @@ if ("serviceWorker" in navigator) {
 async function boot() {
   grabEls();
   load();
+  // Cloud sync bridge — cloud.js (a deferred ES module) emits these once it loads.
+  // Registering before it runs means a late auth/status event is never missed.
+  window.addEventListener("cloud-auth", (e) => onCloudAuth(e.detail && e.detail.user));
+  window.addEventListener("cloud-status", (e) => {
+    const d = e.detail || {};
+    if (d.state === "synced" && d.at) lastSyncAt = d.at;
+    setSyncBadge(d.state, d.message);
+    showAccountView();
+  });
+  showAccountView();
   const [sp, fm, spawns, berries, variants, berryGuide, moves, coach] = await Promise.all([
     fetch("js/data/species.json").then((r) => r.json()),
     fetch("js/data/forms.json").then((r) => r.json()),

@@ -8,12 +8,14 @@
  *
  * Bump CACHE on every release so old caches are purged on activate.
  */
-const CACHE = "shinydex-hq-v39";
+const CACHE = "shinydex-hq-v40";
 const SHELL = [
   "./",
   "./index.html",
   "./css/styles.css",
   "./js/app.js",
+  "./js/cloud.js",
+  "./js/firebase-config.js",
   "./js/data/species.json",
   "./js/data/forms.json",
   "./js/data/spawns.json",

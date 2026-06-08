@@ -379,6 +379,57 @@
 
     <!-- ============ DATA TAB ============ -->
     <section class="panel" id="panel-data">
+      <div class="card" id="account-card">
+        <h2>Account &amp; cloud sync</h2>
+
+        <!-- Shown until a Firebase project is configured (see SETUP-CLOUD.md). -->
+        <div id="account-unconfigured">
+          <p class="hint">Cloud sync is <strong>optional</strong> and not set up yet. The app works
+            fully offline without an account — your progress is saved in this browser. To sync
+            across devices, follow <a href="SETUP-CLOUD.md" target="_blank" rel="noopener">SETUP-CLOUD.md</a>
+            to connect a free Firebase project, then sign-in appears here.</p>
+        </div>
+
+        <!-- Signed out: Google + email/password. -->
+        <div id="account-signedout" class="account-auth" hidden>
+          <p class="hint">Sign in to back up your progress to the cloud and sync it across your
+            computers. Your data stays private to your account.</p>
+          <button id="acc-google" class="ctrl-btn good">Sign in with Google</button>
+          <div class="auth-or"><span>or</span></div>
+          <input type="email" id="acc-email" placeholder="Email" autocomplete="email" />
+          <input type="password" id="acc-password" placeholder="Password (6+ characters)" autocomplete="current-password" />
+          <div class="controls">
+            <button id="acc-login" class="ctrl-btn">Log in</button>
+            <button id="acc-signup" class="ctrl-btn good">Sign up</button>
+            <button id="acc-reset" class="ctrl-btn ghost">Forgot password?</button>
+          </div>
+          <p id="auth-error" class="auth-error" role="alert" hidden></p>
+        </div>
+
+        <!-- Signed in. -->
+        <div id="account-signedin" hidden>
+          <p class="hint">Signed in as <strong id="account-who"></strong></p>
+          <p id="account-status" class="sync-badge"></p>
+          <div class="controls">
+            <button id="acc-pull" class="ctrl-btn">⬇ Pull from cloud</button>
+            <button id="acc-signout" class="ctrl-btn">Sign out</button>
+          </div>
+
+          <!-- Conflict chooser: both this device and the cloud have progress. -->
+          <div id="account-conflict" class="conflict" hidden>
+            <p class="hint"><strong>This device and the cloud both have progress.</strong>
+              Pick how to resolve it — nothing is changed until you choose. "Merge" combines
+              collection progress (keeps the further-along of each), keeping this device's party/settings.</p>
+            <p id="conflict-local" class="muted"></p>
+            <p id="conflict-cloud" class="muted"></p>
+            <div class="controls">
+              <button id="conflict-keep-cloud" class="ctrl-btn">Use cloud copy</button>
+              <button id="conflict-keep-local" class="ctrl-btn">Keep this device</button>
+              <button id="conflict-merge" class="ctrl-btn good">Merge both</button>
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="card">
         <h2>Backup &amp; restore</h2>
         <p class="hint">Your progress lives only in this browser. Export regularly — it's your only backup.
@@ -409,5 +460,8 @@
   <datalist id="moves-list"></datalist>
 
   <script src="js/app.js"></script>
+  <!-- Optional cloud sync. ES module so it can import the Firebase SDK with no build
+       step; stays dormant until js/firebase-config.js is filled in (see SETUP-CLOUD.md). -->
+  <script type="module" src="js/cloud.js"></script>
 </body>
 </html>

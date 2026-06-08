@@ -16,7 +16,23 @@ deploys straight to GitHub Pages. All progress is **manual** and stored in your 
 | **Hunt** | ✅ Phase 2 | Chain (Unchained), Breeding (Cobbreeding Masuda), and raw-encounter logger with editable mod odds. |
 | **Spawns** | ✅ Phase 3 | Forward (by Pokémon → biomes/rarity/time + best AFK spot) and reverse (by biome → species) lookup. Complements the in-game PokéNav. |
 | **Farm** | ✅ Phase 4 | Apricorn-farm sizing (apricorns & balls/hr, time-to-target) + encounter-farm time-to-shiny (50/90/99% counts and ETAs). Generic — no mod-specific recipes. |
-| **Data** | ✅ | Export / import / reset your progress. |
+| **Data** | ✅ | Export / import / reset your progress, plus **optional** account sign-in for cloud sync across devices. |
+
+## Accounts & cloud sync (optional)
+
+By default the app is **offline-first**: no account, all progress in your browser's
+`localStorage`, with JSON Export/Import as backup. If you run it on more than one computer and
+want progress to sync, you can **optionally** connect a free [Firebase](https://firebase.google.com)
+project for accounts (Google sign-in **and** email/password) and per-user cloud storage.
+
+- Guest mode still works exactly as before — sign-in is purely additive.
+- First sign-in uploads your local progress; signing in elsewhere pulls it down. If both sides
+  already have data you get a non-destructive **conflict chooser** (use cloud / keep this device / merge).
+- The Firebase web config keys are **public by design** (access is enforced by Firestore security
+  rules), so they're safe to commit.
+
+Setup is a one-time ~5-minute task — see **[SETUP-CLOUD.md](SETUP-CLOUD.md)**. Until you do it, the
+*Account & cloud sync* card on the Data tab simply shows a "not set up" note.
 
 ## Run locally
 

@@ -40,7 +40,7 @@ function defaultHunt() {
   return { mode: "chain", activeDex: null, sessions: {}, finds: [] };
 }
 function freshState() {
-  return { dex: {}, forms: {}, variants: {}, config: defaultConfig(), hunt: defaultHunt() };
+  return { dex: {}, forms: {}, variants: {}, berries: {}, config: defaultConfig(), hunt: defaultHunt() };
 }
 let state = freshState();
 
@@ -49,6 +49,7 @@ function normalize() {
   if (!state.dex) state.dex = {};
   if (!state.forms) state.forms = {};
   if (!state.variants) state.variants = {};
+  if (!state.berries) state.berries = {};
   state.config = Object.assign(defaultConfig(), state.config || {});
   state.hunt = Object.assign(defaultHunt(), state.hunt || {});
   if (!state.hunt.sessions) state.hunt.sessions = {};
@@ -355,22 +356,79 @@ function renderVariantsStats() {
     `<span class="stat">Cobblemon ${cob.filter((v) => state.variants[v.id]).length}/${cob.length}</span>`;
 }
 
-/* ---------- berries tab (reference: all 70 berries + how to obtain) ---------- */
+/* ---------- berries tab (reference + collection tracking + mutation trees) ---------- */
 let berryFilter = "all";
-const KIND_LABEL = { natural: "🌿 Wild — grows on trees", mutation: "⚗️ Mutation — crossbreed" };
+let GUIDE_BY_ID = {};
+function indexBerryGuide() { GUIDE_BY_ID = {}; for (const b of BERRY_GUIDE) GUIDE_BY_ID[b.id] = b; }
+
+// "Oran + (Cheri / Chesto / Pecha)" -> [["oran"], ["cheri","chesto","pecha"]]
+function berryParents(source) {
+  return String(source).split(/\s+\+\s+/).map((p) => {
+    p = p.trim();
+    if (p[0] === "(") p = p.slice(1, -1);
+    return p.split(/\s*\/\s*/).map((s) => s.trim().toLowerCase()).filter(Boolean);
+  });
+}
+// Shortest production tree for a berry, tracing each parent back to wild berries
+// and, where a slot allows alternatives, choosing the cheapest one. `steps` =
+// number of crossbreeds (mutation nodes) in the tree. Mutations form a DAG, so
+// plain recursion is safe; subtrees are tiny.
+function berryTree(id) {
+  const b = GUIDE_BY_ID[id];
+  if (!b) return { id, name: id, kind: "missing", steps: Infinity, children: [] };
+  if (b.kind !== "mutation") return { id, name: b.name, kind: b.kind, biomes: b.biomes, steps: 0, children: [] };
+  const children = berryParents(b.source).map((alts) => {
+    let best = null;
+    for (const alt of alts) {
+      const t = berryTree(alt);
+      if (!best || t.steps < best.steps) best = t;
+    }
+    return Object.assign({ altCount: alts.length }, best || { id: alts[0], name: alts[0], kind: "missing", steps: Infinity, children: [] });
+  });
+  const steps = 1 + children.reduce((s, c) => s + c.steps, 0);
+  return { id, name: b.name, kind: "mutation", mulch: b.mulch, source: b.source, steps, children };
+}
+function berryTreeHtml(node) {
+  const b = GUIDE_BY_ID[node.id];
+  const img = b ? `<img src="${WIKI_FILEPATH(b.img)}" alt="" />` : "";
+  const have = state.berries[node.id] ? " tr-have" : "";
+  const alt = node.altCount > 1 ? ` <span class="tr-alt">(1 of ${node.altCount} options)</span>` : "";
+  const tag = node.kind === "natural"
+    ? `<span class="tr-tag">🌿 ${(b && b.biomes || []).join(", ")}</span>`
+    : node.kind === "mutation"
+      ? `<span class="tr-tag tr-recipe">⚗️ ${node.source}</span>` + (node.mulch ? ` <span class="tr-tag">🪣 ${node.mulch}</span>` : "")
+      : "";
+  const kids = node.children && node.children.length
+    ? `<ul>${node.children.map(berryTreeHtml).join("")}</ul>` : "";
+  return `<li class="${node.kind}${have}">${img}<b>${node.name}</b>${alt} ${tag}${kids}</li>`;
+}
+function openBerryTree(id) {
+  const b = GUIDE_BY_ID[id];
+  if (!b || b.kind !== "mutation") return;
+  const tree = berryTree(id);
+  const s = tree.steps;
+  document.getElementById("berry-modal-body").innerHTML =
+    `<h2>${b.name} — shortest mutation path</h2>` +
+    `<p class="hint">${s} crossbreed${s === 1 ? "" : "s"} from wild berries. Plant each pair in orthogonally ` +
+    `adjacent tiles (not diagonal); ~12.5% chance per harvest (raise it with Surprise Mulch).</p>` +
+    `<ul class="berry-tree">${berryTreeHtml(tree)}</ul>`;
+  document.getElementById("berry-modal").hidden = false;
+}
 function berryCard(b) {
-  const img = WIKI_FILEPATH(b.img);
   const how = b.kind === "natural"
     ? `<span class="b-tag">🌿 ${b.biomes.join(", ")}</span>` +
       (b.mulch ? `<span class="b-tag b-mulch">🪣 ${b.mulch}</span>` : "")
     : `<span class="b-tag b-recipe">⚗️ ${b.source}</span>` +
-      (b.mulch ? `<span class="b-tag b-mulch">🪣 ${b.mulch}</span>` : "");
+      (b.mulch ? `<span class="b-tag b-mulch">🪣 ${b.mulch}</span>` : "") +
+      `<button class="b-tree" data-tree="${b.id}" title="Show shortest mutation path">🌳 tree</button>`;
+  const have = !!state.berries[b.id];
   const el = document.createElement("div");
-  el.className = `berry b-${b.kind}`;
+  el.className = `berry b-${b.kind}${have ? " tracked" : ""}`;
+  el.dataset.berry = b.id;
   el.innerHTML =
-    `<img loading="lazy" src="${img}" alt="${b.name}" />` +
+    `<img loading="lazy" src="${WIKI_FILEPATH(b.img)}" alt="${b.name}" />` +
     `<div class="b-main">` +
-      `<div class="b-name">${b.name}</div>` +
+      `<div class="b-name">${b.name}${have ? ` <span class="b-check">✓</span>` : ""}</div>` +
       `<div class="b-effect">${b.effect}</div>` +
       `<div class="b-how">${how}</div>` +
     `</div>`;
@@ -384,31 +442,28 @@ function berryMatch(b, q) {
 function renderBerries() {
   const host = document.getElementById("berries-list");
   if (!host) return;
+  if (!Object.keys(GUIDE_BY_ID).length) indexBerryGuide();
   const q = (els.berrySearch && els.berrySearch.value.trim().toLowerCase()) || "";
+  // Single alphabetical list; the chips narrow by kind, not split into sections.
+  const list = BERRY_GUIDE
+    .filter((b) => (berryFilter === "all" || b.kind === berryFilter) && berryMatch(b, q))
+    .slice().sort((a, b) => a.name.localeCompare(b.name));
   host.innerHTML = "";
-  const frag = document.createDocumentFragment();
-  for (const kind of ["natural", "mutation"]) {
-    if (berryFilter !== "all" && berryFilter !== kind) continue;
-    const list = BERRY_GUIDE.filter((b) => b.kind === kind && berryMatch(b, q));
-    if (!list.length) continue;
-    const h = document.createElement("h2");
-    h.className = "section-h";
-    h.textContent = `${KIND_LABEL[kind]} (${list.length})`;
-    frag.appendChild(h);
-    const grid = document.createElement("div");
-    grid.className = "berry-grid";
-    list.forEach((b) => grid.appendChild(berryCard(b)));
-    frag.appendChild(grid);
-  }
-  if (!frag.childNodes.length) frag.appendChild(Object.assign(document.createElement("p"), { className: "hint", textContent: "No berries match." }));
-  host.appendChild(frag);
+  if (!list.length) { host.innerHTML = `<p class="hint">No berries match.</p>`; renderBerriesStats(); return; }
+  const grid = document.createElement("div");
+  grid.className = "berry-grid";
+  list.forEach((b) => grid.appendChild(berryCard(b)));
+  host.appendChild(grid);
   renderBerriesStats();
 }
 function renderBerriesStats() {
   if (!els.berriesStats) return;
   const n = (k) => BERRY_GUIDE.filter((b) => b.kind === k).length;
+  const have = BERRY_GUIDE.filter((b) => state.berries[b.id]).length;
+  const pct = BERRY_GUIDE.length ? ((have / BERRY_GUIDE.length) * 100).toFixed(0) : 0;
   els.berriesStats.innerHTML =
-    `<span class="stat"><b>${BERRY_GUIDE.length}</b> berries</span>` +
+    `<span class="stat"><b>${have}</b>/${BERRY_GUIDE.length} collected (${pct}%)</span>` +
+    `<div class="bar"><i style="width:${pct}%"></i></div>` +
     `<span class="stat">🌿 ${n("natural")} wild</span>` +
     `<span class="stat">⚗️ ${n("mutation")} mutation</span>`;
 }
@@ -1248,6 +1303,26 @@ function wire() {
     document.querySelectorAll(".berry-filter").forEach((b) => b.classList.toggle("active", b === btn));
     renderBerries();
   }));
+  // Click a card to track it (collected); click a mutation's 🌳 button for its tree.
+  const berriesList = document.getElementById("berries-list");
+  if (berriesList) berriesList.addEventListener("click", (e) => {
+    const treeBtn = e.target.closest("[data-tree]");
+    if (treeBtn) { e.stopPropagation(); openBerryTree(treeBtn.dataset.tree); return; }
+    const card = e.target.closest(".berry");
+    if (!card || !card.dataset.berry) return;
+    const id = card.dataset.berry;
+    if (state.berries[id]) delete state.berries[id]; else state.berries[id] = true;
+    save();
+    card.replaceWith(berryCard(GUIDE_BY_ID[id]));
+    renderBerriesStats();
+  });
+  const berryModal = document.getElementById("berry-modal");
+  if (berryModal) berryModal.addEventListener("click", (e) => {
+    if (e.target === berryModal || e.target.closest("[data-close]")) berryModal.hidden = true;
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && berryModal && !berryModal.hidden) berryModal.hidden = true;
+  });
 
   els.dexSearch.addEventListener("input", renderDex);
   els.dexGen.addEventListener("change", renderDex);
@@ -1409,6 +1484,7 @@ async function boot() {
   SPAWNS = spawns;
   BERRIES = berries;
   BERRY_GUIDE = berryGuide;
+  indexBerryGuide();
   BERRY_BY_ID = {};
   BERRIES.forEach((b) => (BERRY_BY_ID[b.id] = b));
   DEX_BY_NUM = {};

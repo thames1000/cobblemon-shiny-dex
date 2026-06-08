@@ -275,7 +275,9 @@
         preferred biome <em>or</em> apply the <strong>preferred mulch</strong> to a stage-0 tree for bonus yield.
         <strong>Mutation</strong> berries can't be found: plant the two parent trees orthogonally adjacent (not diagonal)
         — each harvest has a 12.5% chance to drop the mutation (raise it with Surprise Mulch). Data from the
-        <a href="https://wiki.cobblemon.com/index.php/Berry_Tree" target="_blank" rel="noopener">Cobblemon Wiki</a>.</p>
+        <a href="https://wiki.cobblemon.com/index.php/Berry_Tree" target="_blank" rel="noopener">Cobblemon Wiki</a>.<br>
+        <strong>Tap a berry</strong> to mark it collected. On a mutation, tap <strong>🌳 tree</strong> for the shortest
+        crossbreed path back to wild berries.</p>
       <div class="toolbar">
         <input type="search" id="berry-search" class="search" placeholder="Search berry, effect, biome or parent…" />
       </div>
@@ -285,6 +287,12 @@
         <button class="ctrl-btn berry-filter" data-kind="mutation">⚗️ Mutation</button>
       </div>
       <div id="berries-list"></div>
+      <div class="modal" id="berry-modal" hidden>
+        <div class="modal-box">
+          <button class="modal-close" data-close title="Close">✕</button>
+          <div id="berry-modal-body"></div>
+        </div>
+      </div>
     </section>
 
     <!-- ============ FARM TAB ============ -->

@@ -15,12 +15,13 @@
  * Access is controlled by Firestore security rules, so it's safe to commit them.
  */
 export const firebaseConfig = {
-  apiKey: "REPLACE_ME",
-  authDomain: "REPLACE_ME.firebaseapp.com",
-  projectId: "REPLACE_ME",
-  storageBucket: "REPLACE_ME.appspot.com",
-  messagingSenderId: "REPLACE_ME",
-  appId: "REPLACE_ME",
+  apiKey: "AIzaSyAotLXc8As7ECAdffoOvq7cPuFcGGWQ9JA",
+  authDomain: "shinydexhq.firebaseapp.com",
+  projectId: "shinydexhq",
+  storageBucket: "shinydexhq.firebasestorage.app",
+  messagingSenderId: "416961643362",
+  appId: "1:416961643362:web:d7cf1e37e9516ca3c7e23b",
+  measurementId: "G-XQKSQ05VMR",
 };
 
 // True while the placeholders are still in place — cloud.js uses this to stay dormant.

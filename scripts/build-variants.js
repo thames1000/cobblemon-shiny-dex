@@ -96,11 +96,24 @@ function main() {
     console.error(`Source dir not found: ${SRC}\nSee header comment for how to get the species dir.`);
     process.exit(1);
   }
-  const out = { regional: { alolan: [], galarian: [], hisuian: [], paldean: [] }, cosmetic: [], cobblemon: [] };
+  const out = { regional: { alolan: [], galarian: [], hisuian: [], paldean: [] }, cosmetic: [], unown: [], cobblemon: [] };
   const nameToDex = {};
   walk(SRC, out, nameToDex);
   for (const k of Object.keys(out.regional)) out.regional[k].sort((a, b) => a.dex - b.dex);
   out.cosmetic.sort((a, b) => a.dex - b.dex || cosmeticNameKey(a.name).localeCompare(cosmeticNameKey(b.name)));
+
+  // Unown gets its own section (28 letters/symbols). Split it out of cosmetic,
+  // point the "!"/"?" forms at Showdown's symbol slugs (the generic slugify
+  // can't), and inject "A" — Cobblemon's default form, absent from `forms`.
+  const isUnown = (e) => e.base.toLowerCase() === "unown";
+  out.unown = out.cosmetic.filter(isUnown);
+  out.cosmetic = out.cosmetic.filter((e) => !isUnown(e));
+  const SHOWDOWN_UNOWN = { "!": "unown-em", "?": "unown-qm" };
+  for (const e of out.unown) if (SHOWDOWN_UNOWN[e.name]) e.slug = SHOWDOWN_UNOWN[e.name];
+  if (out.unown.length && !out.unown.some((e) => e.name === "A")) {
+    out.unown.push({ id: "Unown-character-a", dex: out.unown[0].dex, base: "Unown", name: "A", aspects: ["character-a"], slug: "unown-a" });
+  }
+  out.unown.sort((a, b) => cosmeticNameKey(a.name).localeCompare(cosmeticNameKey(b.name)));
 
   const dest = path.join(__dirname, "..", "js", "data", "variants.json");
   out.cobblemon = existingCobblemon(dest); // owned by build-cobblemon-variants.js
@@ -109,6 +122,7 @@ function main() {
   console.log(`Wrote -> ${dest}`);
   console.log(`  regional: alolan ${r.alolan.length}, galarian ${r.galarian.length}, hisuian ${r.hisuian.length}, paldean ${r.paldean.length}`);
   console.log(`  cosmetic: ${out.cosmetic.length}`);
+  console.log(`  unown: ${out.unown.length}`);
   console.log(`  cobblemon: ${out.cobblemon.length} (preserved; rebuild via build-cobblemon-variants.js)`);
 }
 

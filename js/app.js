@@ -282,7 +282,7 @@ function allVariants() {
   if (!VARIANTS) return [];
   return [...VARIANTS.regional.alolan, ...VARIANTS.regional.galarian,
     ...VARIANTS.regional.hisuian, ...VARIANTS.regional.paldean,
-    ...VARIANTS.cosmetic, ...(VARIANTS.cobblemon || [])];
+    ...VARIANTS.cosmetic, ...(VARIANTS.unown || []), ...(VARIANTS.cobblemon || [])];
 }
 // Variant art for a given shininess. Cobblemon-original variants use the wiki
 // render; regional/cosmetic use Showdown by slug; the base national-dex sprite
@@ -331,6 +331,7 @@ function renderVariants() {
   if (!VARIANTS) return;
   for (const [key] of VARIANT_GROUPS) renderVariantGrid(`variants-grid-${key}`, VARIANTS.regional[key]);
   renderVariantGrid("variants-grid-cosmetic", VARIANTS.cosmetic);
+  renderVariantGrid("variants-grid-unown", VARIANTS.unown || []);
   renderVariantGrid("variants-grid-cobblemon", VARIANTS.cobblemon || []);
   renderVariantsStats();
 }
@@ -343,12 +344,14 @@ function renderVariantsStats() {
     ...VARIANTS.regional.hisuian, ...VARIANTS.regional.paldean];
   const regHave = regional.filter((v) => state.variants[v.id]).length;
   const cob = VARIANTS.cobblemon || [];
+  const unown = VARIANTS.unown || [];
   els.variantsStats.innerHTML =
     `<span class="stat"><b>${have}</b>/${all.length} caught (${pct}%)</span>` +
     `<span class="stat">✨ <b>${shinyHave}</b> shiny</span>` +
     `<div class="bar"><i style="width:${pct}%"></i></div>` +
     `<span class="stat">Regional ${regHave}/${regional.length}</span>` +
     `<span class="stat">Cosmetic ${VARIANTS.cosmetic.filter((v) => state.variants[v.id]).length}/${VARIANTS.cosmetic.length}</span>` +
+    `<span class="stat">Unown ${unown.filter((v) => state.variants[v.id]).length}/${unown.length}</span>` +
     `<span class="stat">Cobblemon ${cob.filter((v) => state.variants[v.id]).length}/${cob.length}</span>`;
 }
 
@@ -1328,7 +1331,7 @@ async function boot() {
     fetch("js/data/forms.json").then((r) => r.json()),
     fetch("js/data/spawns.json").then((r) => r.json()).catch(() => ({})),
     fetch("js/data/berries.json").then((r) => r.json()).catch(() => []),
-    fetch("js/data/variants.json").then((r) => r.json()).catch(() => ({ regional: { alolan: [], galarian: [], hisuian: [], paldean: [] }, cosmetic: [], cobblemon: [] })),
+    fetch("js/data/variants.json").then((r) => r.json()).catch(() => ({ regional: { alolan: [], galarian: [], hisuian: [], paldean: [] }, cosmetic: [], unown: [], cobblemon: [] })),
   ]);
   SPECIES = sp;
   FORMS = { mega: fm.mega, primal: fm.primal, gmax: fm.gmax };

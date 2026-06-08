@@ -64,7 +64,7 @@ async function bootCloud() {
     import(FS_URL),
   ]);
   const {
-    getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signInWithRedirect,
+    getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup,
     getRedirectResult, createUserWithEmailAndPassword, signInWithEmailAndPassword,
     signOut, sendPasswordResetEmail,
   } = authMod;
@@ -76,21 +76,27 @@ async function bootCloud() {
   const googleProvider = new GoogleAuthProvider();
   const userDoc = (uid) => doc(db, "users", uid);
 
-  // If a redirect sign-in just completed (popup fallback), surface any error.
-  getRedirectResult(auth).catch((err) => emitStatus("error", { message: friendly(err) }));
+  // Clear out any redirect result left over from an older build (harmless if none).
+  getRedirectResult(auth).catch(() => {});
 
   window.ShinyCloud = {
     configured: true,
     currentUser: () => auth.currentUser,
 
     async signInGoogle() {
+      // Popup ONLY. We deliberately don't fall back to signInWithRedirect: this is a
+      // static site whose authDomain (…firebaseapp.com) differs from the app's origin
+      // (github.io / vercel.app), and the redirect flow breaks in storage-partitioned
+      // browsers with "missing initial state". Popup is the reliable path here.
       try {
         await signInWithPopup(auth, googleProvider);
       } catch (err) {
-        // Popups are commonly blocked / unsupported on installed PWAs — fall back.
-        if (err && (err.code === "auth/popup-blocked" || err.code === "auth/operation-not-supported-in-this-environment")) {
-          await signInWithRedirect(auth, googleProvider);
-          return;
+        const code = (err && err.code) || "";
+        if (code === "auth/popup-blocked" || code === "auth/operation-not-supported-in-this-environment") {
+          throw new Error("Pop-up blocked. Allow pop-ups for this site and try again — or use email/password sign-in below.");
+        }
+        if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+          throw new Error("Sign-in was cancelled.");
         }
         throw new Error(friendly(err));
       }

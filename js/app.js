@@ -10,6 +10,12 @@ const SPRITE_BASE = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sp
 // Pokémon Showdown serves form-specific sprites by name (covers regional + cosmetic
 // variants the PokeAPI national-dex sprites don't). Pixel style matches the app.
 const SHOWDOWN_BASE = "https://play.pokemonshowdown.com/sprites/gen5";
+// Cobblemon-original model variants (Magikarp/Gyarados Jump, Torterra trees, …)
+// have no Showdown sprite — the Cobblemon Wiki hosts a render of each (normal +
+// shiny). MediaWiki's Special:FilePath redirects a filename to the real image,
+// so we don't need the MD5-hashed /images/ path.
+const WIKI_FILEPATH = (file) =>
+  "https://wiki.cobblemon.com/index.php/Special:FilePath/" + encodeURIComponent(file.replace(/ /g, "_"));
 
 // Dex state cycle. Right-click steps back.
 const DEX_STATES = ["none", "seen", "caught", "shiny", "boxed"];
@@ -276,19 +282,32 @@ function allVariants() {
     ...VARIANTS.regional.hisuian, ...VARIANTS.regional.paldean,
     ...VARIANTS.cosmetic, ...(VARIANTS.cobblemon || [])];
 }
+// Variant art for a given shininess. Cobblemon-original variants use the wiki
+// render; regional/cosmetic use Showdown by slug; the base national-dex sprite
+// (matching shininess) is the fallback for anything without a distinct image.
+function variantArt(v, shiny) {
+  const fb = spriteUrl(v.dex, shiny);
+  if (v.wikiFile) {
+    if (shiny) return { src: v.wikiFileShiny ? WIKI_FILEPATH(v.wikiFileShiny) : fb, fb };
+    return { src: WIKI_FILEPATH(v.wikiFile), fb };
+  }
+  if (v.slug) return { src: `${SHOWDOWN_BASE}/${shiny ? "shiny/" : ""}${v.slug}.png`, fb };
+  return { src: fb, fb };
+}
+// State per variant: absent = none, true = caught, "shiny" = caught shiny.
+// Click cycles none -> caught -> shiny -> none.
 function variantCard(v) {
-  const have = !!state.variants[v.id];
+  const st = state.variants[v.id];
+  const shiny = st === "shiny";
+  const have = !!st;
   const el = document.createElement("div");
-  el.className = `mon ${have ? "f-unlocked" : "f-locked"}`;
+  el.className = `mon ${have ? "f-unlocked" : "f-locked"}${shiny ? " f-shiny" : ""}`;
   el.dataset.variant = v.id;
   el.title = `${v.base} · ${v.name}`;
-  // Form-specific sprite from Showdown; fall back to the base national-dex sprite
-  // for the handful with no distinct sprite (e.g. region-bias pre-evolutions).
-  const base = spriteUrl(v.dex, false);
-  const src = v.slug ? `${SHOWDOWN_BASE}/${v.slug}.png` : base;
+  const { src, fb } = variantArt(v, shiny);
   el.innerHTML =
-    `${have ? `<span class="badge">✓</span>` : ""}` +
-    `<img loading="lazy" src="${src}" onerror="this.onerror=null;this.src='${base}'" alt="${v.base} ${v.name}" />` +
+    `${have ? `<span class="badge">${shiny ? "✨" : "✓"}</span>` : ""}` +
+    `<img loading="lazy" src="${src}" onerror="this.onerror=null;this.src='${fb}'" alt="${v.base} ${v.name}" />` +
     `<div class="dexno">#${String(v.dex).padStart(4, "0")}</div>` +
     `<div class="nm">${v.base.replace(/-/g, " ")}</div>` +
     `<div class="vform">${v.name}</div>`;
@@ -316,6 +335,7 @@ function renderVariants() {
 function renderVariantsStats() {
   const all = allVariants();
   const have = all.filter((v) => state.variants[v.id]).length;
+  const shinyHave = all.filter((v) => state.variants[v.id] === "shiny").length;
   const pct = all.length ? ((have / all.length) * 100).toFixed(0) : 0;
   const regional = [...VARIANTS.regional.alolan, ...VARIANTS.regional.galarian,
     ...VARIANTS.regional.hisuian, ...VARIANTS.regional.paldean];
@@ -323,6 +343,7 @@ function renderVariantsStats() {
   const cob = VARIANTS.cobblemon || [];
   els.variantsStats.innerHTML =
     `<span class="stat"><b>${have}</b>/${all.length} caught (${pct}%)</span>` +
+    `<span class="stat">✨ <b>${shinyHave}</b> shiny</span>` +
     `<div class="bar"><i style="width:${pct}%"></i></div>` +
     `<span class="stat">Regional ${regHave}/${regional.length}</span>` +
     `<span class="stat">Cosmetic ${VARIANTS.cosmetic.filter((v) => state.variants[v.id]).length}/${VARIANTS.cosmetic.length}</span>` +
@@ -1142,14 +1163,14 @@ function wire() {
     const card = e.target.closest(".mon");
     if (!card || !card.dataset.variant) return;
     const id = card.dataset.variant;
-    const have = !state.variants[id];
-    if (have) state.variants[id] = true; else delete state.variants[id];
+    // Cycle none -> caught -> shiny -> none.
+    const cur = state.variants[id];
+    if (!cur) state.variants[id] = true;
+    else if (cur === true) state.variants[id] = "shiny";
+    else delete state.variants[id];
     save();
-    card.classList.toggle("f-unlocked", have);
-    card.classList.toggle("f-locked", !have);
-    const badge = card.querySelector(".badge");
-    if (have && !badge) card.insertAdjacentHTML("afterbegin", `<span class="badge">✓</span>`);
-    if (!have && badge) badge.remove();
+    const v = allVariants().find((x) => x.id === id);
+    if (v) card.replaceWith(variantCard(v));
     renderVariantsStats();
   });
   els.variantSearch.addEventListener("input", renderVariants);

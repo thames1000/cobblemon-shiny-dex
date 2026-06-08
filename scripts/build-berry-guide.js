@@ -50,8 +50,6 @@ const EFFECT = {
   jaboca: "Physical attacker loses ⅛ HP", rowap: "Special attacker loses ⅛ HP",
   eggant: "Cures infatuation",
 };
-// Berries that aren't from a tree (overrides the table parse).
-const SPECIAL_SOURCE = { hopo: "Pokémon drops" };
 
 function get(url) {
   return new Promise((resolve, reject) => {
@@ -133,7 +131,7 @@ async function main() {
     const mulch = mulchCell ? mulchCell.text : "";
     natural.push({
       id: name.toLowerCase(), name: `${name} Berry`,
-      kind: SPECIAL_SOURCE[name.toLowerCase()] ? "drop" : "natural",
+      kind: "natural",
       biomes: [...new Set(biomeList)],
       mulch, source: "", effect: EFFECT[name.toLowerCase()] || "",
     });
@@ -162,13 +160,10 @@ async function main() {
     };
   });
 
-  // Merge, de-dupe (prefer the richer entry), apply special sources.
+  // Merge, de-dupe (prefer the richer entry).
   const byId = {};
-  for (const b of [...natural, ...mutation]) {
-    if (SPECIAL_SOURCE[b.id]) { b.kind = "drop"; b.source = SPECIAL_SOURCE[b.id]; }
-    if (!byId[b.id]) byId[b.id] = b;
-  }
-  const order = { natural: 0, drop: 1, mutation: 2 };
+  for (const b of [...natural, ...mutation]) if (!byId[b.id]) byId[b.id] = b;
+  const order = { natural: 0, mutation: 1 };
   const all = Object.values(byId).sort((a, b) => order[a.kind] - order[b.kind] || a.name.localeCompare(b.name));
   for (const b of all) b.img = `${b.name}.png`; // wiki item sprite (via Special:FilePath)
 
@@ -176,7 +171,7 @@ async function main() {
   fs.writeFileSync(dest, JSON.stringify(all));
   const n = (k) => all.filter((b) => b.kind === k).length;
   console.log(`Wrote ${all.length} berries -> ${dest}`);
-  console.log(`  natural ${n("natural")}, drop ${n("drop")}, mutation ${n("mutation")}`);
+  console.log(`  natural ${n("natural")}, mutation ${n("mutation")}`);
   const missingEffect = all.filter((b) => !b.effect).map((b) => b.id);
   const missingHow = all.filter((b) => b.kind === "natural" && !b.biomes.length).map((b) => b.id);
   const badMut = all.filter((b) => b.kind === "mutation" && !/ \+ \S/.test(b.source)).map((b) => b.id);

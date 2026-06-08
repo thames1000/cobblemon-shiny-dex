@@ -70,7 +70,7 @@ and retire Pages.
 - `scripts/build-species.js` regenerates `js/data/species.json` (all 1025: dex/name/types/gen) from PokeAPI.
   Run `node scripts/build-species.js` when the pack updates Cobblemon.
 - `scripts/build-berry-guide.js` regenerates `js/data/berry-guide.json` (the **Berries** tab — all 70 berries,
-  their effect, and how to get each: wild biomes + preferred mulch, mutation parent recipes, or Pokémon drops).
+  their effect, and how to get each: 30 wild berries' biomes + preferred mulch, and 40 mutation parent recipes).
   Parsed from the Cobblemon Wiki "Berry Tree" page; sprites load on demand from the wiki via `Special:FilePath`.
 - `scripts/build-spawns.js` regenerates `js/data/spawns.json` from a `spawn_pool_world` directory.
   This pack uses **Cobbleverse** spawn rules (its bundled `COBBLEVERSE-DP-*.zip` datapack), which cover

@@ -357,19 +357,14 @@ function renderVariantsStats() {
 
 /* ---------- berries tab (reference: all 70 berries + how to obtain) ---------- */
 let berryFilter = "all";
-const KIND_LABEL = { natural: "🌿 Wild — grows on trees", drop: "✨ Pokémon drop", mutation: "⚗️ Mutation — crossbreed" };
+const KIND_LABEL = { natural: "🌿 Wild — grows on trees", mutation: "⚗️ Mutation — crossbreed" };
 function berryCard(b) {
   const img = WIKI_FILEPATH(b.img);
-  let how;
-  if (b.kind === "natural") {
-    how = `<span class="b-tag">🌿 ${b.biomes.join(", ")}</span>` +
+  const how = b.kind === "natural"
+    ? `<span class="b-tag">🌿 ${b.biomes.join(", ")}</span>` +
+      (b.mulch ? `<span class="b-tag b-mulch">🪣 ${b.mulch}</span>` : "")
+    : `<span class="b-tag b-recipe">⚗️ ${b.source}</span>` +
       (b.mulch ? `<span class="b-tag b-mulch">🪣 ${b.mulch}</span>` : "");
-  } else if (b.kind === "drop") {
-    how = `<span class="b-tag">✨ ${b.source}</span>`;
-  } else {
-    how = `<span class="b-tag b-recipe">⚗️ ${b.source}</span>` +
-      (b.mulch ? `<span class="b-tag b-mulch">🪣 ${b.mulch}</span>` : "");
-  }
   const el = document.createElement("div");
   el.className = `berry b-${b.kind}`;
   el.innerHTML =
@@ -392,7 +387,7 @@ function renderBerries() {
   const q = (els.berrySearch && els.berrySearch.value.trim().toLowerCase()) || "";
   host.innerHTML = "";
   const frag = document.createDocumentFragment();
-  for (const kind of ["natural", "drop", "mutation"]) {
+  for (const kind of ["natural", "mutation"]) {
     if (berryFilter !== "all" && berryFilter !== kind) continue;
     const list = BERRY_GUIDE.filter((b) => b.kind === kind && berryMatch(b, q));
     if (!list.length) continue;
@@ -415,7 +410,6 @@ function renderBerriesStats() {
   els.berriesStats.innerHTML =
     `<span class="stat"><b>${BERRY_GUIDE.length}</b> berries</span>` +
     `<span class="stat">🌿 ${n("natural")} wild</span>` +
-    `<span class="stat">✨ ${n("drop")} drop</span>` +
     `<span class="stat">⚗️ ${n("mutation")} mutation</span>`;
 }
 

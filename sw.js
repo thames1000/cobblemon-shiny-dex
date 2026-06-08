@@ -8,7 +8,7 @@
  *
  * Bump CACHE on every release so old caches are purged on activate.
  */
-const CACHE = "shinydex-hq-v22";
+const CACHE = "shinydex-hq-v23";
 const SHELL = [
   "./",
   "./index.html",
@@ -41,6 +41,10 @@ self.addEventListener("fetch", (e) => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
   const isSprite = url.pathname.includes("/sprites/pokemon/");
+
+  // Let the browser handle cross-origin requests we don't explicitly cache
+  // (e.g. Showdown variant sprites) — don't route them through the SW at all.
+  if (url.origin !== location.origin && !isSprite) return;
 
   if (isSprite) {
     // Cache-first for immutable sprite assets.

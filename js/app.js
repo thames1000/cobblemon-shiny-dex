@@ -1184,8 +1184,12 @@ function importData(file) {
       state = Object.assign(freshState(), d);
       normalize();
       save();
-      renderDex(); renderForms(); renderVariants(); fillConfigInputs(); renderHunt(); renderBoxes();
-      alert("Imported.");
+      renderDex(); renderForms(); renderVariants(); renderBerries();
+      fillConfigInputs(); renderHunt(); renderBoxes(); renderSnack();
+      const dexN = Object.keys(state.dex).length;
+      const varN = Object.keys(state.variants).length;
+      const berryN = Object.keys(state.berries).length;
+      alert(`Imported — ${dexN} dex, ${varN} variants, ${berryN} berries.`);
     } catch (e) { alert("Import failed: " + e.message); }
   };
   reader.readAsText(file);

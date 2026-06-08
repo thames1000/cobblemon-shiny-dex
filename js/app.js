@@ -70,8 +70,27 @@ function normalize() {
   normalizeParty();
   state.config = Object.assign(defaultConfig(), state.config || {});
   state.hunt = Object.assign(defaultHunt(), state.hunt || {});
-  if (!state.hunt.sessions) state.hunt.sessions = {};
+  // Sessions must be a plain object of well-formed entries. Older/corrupt
+  // exports may have it missing, as an array, or holding null/garbage values —
+  // rebuild a clean map so the Active-hunts UI can never trip over a bad entry.
+  const rawSessions = state.hunt.sessions;
+  const cleanSessions = {};
+  if (rawSessions && typeof rawSessions === "object") {
+    for (const [k, s] of Object.entries(rawSessions)) {
+      if (!s || typeof s !== "object") continue;
+      const dex = Number(s.dex);
+      const mode = typeof s.mode === "string" ? s.mode : (String(k).split(":")[0] || "chain");
+      if (!Number.isFinite(dex)) continue;
+      cleanSessions[huntKey(mode, dex)] = {
+        mode, dex,
+        count: Number.isFinite(s.count) ? Math.max(0, Math.floor(s.count)) : 0,
+        startedAt: Number.isFinite(s.startedAt) ? s.startedAt : Date.now(),
+      };
+    }
+  }
+  state.hunt.sessions = cleanSessions;
   if (!Array.isArray(state.hunt.finds)) state.hunt.finds = [];
+  if (state.hunt.activeDex != null && !Number.isFinite(Number(state.hunt.activeDex))) state.hunt.activeDex = null;
 }
 function normalizeParty() {
   const p = state.party;

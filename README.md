@@ -40,6 +40,31 @@ This repo is structured so GitHub Pages can serve it **directly from the repo ro
 
 All paths are relative (`./...`), so it works under the `/<repo>/` subpath without changes.
 
+## Deploy to Vercel
+
+Same repo, no build step — Vercel serves the static files from the root. The included
+[`vercel.json`](vercel.json) only sets `Cache-Control`/`Service-Worker-Allowed` headers so the
+service worker and `index.html` always revalidate (matching the app's network-first SW).
+
+**Git integration (recommended — auto-deploys every push to `main`):**
+
+1. [vercel.com/new](https://vercel.com/new) → **Import** this GitHub repo.
+2. Framework Preset: **Other**. Build Command: *(leave empty)*. Output Directory: *(leave empty/`.`)*.
+3. **Deploy.** Live in ~10 s at `https://<project>.vercel.app/`. Every later push redeploys.
+
+**Or the CLI:**
+
+```bash
+npm i -g vercel
+vercel        # first run links/creates the project (preview URL)
+vercel --prod # promote to the production domain
+```
+
+Vercel serves at the **root** (`/`), not a `/<repo>/` subpath — cleaner URLs and instant cache
+invalidation, which is nicer for a PWA. The two hosts are independent origins (each with its own SW
+cache), so you can run **both** in parallel during a transition, or point a custom domain at Vercel
+and retire Pages.
+
 ## Data
 
 - `scripts/build-species.js` regenerates `js/data/species.json` (all 1025: dex/name/types/gen) from PokeAPI.

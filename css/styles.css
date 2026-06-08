@@ -381,3 +381,34 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .t-ground{background:#e0c068}.t-flying{background:#a890f0}.t-psychic{background:#f85888}.t-bug{background:#a8b820}
 .t-rock{background:#b8a038}.t-ghost{background:#705898;color:#fff}.t-dragon{background:#7038f8;color:#fff}.t-dark{background:#705848;color:#fff}
 .t-steel{background:#b8b8d0}.t-fairy{background:#ee99ac}
+
+/* Party: per-slot buttons, illegal moves */
+.pm-btns { display: flex; flex-direction: column; gap: 4px; flex: 0 0 auto; }
+.pm-coach { background: rgba(246,197,68,.16); color: var(--gold); border: 1px solid transparent;
+  border-radius: 7px; width: 26px; height: 26px; cursor: pointer; font-size: .9rem; }
+.pm-coach:hover { background: rgba(246,197,68,.3); }
+.pm-move.illegal { border-color: var(--danger); color: #ffb3b3; background: rgba(239,68,68,.08); }
+
+/* Coach modal */
+.cz-head { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; }
+.cz-head img { width: 64px; height: 64px; image-rendering: pixelated; }
+.cz-head h2 { margin: 0 0 3px; text-transform: capitalize; font-size: 1.2rem; }
+.cz-bst { font-size: .72rem; color: var(--muted); margin-left: 6px; }
+.cz-stats { display: grid; gap: 3px; margin: 8px 0 4px; }
+.cz-statrow { display: grid; grid-template-columns: 34px 30px 1fr; align-items: center; gap: 6px; }
+.cz-statk { font-size: .72rem; color: var(--muted); }
+.cz-statv { font-size: .78rem; text-align: right; }
+.cz-bar { height: 8px; background: var(--panel-2); border-radius: 5px; overflow: hidden; }
+.cz-bar > i { display: block; height: 100%; }
+.cz-h { font-size: .9rem; margin: 14px 0 2px; }
+.cz-role { color: var(--accent); text-transform: capitalize; }
+.cz-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-size: .82rem; margin: 6px 0 10px; }
+.cz-grid b { color: var(--muted); font-size: .72rem; font-weight: 700; }
+.cz-moves { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.cz-move { font-size: .76rem; padding: 3px 10px; border-radius: 999px; color: #0c1018; font-weight: 600; background: var(--panel-2); }
+#coach-apply { width: 100%; }
+.cz-def { display: grid; gap: 6px; margin-top: 4px; }
+.cz-def > div { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.cz-lbl { font-size: .72rem; font-weight: 700; width: 58px; }
+.cz-lbl.wk { color: #ff8a8a; } .cz-lbl.rs { color: #7fd98a; } .cz-lbl.im { color: var(--muted); }
+.cz-def .ptype { text-transform: capitalize; }

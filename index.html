@@ -272,7 +272,9 @@
     <section class="panel" id="panel-party">
       <p class="hint">Build and keep multiple teams — species, nature, 4 moves, EVs (max 252 each / 510 total)
         and IVs (0–31). Everything autosaves and is included in your <strong>Data → Export</strong> backup.
-        Moves aren't legality-checked (any move is selectable). Need a quick team? Hit <strong>🎲 Random</strong>.</p>
+        Move pickers list each Pokémon's <strong>learnable</strong> moves (illegal ones turn red). Tap
+        <strong>🎓</strong> on a slot for a <strong>Coach</strong> build (nature, EVs, moves + type matchups), or
+        <strong>🎲 Random</strong> for a full team.</p>
       <div class="toolbar">
         <select id="party-select" class="select" style="flex:1 1 200px"></select>
         <button id="party-new" class="ctrl-btn">＋ New</button>
@@ -281,6 +283,12 @@
         <button id="party-random" class="ctrl-btn good">🎲 Random</button>
       </div>
       <div id="party-body"></div>
+      <div class="modal" id="coach-modal" hidden>
+        <div class="modal-box">
+          <button class="modal-close" data-close title="Close">✕</button>
+          <div id="coach-modal-body"></div>
+        </div>
+      </div>
     </section>
 
     <!-- ============ BERRIES TAB ============ -->

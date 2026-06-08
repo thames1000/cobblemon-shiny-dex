@@ -24,7 +24,9 @@ const DEX_STATES = ["none", "seen", "caught", "shiny", "boxed"];
 const STATE_BADGE = { seen: "S", caught: "C", shiny: "✨", boxed: "📦" };
 
 let SPECIES = [];   // [{dex,name,types,gen}]
-let MOVES = [];     // [{name,type,category}] — Party builder
+let MOVES = [];     // [{name,type,category,power}] — Party builder
+let MOVE_BY_NAME = {}; // name -> move meta
+let COACH = {};     // dex -> {base,bst,abilities,moves[]}
 let FORMS = null;   // {mega:[],primal:[],gmax:[]}
 let VARIANTS = null; // {regional:{alolan,galarian,hisuian,paldean}, cosmetic:[]}
 let DEX_BY_NUM = {}; // dex -> species
@@ -529,6 +531,8 @@ function natureBlurb(name) {
   return `+${STAT_LABEL[n[0]]} −${STAT_LABEL[n[1]]}`;
 }
 function clampInt(v, lo, hi) { v = Math.round(Number(v) || 0); return Math.max(lo, Math.min(hi, v)); }
+function movepool(dex) { return (COACH[dex] && COACH[dex].moves) || []; }
+function moveOk(pool, name) { return !pool.length || !name || pool.includes(name); }
 
 function memberCardHtml(m, slot) {
   const sp = m.dex ? DEX_BY_NUM[m.dex] : null;
@@ -536,9 +540,16 @@ function memberCardHtml(m, slot) {
   const types = sp ? sp.types.map((t) => `<span class="ptype t-${t}">${t}</span>`).join("") : "";
   const natOpts = `<option value="">Nature…</option>` + NATURE_NAMES.map((n) =>
     `<option value="${n}"${m.nature === n ? " selected" : ""}>${n} (${natureBlurb(n)})</option>`).join("");
-  const moves = [0, 1, 2, 3].map((i) =>
-    `<input class="pm-move" list="moves-list" data-slot="${slot}" data-k="move" data-i="${i}" ` +
-    `value="${m.moves[i] || ""}" placeholder="Move ${i + 1}" />`).join("");
+  // Per-species legal-move autocomplete; the global list is the fallback.
+  const pool = sp ? movepool(sp.dex) : [];
+  const listId = pool.length ? `moves-p${slot}` : "moves-list";
+  const moves = [0, 1, 2, 3].map((i) => {
+    const v = m.moves[i] || "";
+    const bad = v && !moveOk(pool, v) ? " illegal" : "";
+    return `<input class="pm-move${bad}" list="${listId}" data-slot="${slot}" data-k="move" data-i="${i}" ` +
+      `value="${v}" placeholder="Move ${i + 1}" />`;
+  }).join("");
+  const poolList = pool.length ? `<datalist id="moves-p${slot}">${pool.map((n) => `<option value="${n}">`).join("")}</datalist>` : "";
   const total = evSum(m);
   const evRow = STATS.map(([k, lbl]) =>
     `<label class="pm-stat"><span>${lbl}</span><input type="number" min="0" max="${EV_CAP}" ` +
@@ -554,10 +565,13 @@ function memberCardHtml(m, slot) {
           `value="${sp ? sp.name : ""}" placeholder="Slot ${slot + 1} — species…" />` +
         `<div class="pm-types">${types}</div>` +
       `</div>` +
-      `<button class="pm-clear" data-slot="${slot}" data-act="clear" title="Clear slot">✕</button>` +
+      `<div class="pm-btns">` +
+        (sp ? `<button class="pm-coach" data-slot="${slot}" data-act="coach" title="Coach — suggest a build">🎓</button>` : "") +
+        `<button class="pm-clear" data-slot="${slot}" data-act="clear" title="Clear slot">✕</button>` +
+      `</div>` +
     `</div>` +
     `<select class="pm-nature" data-slot="${slot}" data-k="nature">${natOpts}</select>` +
-    `<div class="pm-moves">${moves}</div>` +
+    `<div class="pm-moves">${moves}</div>${poolList}` +
     `<div class="pm-block">` +
       `<div class="pm-block-h">EVs <span class="pm-evtotal${total > EV_TOTAL ? " over" : ""}" data-slot="${slot}">${total}/510</span>` +
         `<button class="pm-mini" data-slot="${slot}" data-act="ev0">clear</button></div>` +
@@ -588,6 +602,23 @@ function refreshMemberDerived(slot) {
   const sp = m.dex ? DEX_BY_NUM[m.dex] : null;
   card.querySelector(".pm-sprite").innerHTML = sp ? `<img src="${spriteUrl(sp.dex, false)}" alt="" />` : `<span class="pm-empty">＋</span>`;
   card.querySelector(".pm-types").innerHTML = sp ? sp.types.map((t) => `<span class="ptype t-${t}">${t}</span>`).join("") : "";
+  // Re-point move autocomplete at the new species' legal pool + re-flag illegals.
+  const pool = sp ? movepool(sp.dex) : [];
+  const listId = pool.length ? `moves-p${slot}` : "moves-list";
+  let dl = card.querySelector(`#moves-p${slot}`);
+  if (pool.length) {
+    if (!dl) { dl = document.createElement("datalist"); dl.id = `moves-p${slot}`; card.appendChild(dl); }
+    dl.innerHTML = pool.map((n) => `<option value="${n}">`).join("");
+  } else if (dl) { dl.remove(); }
+  card.querySelectorAll(".pm-move").forEach((inp) => {
+    inp.setAttribute("list", listId);
+    inp.classList.toggle("illegal", !!inp.value && !moveOk(pool, inp.value));
+  });
+  // Show/hide the Coach button to match whether a species is set.
+  const btns = card.querySelector(".pm-btns");
+  let coachBtn = btns.querySelector(".pm-coach");
+  if (sp && !coachBtn) btns.insertAdjacentHTML("afterbegin", `<button class="pm-coach" data-slot="${slot}" data-act="coach" title="Coach — suggest a build">🎓</button>`);
+  else if (!sp && coachBtn) coachBtn.remove();
   const total = evSum(m);
   const tEl = card.querySelector(".pm-evtotal");
   tEl.textContent = `${total}/510`;
@@ -638,12 +669,17 @@ function deleteParty() {
 // ---- random generator ----
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function randomMovesFor(sp) {
-  const typed = MOVES.filter((mv) => sp.types.includes(mv.type.toLowerCase()) && mv.category !== "Status");
-  const pool = typed.length >= 4 ? typed : MOVES;
+  // Only legal moves for this species; bias toward its STAB damaging moves.
+  const legal = movepool(sp.dex);
+  const meta = legal.map((n) => MOVE_BY_NAME[n]).filter(Boolean);
+  const typed = meta.filter((mv) => sp.types.includes(mv.type.toLowerCase()) && mv.category !== "Status").map((m) => m.name);
+  const names = typed.length >= 4 ? typed
+    : meta.length >= 4 ? meta.map((m) => m.name)
+      : legal.length ? legal : MOVES.map((m) => m.name);
   const chosen = [];
   let guard = 0;
-  while (chosen.length < 4 && guard++ < 200) {
-    const mv = pick(pool).name;
+  while (chosen.length < 4 && names.length && guard++ < 300) {
+    const mv = pick(names);
     if (!chosen.includes(mv)) chosen.push(mv);
   }
   return chosen;
@@ -668,6 +704,174 @@ function randomizeParty() {
   if (!confirm(`Replace all 6 slots of "${activeParty().name}" with a random team?`)) return;
   activeParty().members = Array.from({ length: 6 }, randomMember);
   save(); renderParty();
+}
+
+/* ---------- coach (build suggestions, à la pocketcraft) ---------- */
+const TYPES = ["normal", "fire", "water", "electric", "grass", "ice", "fighting", "poison",
+  "ground", "flying", "psychic", "bug", "rock", "ghost", "dragon", "dark", "steel", "fairy"];
+// Attacking type -> { defending type: multiplier } for non-1 matchups (Gen 6+).
+const TYPE_CHART = {
+  normal: { rock: .5, ghost: 0, steel: .5 },
+  fire: { fire: .5, water: .5, grass: 2, ice: 2, bug: 2, rock: .5, dragon: .5, steel: 2 },
+  water: { fire: 2, water: .5, grass: .5, ground: 2, rock: 2, dragon: .5 },
+  electric: { water: 2, electric: .5, grass: .5, ground: 0, flying: 2, dragon: .5 },
+  grass: { fire: .5, water: 2, grass: .5, poison: .5, ground: 2, flying: .5, bug: .5, rock: 2, dragon: .5, steel: .5 },
+  ice: { fire: .5, water: .5, grass: 2, ice: .5, ground: 2, flying: 2, dragon: 2, steel: .5 },
+  fighting: { normal: 2, ice: 2, poison: .5, flying: .5, psychic: .5, bug: .5, rock: 2, ghost: 0, dark: 2, steel: 2, fairy: .5 },
+  poison: { grass: 2, poison: .5, ground: .5, rock: .5, ghost: .5, steel: 0, fairy: 2 },
+  ground: { fire: 2, electric: 2, grass: .5, poison: 2, flying: 0, bug: .5, rock: 2, steel: 2 },
+  flying: { electric: .5, grass: 2, fighting: 2, bug: 2, rock: .5, steel: .5 },
+  psychic: { fighting: 2, poison: 2, psychic: .5, dark: 0, steel: .5 },
+  bug: { fire: .5, grass: 2, fighting: .5, poison: .5, flying: .5, psychic: 2, ghost: .5, dark: 2, steel: .5, fairy: .5 },
+  rock: { fire: 2, ice: 2, fighting: .5, ground: .5, flying: 2, bug: 2, steel: .5 },
+  ghost: { normal: 0, psychic: 2, ghost: 2, dark: .5 },
+  dragon: { dragon: 2, steel: .5, fairy: 0 },
+  dark: { fighting: .5, psychic: 2, ghost: 2, dark: .5, fairy: .5 },
+  steel: { fire: .5, water: .5, electric: .5, ice: 2, rock: 2, steel: .5, fairy: 2 },
+  fairy: { fire: .5, fighting: 2, poison: .5, dragon: 2, dark: 2, steel: .5 },
+};
+function defenseProfile(types) {
+  const mult = {};
+  for (const atk of TYPES) {
+    let x = 1;
+    for (const def of types) x *= (TYPE_CHART[atk] && TYPE_CHART[atk][def] != null ? TYPE_CHART[atk][def] : 1);
+    mult[atk] = x;
+  }
+  const weak = [], resist = [], immune = [];
+  for (const t of TYPES) {
+    const x = mult[t];
+    if (x === 0) immune.push(t);
+    else if (x > 1) weak.push([t, x]);
+    else if (x < 1) resist.push([t, x]);
+  }
+  weak.sort((a, b) => b[1] - a[1]); resist.sort((a, b) => a[1] - b[1]);
+  return { weak, resist, immune };
+}
+const NAT_FOR = { "def-atk": "Bold", "def-spa": "Impish", "spd-atk": "Calm", "spd-spa": "Careful" };
+const UTIL_MOVES = ["Recover", "Roost", "Synthesis", "Moonlight", "Morning Sun", "Slack Off", "Soft-Boiled",
+  "Wish", "Calm Mind", "Nasty Plot", "Swords Dance", "Dragon Dance", "Quiver Dance", "Bulk Up", "Iron Defense",
+  "Toxic", "Will-O-Wisp", "Thunder Wave", "Stealth Rock", "Spikes", "Defog", "Rapid Spin", "Knock Off",
+  "Protect", "Substitute", "Recover"];
+// Recharge / 2-turn / self-KO moves: high base power but bad as default picks.
+const BAD_MOVES = new Set(["Hyper Beam", "Giga Impact", "Frenzy Plant", "Blast Burn", "Hydro Cannon",
+  "Roar of Time", "Rock Wrecker", "Prismatic Laser", "Eternabeam", "Meteor Assault", "Solar Beam", "Solar Blade",
+  "Sky Attack", "Skull Bash", "Razor Wind", "Bounce", "Fly", "Dig", "Dive", "Phantom Force", "Shadow Force",
+  "Freeze Shock", "Ice Burn", "Sky Drop", "Explosion", "Self-Destruct", "Misty Explosion", "Final Gambit",
+  "Last Resort", "Synchronoise", "Electro Shot"]);
+// Effective power discounts shaky accuracy so a 50%-acc nuke ranks below a reliable hit.
+function effPower(m) { return m.power * (m.acc >= 100 ? 1 : m.acc / 100); }
+function damaging(meta, cat) {
+  return meta.filter((m) => m.category === cat && m.power > 0 && !BAD_MOVES.has(m.name));
+}
+function bestStab(meta, type, cat) {
+  return damaging(meta, cat).filter((m) => m.type.toLowerCase() === type)
+    .sort((a, b) => effPower(b) - effPower(a))[0];
+}
+function coachBuild(dex) {
+  const c = COACH[dex], sp = DEX_BY_NUM[dex];
+  if (!c || !sp) return null;
+  const b = c.base;
+  const offCat = b.atk >= b.spa ? "Physical" : "Special";
+  const offStat = offCat === "Physical" ? "atk" : "spa";
+  const maxOff = Math.max(b.atk, b.spa), bulk = b.hp + b.def + b.spd;
+  const ivs = { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 };
+  let role, nature, evs, why;
+
+  if (maxOff >= 80 && maxOff * 1.1 >= bulk / 3) {
+    const fast = b.spe >= 85;
+    role = (b.spe >= 95 ? "Fast " : "") + (offCat === "Physical" ? "physical attacker" : "special attacker");
+    nature = offCat === "Physical" ? (fast ? "Jolly" : "Adamant") : (fast ? "Timid" : "Modest");
+    evs = { hp: 4, atk: 0, def: 0, spa: 0, spd: 0, spe: 252 }; evs[offStat] = 252;
+    if (offCat === "Physical") ivs.spa = 0;
+    why = `Best attack is ${offCat === "Physical" ? "Atk " + b.atk : "SpA " + b.spa} with ${b.spe} Speed — max it and outspeed. ${fast ? "Speed-boosting" : "Attack-boosting"} nature.`;
+  } else {
+    role = "defensive wall";
+    const defSide = b.def >= b.spd ? "def" : "spd";
+    const reduce = b.atk <= b.spa ? "atk" : "spa";
+    evs = { hp: 252, atk: 0, def: 4, spa: 0, spd: 0, spe: 0 }; evs[defSide] = 252;
+    nature = NAT_FOR[`${defSide}-${reduce}`];
+    if (reduce === "atk") ivs.atk = 0;
+    why = `Modest offense but good bulk (HP ${b.hp} / Def ${b.def} / SpD ${b.spd}) — invest HP and ${defSide === "def" ? "Defense" : "Sp. Def"}.`;
+  }
+
+  // Moves: STAB(s) + coverage; walls lead with a STAB then utility/recovery.
+  const meta = c.moves.map((n) => MOVE_BY_NAME[n]).filter(Boolean);
+  const picks = [], taken = new Set();
+  const add = (name) => { if (name && !taken.has(name)) { taken.add(name); picks.push(name); } };
+  for (const t of sp.types) { const s = bestStab(meta, t, offCat); if (s) add(s.name); }
+  if (role === "defensive wall") {
+    for (const u of UTIL_MOVES) { if (picks.length >= 4) break; if (c.moves.includes(u)) add(u); }
+  } else {
+    const cover = damaging(meta, offCat).filter((m) => !sp.types.includes(m.type.toLowerCase()))
+      .sort((a, b2) => effPower(b2) - effPower(a));
+    const seenType = new Set(sp.types);
+    for (const m of cover) { if (picks.length >= 4) break; if (!seenType.has(m.type.toLowerCase())) { seenType.add(m.type.toLowerCase()); add(m.name); } }
+    for (const u of UTIL_MOVES) { if (picks.length >= 4) break; if (c.moves.includes(u)) add(u); }
+  }
+  for (const m of damaging(meta, offCat).sort((a, b2) => effPower(b2) - effPower(a))) { if (picks.length >= 4) break; add(m.name); }
+
+  return { role, nature, evs, ivs, moves: picks.slice(0, 4), why, base: b, bst: c.bst, abilities: c.abilities };
+}
+function statBars(b) {
+  return STATS.map(([k, lbl]) => {
+    const v = b[k];
+    const pct = Math.min(100, (v / 200) * 100);
+    const hue = Math.round((Math.min(v, 150) / 150) * 120); // red->green
+    return `<div class="cz-statrow"><span class="cz-statk">${lbl}</span>` +
+      `<span class="cz-statv">${v}</span>` +
+      `<span class="cz-bar"><i style="width:${pct}%;background:hsl(${hue} 70% 45%)"></i></span></div>`;
+  }).join("");
+}
+let coachSlot = -1;
+function openCoach(slot) {
+  const m = activeParty().members[slot];
+  if (!m || !m.dex) return;
+  const build = coachBuild(m.dex);
+  const sp = DEX_BY_NUM[m.dex];
+  if (!build) return;
+  coachSlot = slot;
+  const def = defenseProfile(sp.types);
+  const chip = (t, x) => `<span class="ptype t-${t}">${t}${x && x !== 1 && x !== 0 ? ` ×${x}` : ""}${x === 0 ? " ×0" : ""}</span>`;
+  const evStr = STATS.filter(([k]) => build.evs[k]).map(([k, lbl]) => `${build.evs[k]} ${lbl}`).join(" / ") || "—";
+  const moveChips = build.moves.map((n) => {
+    const mv = MOVE_BY_NAME[n];
+    return `<span class="cz-move${mv ? ` t-${mv.type.toLowerCase()}` : ""}">${n}</span>`;
+  }).join("");
+  document.getElementById("coach-modal-body").innerHTML =
+    `<div class="cz-head"><img src="${spriteUrl(sp.dex, false)}" alt="" />` +
+      `<div><h2>${sp.name}</h2><div class="pm-types">${sp.types.map((t) => `<span class="ptype t-${t}">${t}</span>`).join("")}` +
+      `<span class="cz-bst">BST ${build.bst}</span></div>` +
+      `<div class="muted" style="font-size:.78rem;margin-top:3px">Abilities: ${build.abilities.join(", ") || "—"}</div></div></div>` +
+    `<div class="cz-stats">${statBars(build.base)}</div>` +
+    `<h3 class="cz-h">Suggested build — <span class="cz-role">${build.role}</span></h3>` +
+    `<p class="hint" style="margin:2px 0 8px">${build.why}</p>` +
+    `<div class="cz-grid">` +
+      `<div><b>Nature</b><br>${build.nature} <span class="muted">(${natureBlurb(build.nature)})</span></div>` +
+      `<div><b>EVs</b><br>${evStr}</div>` +
+      `<div><b>IVs</b><br>${build.ivs.atk === 0 ? "0 Atk, rest 31" : build.ivs.spa === 0 ? "0 SpA, rest 31" : "All 31"}</div>` +
+    `</div>` +
+    `<div class="cz-moves">${moveChips}</div>` +
+    `<button class="ctrl-btn good" id="coach-apply">Apply to slot ${slot + 1}</button>` +
+    `<h3 class="cz-h">Type defense</h3>` +
+    `<div class="cz-def">` +
+      (def.weak.length ? `<div><span class="cz-lbl wk">Weak</span> ${def.weak.map(([t, x]) => chip(t, x)).join("")}</div>` : "") +
+      (def.resist.length ? `<div><span class="cz-lbl rs">Resists</span> ${def.resist.map(([t, x]) => chip(t, x)).join("")}</div>` : "") +
+      (def.immune.length ? `<div><span class="cz-lbl im">Immune</span> ${def.immune.map((t) => chip(t, 0)).join("")}</div>` : "") +
+    `</div>`;
+  document.getElementById("coach-modal").hidden = false;
+}
+function applyCoach() {
+  if (coachSlot < 0) return;
+  const m = activeParty().members[coachSlot];
+  const build = coachBuild(m.dex);
+  if (!build) return;
+  m.nature = build.nature;
+  m.evs = Object.assign({}, build.evs);
+  m.ivs = Object.assign({}, build.ivs);
+  m.moves = [0, 1, 2, 3].map((i) => build.moves[i] || "");
+  save();
+  document.getElementById("coach-modal").hidden = true;
+  renderParty();
 }
 
 /* ---------- hunt tab ---------- */
@@ -1637,6 +1841,8 @@ function wire() {
         refreshMemberDerived(slot);
       } else if (k === "move") {
         partyEdit(slot, k, { i: Number(el.dataset.i), value: el.value });
+        const dex = activeParty().members[slot].dex;
+        el.classList.toggle("illegal", !!el.value && !moveOk(dex ? movepool(dex) : [], el.value));
       } else {
         partyEdit(slot, k, el.value);
         if (k === "species") refreshMemberDerived(slot);
@@ -1646,8 +1852,19 @@ function wire() {
     partyBody.addEventListener("change", onEdit);
     partyBody.addEventListener("click", (e) => {
       const btn = e.target.closest("[data-act]");
-      if (btn) partyAction(Number(btn.dataset.slot), btn.dataset.act);
+      if (!btn) return;
+      if (btn.dataset.act === "coach") openCoach(Number(btn.dataset.slot));
+      else partyAction(Number(btn.dataset.slot), btn.dataset.act);
     });
+  }
+  // Coach modal: apply or dismiss.
+  const coachModal = document.getElementById("coach-modal");
+  if (coachModal) {
+    coachModal.addEventListener("click", (e) => {
+      if (e.target.closest("#coach-apply")) { applyCoach(); return; }
+      if (e.target === coachModal || e.target.closest("[data-close]")) coachModal.hidden = true;
+    });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !coachModal.hidden) coachModal.hidden = true; });
   }
 
   // Farm tab
@@ -1711,7 +1928,7 @@ if ("serviceWorker" in navigator) {
 async function boot() {
   grabEls();
   load();
-  const [sp, fm, spawns, berries, variants, berryGuide, moves] = await Promise.all([
+  const [sp, fm, spawns, berries, variants, berryGuide, moves, coach] = await Promise.all([
     fetch("js/data/species.json").then((r) => r.json()),
     fetch("js/data/forms.json").then((r) => r.json()),
     fetch("js/data/spawns.json").then((r) => r.json()).catch(() => ({})),
@@ -1719,9 +1936,13 @@ async function boot() {
     fetch("js/data/variants.json").then((r) => r.json()).catch(() => ({ regional: { alolan: [], galarian: [], hisuian: [], paldean: [] }, cosmetic: [], unown: [], cobblemon: [] })),
     fetch("js/data/berry-guide.json").then((r) => r.json()).catch(() => []),
     fetch("js/data/moves.json").then((r) => r.json()).catch(() => []),
+    fetch("js/data/coach.json").then((r) => r.json()).catch(() => ({})),
   ]);
   SPECIES = sp;
   MOVES = moves;
+  MOVE_BY_NAME = {};
+  MOVES.forEach((m) => (MOVE_BY_NAME[m.name] = m));
+  COACH = coach;
   FORMS = { mega: fm.mega, primal: fm.primal, gmax: fm.gmax };
   VARIANTS = variants;
   SPAWNS = spawns;

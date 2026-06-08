@@ -1186,7 +1186,46 @@ function renderHunt() {
     els.huntCount.textContent = String(s.count);
     els.huntOdds.innerHTML = huntOddsLine(s);
   }
+  renderActiveHunts();
   renderFinds();
+}
+
+// In-progress hunts: any session with at least one encounter logged, newest first.
+// (Stored in state.hunt.sessions, so it rides along in export/import for free.)
+function renderActiveHunts() {
+  const card = els.huntActiveCard;
+  const wrap = els.huntActive;
+  if (!card || !wrap) return;
+  const h = state.hunt;
+  const active = Object.values(h.sessions || {}).filter((s) => s && s.count > 0);
+  if (!active.length) { card.hidden = true; wrap.innerHTML = ""; return; }
+  card.hidden = false;
+  active.sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0));
+  const unit = { chain: "KOs", breeding: "eggs", encounter: "enc." };
+  wrap.innerHTML = active.map((s) => {
+    const sp = DEX_BY_NUM[s.dex];
+    const name = sp ? sp.name.replace(/-/g, " ") : String(s.dex);
+    const isActive = h.mode === s.mode && h.activeDex === s.dex;
+    return `<div class="find-row active-hunt${isActive ? " current" : ""}" data-mode="${s.mode}" data-dex="${s.dex}" role="button" tabindex="0" title="Resume this hunt">
+      <img src="${spriteUrl(s.dex, true)}" alt="" />
+      <span class="find-name">${name}</span>
+      <span class="muted">${s.mode} · ${s.count} ${unit[s.mode] || ""}${isActive ? " · current" : ""}</span>
+      <button class="ctrl-btn ah-drop" data-mode="${s.mode}" data-dex="${s.dex}" title="Give up this hunt">✕</button>
+    </div>`;
+  }).join("");
+}
+
+function resumeHunt(mode, dex) {
+  state.hunt.mode = mode;
+  state.hunt.activeDex = dex;
+  ensureSession(mode, dex);
+  save(); renderHunt();
+}
+function dropHunt(mode, dex) {
+  const k = huntKey(mode, dex);
+  delete state.hunt.sessions[k];
+  if (state.hunt.mode === mode && state.hunt.activeDex === dex) state.hunt.activeDex = null;
+  save(); renderHunt();
 }
 
 function renderFinds() {
@@ -1823,7 +1862,8 @@ function importData(file) {
       const dexN = Object.keys(state.dex).length;
       const varN = Object.keys(state.variants).length;
       const berryN = Object.keys(state.berries).length;
-      alert(`Imported — ${dexN} dex, ${varN} variants, ${berryN} berries.`);
+      const huntN = Object.values(state.hunt.sessions || {}).filter((s) => s && s.count > 0).length;
+      alert(`Imported — ${dexN} dex, ${varN} variants, ${berryN} berries, ${huntN} active hunts.`);
     } catch (e) { alert("Import failed: " + e.message); }
   };
   reader.readAsText(file);
@@ -1856,6 +1896,8 @@ function grabEls() {
     huntInput: document.getElementById("hunt-input"),
     speciesList: document.getElementById("species-list"),
     huntFinds: document.getElementById("hunt-finds"),
+    huntActiveCard: document.getElementById("hunt-active-card"),
+    huntActive: document.getElementById("hunt-active"),
     cfgBase: document.getElementById("cfg-base"),
     cfgThresholds: document.getElementById("cfg-thresholds"),
     cfgMasuda: document.getElementById("cfg-masuda"),
@@ -2003,6 +2045,17 @@ function wire() {
   document.getElementById("hunt-found").addEventListener("click", foundShiny);
   document.getElementById("hunt-load").addEventListener("click", () => loadTarget(els.huntInput.value));
   document.getElementById("hunt-random").addEventListener("click", randomHuntTarget);
+  els.huntActive.addEventListener("click", (e) => {
+    const drop = e.target.closest(".ah-drop");
+    if (drop) { e.stopPropagation(); dropHunt(drop.dataset.mode, Number(drop.dataset.dex)); return; }
+    const row = e.target.closest(".active-hunt");
+    if (row) resumeHunt(row.dataset.mode, Number(row.dataset.dex));
+  });
+  els.huntActive.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const row = e.target.closest(".active-hunt");
+    if (row) { e.preventDefault(); resumeHunt(row.dataset.mode, Number(row.dataset.dex)); }
+  });
   els.huntInput.addEventListener("keydown", (e) => { if (e.key === "Enter") loadTarget(els.huntInput.value); });
   document.getElementById("cfg-save").addEventListener("click", applyConfigInputs);
   document.getElementById("cfg-reset").addEventListener("click", () => {

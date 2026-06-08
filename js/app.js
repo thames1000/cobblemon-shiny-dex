@@ -1226,6 +1226,20 @@ function loadTarget(raw) {
   ensureSession(state.hunt.mode, sp.dex);
   save(); renderHunt();
 }
+// Bored? Roll a random target. Prefers species you haven't shiny-caught yet so
+// it actually gives you somewhere new to go; falls back to anything if you've
+// caught them all (you legend).
+function randomHuntTarget() {
+  const fresh = SPECIES.filter((s) => { const st = dexState(s.dex); return st !== "shiny" && st !== "boxed"; });
+  const pool = fresh.length ? fresh : SPECIES;
+  const sp = pool[Math.floor(Math.random() * pool.length)];
+  state.hunt.activeDex = sp.dex;
+  ensureSession(state.hunt.mode, sp.dex);
+  els.huntInput.value = sp.name;
+  save(); renderHunt();
+  const card = els.huntInput.closest(".card");
+  if (card) { card.classList.remove("flash"); void card.offsetWidth; card.classList.add("flash"); }
+}
 function foundShiny() {
   const h = state.hunt;
   if (h.activeDex == null) return;
@@ -1988,6 +2002,7 @@ function wire() {
   });
   document.getElementById("hunt-found").addEventListener("click", foundShiny);
   document.getElementById("hunt-load").addEventListener("click", () => loadTarget(els.huntInput.value));
+  document.getElementById("hunt-random").addEventListener("click", randomHuntTarget);
   els.huntInput.addEventListener("keydown", (e) => { if (e.key === "Enter") loadTarget(els.huntInput.value); });
   document.getElementById("cfg-save").addEventListener("click", applyConfigInputs);
   document.getElementById("cfg-reset").addEventListener("click", () => {

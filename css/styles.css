@@ -445,3 +445,10 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
   padding: 3px 11px; font-size: .74rem; font-weight: 700; cursor: pointer; }
 .tc-apply:hover { filter: brightness(1.1); }
 #tc-apply-all { width: 100%; margin-bottom: 8px; }
+
+/* Hunt: random-target flash */
+.card.flash { animation: card-flash .7s ease-out; }
+@keyframes card-flash {
+  0% { box-shadow: 0 0 0 2px var(--accent), 0 0 16px var(--accent); }
+  100% { box-shadow: none; }
+}

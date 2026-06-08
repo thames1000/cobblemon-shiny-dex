@@ -718,19 +718,22 @@ function randomMemberFrom(sp) {
   };
 }
 function randomMember() { return randomMemberFrom(pick(SPECIES)); }
-// Smogon SV tiers (OU folds in UUBL = banned up to OU; UU folds in RUBL).
-function tierMatch(dex, tier) {
-  if (tier === "any") return true;
-  const t = (COACH[dex] && COACH[dex].tier) || "";
-  if (tier === "ou") return t === "OU" || t === "UUBL";
-  if (tier === "uu") return t === "UU" || t === "RUBL";
+// Smogon SV singles power order (high -> low). "Max OU"/"Max UU" act as a tier
+// ceiling: include that tier and everything below it (so Max OU excludes Ubers).
+const TIER_RANK = { AG: 13, Uber: 12, OU: 11, UUBL: 10, UU: 9, RUBL: 8, RU: 7, NUBL: 6, NU: 5, PUBL: 4, PU: 3, ZUBL: 2, ZU: 1 };
+function tierMatch(dex, mode) {
+  if (mode === "any") return true;
+  const r = TIER_RANK[(COACH[dex] && COACH[dex].tier) || ""] || 0;
+  if (!r) return false;                 // no standard tier (LC/NFE/unavailable) -> not in a capped pool
+  if (mode === "ou") return r <= TIER_RANK.OU;
+  if (mode === "uu") return r <= TIER_RANK.UU;
   return true;
 }
 function isLegendary(dex) { return !!(COACH[dex] && COACH[dex].leg); }
 function randomizeParty() {
   const tier = (document.getElementById("party-rand-tier") || {}).value || "any";
   const legMode = (document.getElementById("party-rand-leg") || {}).value || "any";
-  const tierLbl = { any: "any tier", ou: "OU", uu: "UU" }[tier];
+  const tierLbl = { any: "any tier", ou: "max-OU", uu: "max-UU" }[tier];
   const legLbl = { any: "", "0": ", no legendaries", "1": ", 1 legendary" }[legMode];
   if (!confirm(`Replace all 6 slots of "${activeParty().name}" with a random ${tierLbl} team${legLbl}?`)) return;
 

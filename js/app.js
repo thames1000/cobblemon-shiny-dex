@@ -533,6 +533,8 @@ function natureBlurb(name) {
 }
 function clampInt(v, lo, hi) { v = Math.round(Number(v) || 0); return Math.max(lo, Math.min(hi, v)); }
 function movepool(dex) { return (COACH[dex] && COACH[dex].moves) || []; }
+// The coach's recommended ability (hidden, else the first) — auto-applied on add.
+function recommendedAbility(dex) { const c = COACH[dex]; return c ? (c.hidden || c.abilities[0] || "") : ""; }
 function moveOk(pool, name) { return !pool.length || !name || pool.includes(name); }
 
 function memberCardHtml(m, slot) {
@@ -641,7 +643,9 @@ function refreshMemberDerived(slot) {
 
 function partyEdit(slot, k, payload) {
   const m = activeParty().members[slot];
-  if (k === "species") { const sp = findSpecies(payload); const d = sp ? sp.dex : null; if (d !== m.dex) m.ability = ""; m.dex = d; }
+  // On (re)assigning a species, auto-pick its recommended ability so you don't
+  // have to apply the coach's ability tip every time. Nature/EVs/moves untouched.
+  if (k === "species") { const sp = findSpecies(payload); const d = sp ? sp.dex : null; if (d !== m.dex) m.ability = d ? recommendedAbility(d) : ""; m.dex = d; }
   else if (k === "nature") m.nature = payload;
   else if (k === "ability") m.ability = payload;
   else if (k === "move") m.moves[payload.i] = payload.value;

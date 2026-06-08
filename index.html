@@ -274,14 +274,26 @@
         and IVs (0–31). Everything autosaves and is included in your <strong>Data → Export</strong> backup.
         Move pickers list each Pokémon's <strong>learnable</strong> moves (illegal ones turn red). Tap
         <strong>🎓</strong> on a slot for a <strong>Coach</strong> build (nature, EVs, moves + type matchups), or
-        <strong>🎲 Random</strong> for a full team.</p>
+        <strong>🎲 Random team</strong> (filterable by OU/UU tier and 0/1 legendary) for a full squad.</p>
       <div class="toolbar">
         <select id="party-select" class="select" style="flex:1 1 200px"></select>
         <button id="party-new" class="ctrl-btn">＋ New</button>
         <button id="party-rename" class="ctrl-btn">✏ Rename</button>
         <button id="party-delete" class="ctrl-btn danger">🗑</button>
-        <button id="party-random" class="ctrl-btn good">🎲 Random</button>
         <button id="party-coach" class="ctrl-btn">🧠 Team Coach</button>
+      </div>
+      <div class="toolbar" style="margin-top:-2px">
+        <select id="party-rand-tier" class="select">
+          <option value="any">Any tier</option>
+          <option value="ou">OU only</option>
+          <option value="uu">UU only</option>
+        </select>
+        <select id="party-rand-leg" class="select">
+          <option value="any">Legendaries: any</option>
+          <option value="0">0 legendary</option>
+          <option value="1">1 legendary</option>
+        </select>
+        <button id="party-random" class="ctrl-btn good">🎲 Random team</button>
       </div>
       <div id="party-body"></div>
       <div class="modal" id="coach-modal" hidden>

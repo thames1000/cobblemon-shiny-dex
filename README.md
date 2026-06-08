@@ -76,7 +76,9 @@ and retire Pages.
   generator + Coach) — name/type/category/power/accuracy per move, slimmed from Pokémon Showdown's move dex and
   filtered to moves at least one Pokémon can learn (so Struggle and the like are gone).
 - `scripts/build-coach.js` regenerates `js/data/coach.json` — per-species base stats, abilities (incl. the hidden
-  one) and **legal move pool** (from Showdown's pokedex + learnsets, keyed by national dex). Powers the per-species
+  one), **legal move pool**, Smogon **tier** (SV singles) and a **legendary** flag (from Showdown's pokedex +
+  learnsets + formats-data, keyed by national dex). Tiers/legendary drive the random-team filters (OU = OU+UUBL,
+  UU = UU+RUBL; legendary = Sub-Legendary / Restricted Legendary / Mythical). Powers the per-species
   legal-move pickers, the per-Pokémon **Coach** (suggested nature / ability / EVs / moves + type matchups) and the
   whole-party **Team Coach** (rating, shared-weakness risks with teammate suggestions, role gaps, per-mon upgrades).
   Move pools are standard, not Cobblemon-exact.

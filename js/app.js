@@ -708,16 +708,56 @@ function randomEvs() {
   ev[a] = 252; ev[b] = 252; ev[c] = 6;
   return ev;
 }
-function randomMember() {
-  const sp = pick(SPECIES);
+function randomMemberFrom(sp) {
+  const c = COACH[sp.dex];
   return {
-    dex: sp.dex, nature: pick(NATURE_NAMES), moves: randomMovesFor(sp),
+    dex: sp.dex, nature: pick(NATURE_NAMES),
+    ability: c && c.abilities.length ? pick(c.abilities) : "",
+    moves: randomMovesFor(sp),
     evs: randomEvs(), ivs: { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 },
   };
 }
+function randomMember() { return randomMemberFrom(pick(SPECIES)); }
+// Smogon SV tiers (OU folds in UUBL = banned up to OU; UU folds in RUBL).
+function tierMatch(dex, tier) {
+  if (tier === "any") return true;
+  const t = (COACH[dex] && COACH[dex].tier) || "";
+  if (tier === "ou") return t === "OU" || t === "UUBL";
+  if (tier === "uu") return t === "UU" || t === "RUBL";
+  return true;
+}
+function isLegendary(dex) { return !!(COACH[dex] && COACH[dex].leg); }
 function randomizeParty() {
-  if (!confirm(`Replace all 6 slots of "${activeParty().name}" with a random team?`)) return;
-  activeParty().members = Array.from({ length: 6 }, randomMember);
+  const tier = (document.getElementById("party-rand-tier") || {}).value || "any";
+  const legMode = (document.getElementById("party-rand-leg") || {}).value || "any";
+  const tierLbl = { any: "any tier", ou: "OU", uu: "UU" }[tier];
+  const legLbl = { any: "", "0": ", no legendaries", "1": ", 1 legendary" }[legMode];
+  if (!confirm(`Replace all 6 slots of "${activeParty().name}" with a random ${tierLbl} team${legLbl}?`)) return;
+
+  const haveCoach = (sp) => COACH[sp.dex];
+  const usable = (SPECIES.filter((sp) => haveCoach(sp) && tierMatch(sp.dex, tier)).length
+    ? SPECIES.filter((sp) => haveCoach(sp) && tierMatch(sp.dex, tier))
+    : SPECIES.filter(haveCoach));
+  const nonLeg = usable.filter((sp) => !isLegendary(sp.dex));
+  const used = new Set();
+  const draw = (arr) => {
+    const avail = arr.filter((sp) => !used.has(sp.dex));
+    const sp = pick(avail.length ? avail : arr);
+    used.add(sp.dex); return sp;
+  };
+
+  const slots = [];
+  if (legMode === "1") {
+    const legPool = usable.filter((sp) => isLegendary(sp.dex));
+    const legSrc = legPool.length ? legPool : SPECIES.filter((sp) => haveCoach(sp) && isLegendary(sp.dex));
+    slots.push(draw(legSrc));
+    const others = nonLeg.length ? nonLeg : usable;
+    for (let i = 0; i < 5; i++) slots.push(draw(others));
+  } else {
+    const src = legMode === "0" ? (nonLeg.length ? nonLeg : usable) : usable;
+    for (let i = 0; i < 6; i++) slots.push(draw(src));
+  }
+  activeParty().members = slots.map(randomMemberFrom);
   save(); renderParty();
 }
 

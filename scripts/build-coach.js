@@ -18,7 +18,10 @@ const https = require("https");
 const DEX_URL = "https://play.pokemonshowdown.com/data/pokedex.json";
 const MOVES_URL = "https://play.pokemonshowdown.com/data/moves.json";
 const LEARN_URL = "https://play.pokemonshowdown.com/data/learnsets.json";
+const FORMATS_URL = "https://play.pokemonshowdown.com/data/formats-data.js"; // Smogon SV tiers
 const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
+// Pokédex tags that count as "legendary" for the random generator.
+const LEGEND_TAGS = new Set(["Sub-Legendary", "Restricted Legendary", "Mythical"]);
 
 function get(url) {
   return new Promise((resolve, reject) => {
@@ -42,9 +45,12 @@ function collectMoves(id, dex, learn, seen) {
 
 async function main() {
   const species = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "js", "data", "species.json"), "utf8"));
-  const [dex, moveDex, learn] = await Promise.all([
-    get(DEX_URL).then(JSON.parse), get(MOVES_URL).then(JSON.parse), get(LEARN_URL).then(JSON.parse),
+  const [dex, moveDex, learn, formatsJs] = await Promise.all([
+    get(DEX_URL).then(JSON.parse), get(MOVES_URL).then(JSON.parse), get(LEARN_URL).then(JSON.parse), get(FORMATS_URL),
   ]);
+  const fexp = {}; (new Function("exports", formatsJs))(fexp); // exports.BattleFormatsData = {...}
+  const formats = fexp.BattleFormatsData || {};
+  const tierOf = (id) => String((formats[id] && formats[id].tier) || "").replace(/[()]/g, ""); // strip "(OU)" parens
   const moveName = {};                       // move id -> display name
   for (const id of Object.keys(moveDex)) moveName[id] = moveDex[id].name;
   const byNum = {};                          // national dex num -> base-form ps id
@@ -68,7 +74,9 @@ async function main() {
     const moveIds = [...new Set(collectMoves(id, dex, learn))];
     const moves = moveIds.map((m) => moveName[m]).filter(Boolean).sort();
     if (!moves.length) noMoves++;
-    out[sp.dex] = { base, bst, abilities, hidden, moves };
+    const tier = tierOf(id);                                   // SV singles tier (e.g. OU, UU, Uber)
+    const leg = (e.tags || []).some((t) => LEGEND_TAGS.has(t)); // legendary / mythical
+    out[sp.dex] = { base, bst, abilities, hidden, moves, tier, leg };
   }
 
   const dest = path.join(__dirname, "..", "js", "data", "coach.json");
@@ -76,9 +84,13 @@ async function main() {
   console.log(`Wrote ${Object.keys(out).length} species -> ${dest} (${(fs.statSync(dest).size / 1024).toFixed(0)} KB)`);
   if (noStats) console.log(`  ! ${noStats} species had no Showdown stats (skipped)`);
   if (noMoves) console.log(`  ! ${noMoves} species had no move pool`);
-  // spot checks
-  const mc = out[572]; // Minccino
-  console.log(`  Minccino: BST ${mc.bst}, ${mc.moves.length} moves, has Struggle? ${mc.moves.includes("Struggle")}`);
+  // Verify category membership (the random generator uses OU = OU+UUBL, UU = UU+RUBL).
+  const v = Object.values(out);
+  const inOU = (t) => t === "OU" || t === "UUBL";
+  const inUU = (t) => t === "UU" || t === "RUBL";
+  console.log(`  OU pool: ${v.filter((x) => inOU(x.tier)).length}, UU pool: ${v.filter((x) => inUU(x.tier)).length}, legendaries: ${v.filter((x) => x.leg).length}`);
+  const mc = out[572];
+  console.log(`  Minccino: BST ${mc.bst}, tier ${mc.tier || "—"}, ${mc.moves.length} moves`);
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

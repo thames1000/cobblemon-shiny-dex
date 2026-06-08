@@ -437,3 +437,11 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .tc-list li { margin: 5px 0; font-size: .85rem; line-height: 1.4; }
 .tc-kind { font-size: .66rem; font-weight: 800; text-transform: uppercase; letter-spacing: .3px;
   color: var(--accent); background: rgba(79,209,197,.12); padding: 1px 6px; border-radius: 5px; margin: 0 3px; }
+
+/* Team Coach: apply buttons */
+.tc-up { display: flex; align-items: flex-start; gap: 8px; justify-content: space-between; }
+.tc-up > span { flex: 1; min-width: 0; }
+.tc-apply { flex: 0 0 auto; background: var(--accent); color: #04201d; border: 0; border-radius: 7px;
+  padding: 3px 11px; font-size: .74rem; font-weight: 700; cursor: pointer; }
+.tc-apply:hover { filter: brightness(1.1); }
+#tc-apply-all { width: 100%; margin-bottom: 8px; }

@@ -1005,8 +1005,10 @@ function openTeamCoach() {
     ? `<ul class="tc-list">${a.missingRoles.map((r) => `<li>Missing ${r}.</li>`).join("")}</ul>`
     : `<p class="muted">All core roles covered.</p>`;
   const upHtml = a.upgrades.length
-    ? a.upgrades.map((u) => `<li><b>${cap(u.mon)}</b> <span class="tc-kind">${u.kind}</span> ${u.text}</li>`).join("")
+    ? a.upgrades.map((u) => `<li><div class="tc-up"><span><b>${cap(u.mon)}</b> <span class="tc-kind">${u.kind}</span> ${u.text}</span>` +
+      `<button class="tc-apply" data-slot="${u.slot}" data-kind="${u.kind}">Apply</button></div></li>`).join("")
     : `<li class="muted">Every set looks complete — great job.</li>`;
+  const applyAll = a.upgrades.length ? `<button class="ctrl-btn good" id="tc-apply-all">Apply all ${a.upgrades.length} fixes</button>` : "";
   const labelClass = a.label.split(" ")[0].toLowerCase();
   body.innerHTML =
     `<div class="tc-head"><h2>Team Coach</h2><span class="tc-rating tc-${labelClass}">${a.label}</span></div>` +
@@ -1014,8 +1016,29 @@ function openTeamCoach() {
     `<p class="hint">Rating blends type weaknesses, missing roles, and how complete each Pokémon's spread &amp; moves are. ${a.count}/6 slots filled.</p>` +
     `<h3 class="cz-h">Top team risks</h3>${riskHtml}` +
     `<h3 class="cz-h">Role coverage</h3>${roleHtml}` +
-    `<h3 class="cz-h">Highest-impact upgrades</h3><ul class="tc-list">${upHtml}</ul>`;
+    `<h3 class="cz-h">Highest-impact upgrades</h3>${applyAll}<ul class="tc-list">${upHtml}</ul>`;
   modal.hidden = false;
+}
+// Apply one flagged fix (or all) by writing the matching facet of the coached build.
+function applyUpgradeCore(slot, kind) {
+  const m = activeParty().members[slot];
+  if (!m || !m.dex) return;
+  const b = coachBuild(m.dex);
+  if (!b) return;
+  if (kind === "Nature") m.nature = b.nature;
+  else if (kind === "Ability") m.ability = b.ability;
+  else if (kind === "EVs") m.evs = Object.assign({}, b.evs);
+  else if (kind === "Moves") m.moves = [0, 1, 2, 3].map((i) => b.moves[i] || "");
+}
+function applyUpgrade(slot, kind) {
+  applyUpgradeCore(slot, kind);
+  save(); renderParty(); openTeamCoach();
+}
+function applyAllUpgrades() {
+  const a = teamAnalysis();
+  if (a.empty) return;
+  for (const u of a.upgrades) applyUpgradeCore(u.slot, u.kind);
+  save(); renderParty(); openTeamCoach();
 }
 
 /* ---------- hunt tab ---------- */
@@ -2006,6 +2029,9 @@ function wire() {
   const coachModal = document.getElementById("coach-modal");
   if (coachModal) {
     coachModal.addEventListener("click", (e) => {
+      const up = e.target.closest(".tc-apply");
+      if (up) { applyUpgrade(Number(up.dataset.slot), up.dataset.kind); return; }
+      if (e.target.closest("#tc-apply-all")) { applyAllUpgrades(); return; }
       if (e.target.closest("#coach-apply")) { applyCoach(); return; }
       if (e.target === coachModal || e.target.closest("[data-close]")) coachModal.hidden = true;
     });

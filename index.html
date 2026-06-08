@@ -27,6 +27,7 @@
     <button class="tab" data-tab="hunt">Hunt</button>
     <button class="tab" data-tab="spawns">Spawns</button>
     <button class="tab" data-tab="snack">PokéSnack</button>
+    <button class="tab" data-tab="berries">Berries</button>
     <button class="tab" data-tab="farm">Farm</button>
     <button class="tab" data-tab="data">Data</button>
   </nav>
@@ -264,6 +265,27 @@
 
       <h2 class="section-h">Most likely visitors</h2>
       <div id="snack-results"></div>
+    </section>
+
+    <!-- ============ BERRIES TAB ============ -->
+    <section class="panel" id="panel-berries">
+      <div class="stats-bar" id="berries-stats"></div>
+      <p class="hint">All <strong>70</strong> Cobblemon berries and how to get each. <strong>Wild</strong> berries grow on
+        trees that spawn in their listed biome(s) — harvest by right-clicking (no need to break the tree). Plant in the
+        preferred biome <em>or</em> apply the <strong>preferred mulch</strong> to a stage-0 tree for bonus yield.
+        <strong>Mutation</strong> berries can't be found: plant the two parent trees orthogonally adjacent (not diagonal)
+        — each harvest has a 12.5% chance to drop the mutation (raise it with Surprise Mulch). Data from the
+        <a href="https://wiki.cobblemon.com/index.php/Berry_Tree" target="_blank" rel="noopener">Cobblemon Wiki</a>.</p>
+      <div class="toolbar">
+        <input type="search" id="berry-search" class="search" placeholder="Search berry, effect, biome or parent…" />
+      </div>
+      <div class="controls" style="margin:-2px 0 10px">
+        <button class="ctrl-btn berry-filter active" data-kind="all">All</button>
+        <button class="ctrl-btn berry-filter" data-kind="natural">🌿 Wild</button>
+        <button class="ctrl-btn berry-filter" data-kind="drop">✨ Drops</button>
+        <button class="ctrl-btn berry-filter" data-kind="mutation">⚗️ Mutation</button>
+      </div>
+      <div id="berries-list"></div>
     </section>
 
     <!-- ============ FARM TAB ============ -->

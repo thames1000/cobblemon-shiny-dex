@@ -273,3 +273,29 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .ctrl-btn:hover { border-color: var(--accent); }
 .ctrl-btn.good { background: var(--boxed); color: #043024; border-color: transparent; }
 .ctrl-btn.danger { background: var(--danger); color: #fff; border-color: transparent; }
+
+/* Berries tab */
+.ctrl-btn.active { background: var(--accent); color: #04201d; border-color: transparent; }
+.berry-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 8px; margin-bottom: 6px;
+}
+.berry {
+  display: flex; gap: 10px; align-items: flex-start; padding: 9px 11px;
+  background: var(--panel-2, var(--bg-2)); border: 1px solid var(--line);
+  border-left-width: 3px; border-radius: 10px;
+}
+.berry img { width: 34px; height: 34px; image-rendering: pixelated; flex: 0 0 auto; margin-top: 1px; }
+.berry .b-main { min-width: 0; flex: 1; }
+.berry .b-name { font-weight: 700; font-size: .9rem; }
+.berry .b-effect { color: var(--muted); font-size: .76rem; line-height: 1.35; margin: 1px 0 5px; }
+.berry .b-how { display: flex; flex-wrap: wrap; gap: 4px; }
+.b-tag {
+  font-size: .72rem; line-height: 1.3; padding: 1px 7px; border-radius: 999px;
+  background: rgba(255, 255, 255, .05); border: 1px solid var(--line); color: var(--text);
+}
+.b-tag.b-mulch { color: var(--muted); }
+.b-tag.b-recipe { background: rgba(79, 209, 197, .12); border-color: transparent; }
+.berry.b-natural { border-left-color: #5fbf6a; }
+.berry.b-drop { border-left-color: var(--shiny); }
+.berry.b-mutation { border-left-color: var(--accent); }

@@ -355,6 +355,70 @@ function renderVariantsStats() {
     `<span class="stat">Cobblemon ${cob.filter((v) => state.variants[v.id]).length}/${cob.length}</span>`;
 }
 
+/* ---------- berries tab (reference: all 70 berries + how to obtain) ---------- */
+let berryFilter = "all";
+const KIND_LABEL = { natural: "🌿 Wild — grows on trees", drop: "✨ Pokémon drop", mutation: "⚗️ Mutation — crossbreed" };
+function berryCard(b) {
+  const img = WIKI_FILEPATH(b.img);
+  let how;
+  if (b.kind === "natural") {
+    how = `<span class="b-tag">🌿 ${b.biomes.join(", ")}</span>` +
+      (b.mulch ? `<span class="b-tag b-mulch">🪣 ${b.mulch}</span>` : "");
+  } else if (b.kind === "drop") {
+    how = `<span class="b-tag">✨ ${b.source}</span>`;
+  } else {
+    how = `<span class="b-tag b-recipe">⚗️ ${b.source}</span>` +
+      (b.mulch ? `<span class="b-tag b-mulch">🪣 ${b.mulch}</span>` : "");
+  }
+  const el = document.createElement("div");
+  el.className = `berry b-${b.kind}`;
+  el.innerHTML =
+    `<img loading="lazy" src="${img}" alt="${b.name}" />` +
+    `<div class="b-main">` +
+      `<div class="b-name">${b.name}</div>` +
+      `<div class="b-effect">${b.effect}</div>` +
+      `<div class="b-how">${how}</div>` +
+    `</div>`;
+  return el;
+}
+function berryMatch(b, q) {
+  if (!q) return true;
+  return [b.name, b.effect, b.source, ...(b.biomes || []), b.mulch]
+    .join(" ").toLowerCase().includes(q);
+}
+function renderBerries() {
+  const host = document.getElementById("berries-list");
+  if (!host) return;
+  const q = (els.berrySearch && els.berrySearch.value.trim().toLowerCase()) || "";
+  host.innerHTML = "";
+  const frag = document.createDocumentFragment();
+  for (const kind of ["natural", "drop", "mutation"]) {
+    if (berryFilter !== "all" && berryFilter !== kind) continue;
+    const list = BERRY_GUIDE.filter((b) => b.kind === kind && berryMatch(b, q));
+    if (!list.length) continue;
+    const h = document.createElement("h2");
+    h.className = "section-h";
+    h.textContent = `${KIND_LABEL[kind]} (${list.length})`;
+    frag.appendChild(h);
+    const grid = document.createElement("div");
+    grid.className = "berry-grid";
+    list.forEach((b) => grid.appendChild(berryCard(b)));
+    frag.appendChild(grid);
+  }
+  if (!frag.childNodes.length) frag.appendChild(Object.assign(document.createElement("p"), { className: "hint", textContent: "No berries match." }));
+  host.appendChild(frag);
+  renderBerriesStats();
+}
+function renderBerriesStats() {
+  if (!els.berriesStats) return;
+  const n = (k) => BERRY_GUIDE.filter((b) => b.kind === k).length;
+  els.berriesStats.innerHTML =
+    `<span class="stat"><b>${BERRY_GUIDE.length}</b> berries</span>` +
+    `<span class="stat">🌿 ${n("natural")} wild</span>` +
+    `<span class="stat">✨ ${n("drop")} drop</span>` +
+    `<span class="stat">⚗️ ${n("mutation")} mutation</span>`;
+}
+
 /* ---------- hunt tab ---------- */
 const MODE_DESC = {
   chain: "Unchained chaining: each +1 is a KO of your target. Same-species KO streak raises shiny odds via threshold tiers. KO'ing a different species resets the streak.",
@@ -711,6 +775,7 @@ function renderFarm() { renderFarmApricorn(); renderFarmShiny(); }
  * summary but don't re-rank the list. */
 let BERRIES = [];        // [{id,name,group,effect,type?,rarityTier?,shiny?,...}]
 let BERRY_BY_ID = {};
+let BERRY_GUIDE = [];    // [{id,name,kind,biomes,mulch,source,effect,img}] — Berries tab
 
 // Official Poké Snack rarity-bucket odds at seasoning tiers 0, 3 and 10 (Cobblemon Wiki).
 // Intermediate tiers are interpolated; this is an approximation of the in-game roll.
@@ -1089,6 +1154,8 @@ function grabEls() {
     formsStats: document.getElementById("forms-stats"),
     variantsStats: document.getElementById("variants-stats"),
     variantSearch: document.getElementById("variant-search"),
+    berriesStats: document.getElementById("berries-stats"),
+    berrySearch: document.getElementById("berry-search"),
     boxesStats: document.getElementById("boxes-stats"),
     boxSelect: document.getElementById("box-select"),
     boxGrid: document.getElementById("box-grid"),
@@ -1179,6 +1246,14 @@ function wire() {
     renderVariantsStats();
   });
   els.variantSearch.addEventListener("input", renderVariants);
+
+  // Berries tab: search + kind filter chips.
+  if (els.berrySearch) els.berrySearch.addEventListener("input", renderBerries);
+  document.querySelectorAll(".berry-filter").forEach((btn) => btn.addEventListener("click", () => {
+    berryFilter = btn.dataset.kind;
+    document.querySelectorAll(".berry-filter").forEach((b) => b.classList.toggle("active", b === btn));
+    renderBerries();
+  }));
 
   els.dexSearch.addEventListener("input", renderDex);
   els.dexGen.addEventListener("change", renderDex);
@@ -1326,18 +1401,20 @@ if ("serviceWorker" in navigator) {
 async function boot() {
   grabEls();
   load();
-  const [sp, fm, spawns, berries, variants] = await Promise.all([
+  const [sp, fm, spawns, berries, variants, berryGuide] = await Promise.all([
     fetch("js/data/species.json").then((r) => r.json()),
     fetch("js/data/forms.json").then((r) => r.json()),
     fetch("js/data/spawns.json").then((r) => r.json()).catch(() => ({})),
     fetch("js/data/berries.json").then((r) => r.json()).catch(() => []),
     fetch("js/data/variants.json").then((r) => r.json()).catch(() => ({ regional: { alolan: [], galarian: [], hisuian: [], paldean: [] }, cosmetic: [], unown: [], cobblemon: [] })),
+    fetch("js/data/berry-guide.json").then((r) => r.json()).catch(() => []),
   ]);
   SPECIES = sp;
   FORMS = { mega: fm.mega, primal: fm.primal, gmax: fm.gmax };
   VARIANTS = variants;
   SPAWNS = spawns;
   BERRIES = berries;
+  BERRY_GUIDE = berryGuide;
   BERRY_BY_ID = {};
   BERRIES.forEach((b) => (BERRY_BY_ID[b.id] = b));
   DEX_BY_NUM = {};
@@ -1380,6 +1457,7 @@ async function boot() {
   renderFarm();
   renderBoxes();
   renderSnack();
+  renderBerries();
   const hash = location.hash.replace("#", "");
   if (hash) showTab(hash);
 }

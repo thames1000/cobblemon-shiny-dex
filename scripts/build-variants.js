@@ -45,6 +45,12 @@ const isSkipped = (form) =>
 function titleCase(s) {
   return String(s).replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()).trim();
 }
+// Pokémon Showdown sprite slug: strip accents + punctuation, lowercase.
+// (Cobblemon form names line up with Showdown's, e.g. "Pa'u" -> "pau".)
+function slugify(s) {
+  return String(s).normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]/g, "");
+}
 
 function walk(dir, out) {
   for (const f of fs.readdirSync(dir)) {
@@ -62,7 +68,8 @@ function walk(dir, out) {
       if (isSkipped(form)) continue;
       const region = labels.map((l) => REGION_LABEL[l]).find(Boolean);
       const id = `${j.name}-${(aspects.join("-") || form.name || "form").toLowerCase()}`;
-      const entry = { id, dex, base, name: titleCase(form.name || aspects[0] || "Form"), aspects };
+      const slug = `${slugify(base)}-${slugify(form.name || aspects[0] || "")}`.replace(/-$/, "");
+      const entry = { id, dex, base, name: titleCase(form.name || aspects[0] || "Form"), aspects, slug };
       if (region) (out.regional[region] = out.regional[region] || []).push(entry);
       else out.cosmetic.push(entry);
     }

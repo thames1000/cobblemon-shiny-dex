@@ -7,6 +7,9 @@
 
 const STORAGE_KEY = "shinydex-hq-v1";
 const SPRITE_BASE = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon";
+// Pokémon Showdown serves form-specific sprites by name (covers regional + cosmetic
+// variants the PokeAPI national-dex sprites don't). Pixel style matches the app.
+const SHOWDOWN_BASE = "https://play.pokemonshowdown.com/sprites/gen5";
 
 // Dex state cycle. Right-click steps back.
 const DEX_STATES = ["none", "seen", "caught", "shiny", "boxed"];
@@ -278,9 +281,13 @@ function variantCard(v) {
   el.className = `mon ${have ? "f-unlocked" : "f-locked"}`;
   el.dataset.variant = v.id;
   el.title = `${v.base} · ${v.name}`;
+  // Form-specific sprite from Showdown; fall back to the base national-dex sprite
+  // for the handful with no distinct sprite (e.g. region-bias pre-evolutions).
+  const base = spriteUrl(v.dex, false);
+  const src = v.slug ? `${SHOWDOWN_BASE}/${v.slug}.png` : base;
   el.innerHTML =
     `${have ? `<span class="badge">✓</span>` : ""}` +
-    `<img loading="lazy" src="${spriteUrl(v.dex, false)}" alt="${v.base} ${v.name}" />` +
+    `<img loading="lazy" src="${src}" onerror="this.onerror=null;this.src='${base}'" alt="${v.base} ${v.name}" />` +
     `<div class="dexno">#${String(v.dex).padStart(4, "0")}</div>` +
     `<div class="nm">${v.base.replace(/-/g, " ")}</div>` +
     `<div class="vform">${v.name}</div>`;

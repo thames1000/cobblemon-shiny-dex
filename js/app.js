@@ -46,7 +46,7 @@ function defaultHunt() {
 const STATS = [["hp", "HP"], ["atk", "Atk"], ["def", "Def"], ["spa", "SpA"], ["spd", "SpD"], ["spe", "Spe"]];
 function emptyMember() {
   return {
-    dex: null, nature: "", moves: ["", "", "", ""],
+    dex: null, nature: "", ability: "", moves: ["", "", "", ""],
     evs: { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 },
     ivs: { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 },
   };
@@ -87,6 +87,7 @@ function normalizeParty() {
       return {
         dex: Number.isFinite(m.dex) ? m.dex : null,
         nature: typeof m.nature === "string" ? m.nature : "",
+        ability: typeof m.ability === "string" ? m.ability : "",
         moves: [0, 1, 2, 3].map((i) => (Array.isArray(m.moves) && m.moves[i]) || ""),
         evs: Object.assign(e.evs, m.evs || {}),
         ivs: Object.assign(e.ivs, m.ivs || {}),
@@ -540,6 +541,9 @@ function memberCardHtml(m, slot) {
   const types = sp ? sp.types.map((t) => `<span class="ptype t-${t}">${t}</span>`).join("") : "";
   const natOpts = `<option value="">Nature…</option>` + NATURE_NAMES.map((n) =>
     `<option value="${n}"${m.nature === n ? " selected" : ""}>${n} (${natureBlurb(n)})</option>`).join("");
+  const abils = sp && COACH[sp.dex] ? COACH[sp.dex].abilities : [];
+  const abilOpts = `<option value="">Ability…</option>` + abils.map((a) =>
+    `<option value="${a}"${m.ability === a ? " selected" : ""}>${a}</option>`).join("");
   // Per-species legal-move autocomplete; the global list is the fallback.
   const pool = sp ? movepool(sp.dex) : [];
   const listId = pool.length ? `moves-p${slot}` : "moves-list";
@@ -570,7 +574,10 @@ function memberCardHtml(m, slot) {
         `<button class="pm-clear" data-slot="${slot}" data-act="clear" title="Clear slot">✕</button>` +
       `</div>` +
     `</div>` +
-    `<select class="pm-nature" data-slot="${slot}" data-k="nature">${natOpts}</select>` +
+    `<div class="pm-row">` +
+      `<select class="pm-nature" data-slot="${slot}" data-k="nature">${natOpts}</select>` +
+      `<select class="pm-ability" data-slot="${slot}" data-k="ability">${abilOpts}</select>` +
+    `</div>` +
     `<div class="pm-moves">${moves}</div>${poolList}` +
     `<div class="pm-block">` +
       `<div class="pm-block-h">EVs <span class="pm-evtotal${total > EV_TOTAL ? " over" : ""}" data-slot="${slot}">${total}/510</span>` +
@@ -614,6 +621,13 @@ function refreshMemberDerived(slot) {
     inp.setAttribute("list", listId);
     inp.classList.toggle("illegal", !!inp.value && !moveOk(pool, inp.value));
   });
+  // Repopulate ability options for the new species.
+  const abilSel = card.querySelector(".pm-ability");
+  if (abilSel) {
+    const abils = sp && COACH[sp.dex] ? COACH[sp.dex].abilities : [];
+    abilSel.innerHTML = `<option value="">Ability…</option>` + abils.map((a) =>
+      `<option value="${a}"${m.ability === a ? " selected" : ""}>${a}</option>`).join("");
+  }
   // Show/hide the Coach button to match whether a species is set.
   const btns = card.querySelector(".pm-btns");
   let coachBtn = btns.querySelector(".pm-coach");
@@ -627,8 +641,9 @@ function refreshMemberDerived(slot) {
 
 function partyEdit(slot, k, payload) {
   const m = activeParty().members[slot];
-  if (k === "species") { const sp = findSpecies(payload); m.dex = sp ? sp.dex : null; }
+  if (k === "species") { const sp = findSpecies(payload); const d = sp ? sp.dex : null; if (d !== m.dex) m.ability = ""; m.dex = d; }
   else if (k === "nature") m.nature = payload;
+  else if (k === "ability") m.ability = payload;
   else if (k === "move") m.moves[payload.i] = payload.value;
   else if (k === "ev") m.evs[payload.stat] = clampInt(payload.value, 0, EV_CAP);
   else if (k === "iv") m.ivs[payload.stat] = clampInt(payload.value, 0, IV_MAX);
@@ -810,7 +825,8 @@ function coachBuild(dex) {
   }
   for (const m of damaging(meta, offCat).sort((a, b2) => effPower(b2) - effPower(a))) { if (picks.length >= 4) break; add(m.name); }
 
-  return { role, nature, evs, ivs, moves: picks.slice(0, 4), why, base: b, bst: c.bst, abilities: c.abilities };
+  const ability = c.hidden || c.abilities[0] || "";
+  return { role, nature, evs, ivs, moves: picks.slice(0, 4), ability, why, base: b, bst: c.bst, abilities: c.abilities, hidden: c.hidden };
 }
 function statBars(b) {
   return STATS.map(([k, lbl]) => {
@@ -847,6 +863,7 @@ function openCoach(slot) {
     `<p class="hint" style="margin:2px 0 8px">${build.why}</p>` +
     `<div class="cz-grid">` +
       `<div><b>Nature</b><br>${build.nature} <span class="muted">(${natureBlurb(build.nature)})</span></div>` +
+      `<div><b>Ability</b><br>${build.ability || "—"}${build.hidden && build.ability === build.hidden ? ` <span class="muted">(hidden)</span>` : ""}</div>` +
       `<div><b>EVs</b><br>${evStr}</div>` +
       `<div><b>IVs</b><br>${build.ivs.atk === 0 ? "0 Atk, rest 31" : build.ivs.spa === 0 ? "0 SpA, rest 31" : "All 31"}</div>` +
     `</div>` +
@@ -866,12 +883,139 @@ function applyCoach() {
   const build = coachBuild(m.dex);
   if (!build) return;
   m.nature = build.nature;
+  m.ability = build.ability;
   m.evs = Object.assign({}, build.evs);
   m.ivs = Object.assign({}, build.ivs);
   m.moves = [0, 1, 2, 3].map((i) => build.moves[i] || "");
   save();
   document.getElementById("coach-modal").hidden = true;
   renderParty();
+}
+
+/* ---------- team coach (whole-party analysis, à la pocketcraft) ---------- */
+const HAZARDS = ["Stealth Rock", "Spikes", "Toxic Spikes", "Sticky Web"];
+function cap(s) { return String(s).replace(/(^|[\s-])\S/g, (c) => c.toUpperCase()); }
+function evSpreadStr(evs) { return STATS.filter(([k]) => evs[k]).map(([k, l]) => `${evs[k]} ${l}`).join(" / "); }
+function hasStabMove(m, sp) {
+  return m.moves.filter(Boolean).some((n) => { const mv = MOVE_BY_NAME[n]; return mv && mv.power > 0 && sp.types.includes(mv.type.toLowerCase()); });
+}
+function typesResisting(type) {
+  return TYPES.filter((d) => (TYPE_CHART[type] && TYPE_CHART[type][d] != null ? TYPE_CHART[type][d] : 1) < 1);
+}
+// A few notable fully-evolved species that resist/are immune to `type`.
+function resistersOf(type, exclude) {
+  const out = [];
+  for (const sp of SPECIES) {
+    if (exclude.has(sp.dex)) continue;
+    const c = COACH[sp.dex];
+    if (!c || c.bst < 480) continue;
+    let x = 1;
+    for (const d of sp.types) { const v = TYPE_CHART[type] && TYPE_CHART[type][d]; if (v != null) x *= v; }
+    if (x < 1) out.push({ name: sp.name, x, bst: c.bst });
+  }
+  out.sort((a, b) => a.x - b.x || b.bst - a.bst);
+  return out.slice(0, 3).map((o) => o.name);
+}
+function teamAnalysis() {
+  const party = activeParty();
+  const members = party.members.map((m, i) => ({ m, i })).filter((x) => x.m.dex);
+  if (!members.length) return { empty: true };
+  const dexes = new Set(members.map((x) => x.m.dex));
+
+  // shared type weaknesses
+  const tally = {}; TYPES.forEach((t) => (tally[t] = { weak: [], covered: 0 }));
+  for (const { m } of members) {
+    const sp = DEX_BY_NUM[m.dex], prof = defenseProfile(sp.types);
+    const wk = new Map(prof.weak), rs = new Set(prof.resist.map(([t]) => t)), im = new Set(prof.immune);
+    for (const t of TYPES) {
+      if (im.has(t) || rs.has(t)) tally[t].covered++;
+      else if (wk.has(t)) tally[t].weak.push({ name: sp.name, x: wk.get(t) });
+    }
+  }
+  const risks = [];
+  for (const t of TYPES) {
+    const tt = tally[t];
+    if (tt.weak.length >= 2 && tt.weak.length > tt.covered) {
+      risks.push({ type: t, weak: tt.weak, covered: tt.covered, addTypes: typesResisting(t), mons: resistersOf(t, dexes) });
+    }
+  }
+  risks.sort((a, b) => (b.weak.length - b.covered) - (a.weak.length - a.covered));
+
+  // role coverage
+  const roleSet = new Set(); let fast = false, hazard = false;
+  for (const { m } of members) {
+    const b = coachBuild(m.dex);
+    if (b) roleSet.add(b.role.includes("physical") ? "phys" : b.role.includes("special") ? "spec" : "wall");
+    if (COACH[m.dex].base.spe >= 100) fast = true;
+    if (m.moves.some((n) => HAZARDS.includes(n))) hazard = true;
+  }
+  const missingRoles = [];
+  if (!roleSet.has("phys")) missingRoles.push("a physical attacker");
+  if (!roleSet.has("spec")) missingRoles.push("a special attacker");
+  if (!roleSet.has("wall")) missingRoles.push("a defensive wall / pivot");
+  if (!fast) missingRoles.push("a fast Pokémon (Speed ≥ 100) for speed control");
+  if (!hazard) missingRoles.push("an entry-hazard setter (Stealth Rock / Spikes)");
+
+  // per-member upgrades + completeness
+  const upgrades = []; let comp = 0;
+  for (const { m, i } of members) {
+    const sp = DEX_BY_NUM[m.dex], b = coachBuild(m.dex), c = COACH[m.dex];
+    let cm = 0;
+    if (!m.nature) upgrades.push({ mon: sp.name, slot: i, kind: "Nature", text: `No nature set — ${b.nature} (${natureBlurb(b.nature)}) fits its ${b.role}.` });
+    else if (m.nature !== b.nature) { upgrades.push({ mon: sp.name, slot: i, kind: "Nature", text: `Set nature to ${b.nature} (${natureBlurb(b.nature)}) instead of ${m.nature} so stats match its ${b.role}.` }); cm += 0.5; }
+    else cm += 1;
+    if (!m.ability) upgrades.push({ mon: sp.name, slot: i, kind: "Ability", text: `No ability set — ${b.ability}${c.hidden && b.ability === c.hidden ? " (hidden)" : ""} is a strong pick.` });
+    else { cm += 1; if (c.hidden && m.ability !== c.hidden) upgrades.push({ mon: sp.name, slot: i, kind: "Ability", text: `Consider its hidden ability ${c.hidden} for stronger competitive value.` }); }
+    const ev = evSum(m);
+    if (ev === 0) upgrades.push({ mon: sp.name, slot: i, kind: "EVs", text: `No EVs invested — try ${evSpreadStr(b.evs)}.` });
+    else if (ev > 510) { upgrades.push({ mon: sp.name, slot: i, kind: "EVs", text: `EVs total ${ev} (over the 510 cap) — trim to a legal spread.` }); cm += 0.5; }
+    else cm += 1;
+    const filled = m.moves.filter(Boolean);
+    const illegal = filled.filter((n) => !moveOk(movepool(m.dex), n));
+    if (filled.length < 4) { upgrades.push({ mon: sp.name, slot: i, kind: "Moves", text: `Only ${filled.length}/4 moves — fill the empty slots.` }); cm += filled.length / 4; }
+    else cm += 1;
+    if (illegal.length) upgrades.push({ mon: sp.name, slot: i, kind: "Moves", text: `${illegal.join(", ")} can't be learned — replace.` });
+    if (filled.length && !hasStabMove(m, sp)) upgrades.push({ mon: sp.name, slot: i, kind: "Moves", text: `No STAB attack — add a ${sp.types.join("/")} move for reliable damage.` });
+    comp += cm / 4;
+  }
+  const completeness = comp / members.length;
+
+  let score = 100;
+  score -= risks.length * 9;
+  score -= missingRoles.length * 5;
+  score -= Math.round((1 - completeness) * 40);
+  score -= (6 - members.length) * 3;
+  score = Math.max(5, Math.min(100, score));
+  const label = score >= 85 ? "Strong Build" : score >= 70 ? "Solid Build" : score >= 50 ? "Developing Build" : "Rough Build";
+  return { empty: false, score, label, risks, missingRoles, upgrades, count: members.length };
+}
+function openTeamCoach() {
+  const a = teamAnalysis();
+  const modal = document.getElementById("coach-modal"), body = document.getElementById("coach-modal-body");
+  coachSlot = -1; // no per-mon apply in team view
+  if (a.empty) {
+    body.innerHTML = `<h2>Team Coach</h2><p class="hint">Add some Pokémon to this party first.</p>`;
+    modal.hidden = false; return;
+  }
+  const riskHtml = a.risks.length ? a.risks.map((r) =>
+    `<div class="tc-risk"><div class="tc-risk-h">Weak to <span class="ptype t-${r.type}">${r.type}</span> — ${r.weak.length} member${r.weak.length > 1 ? "s" : ""}${r.covered ? `, ${r.covered} resist` : ""}</div>` +
+    `<div class="muted">${r.weak.map((w) => `${cap(w.name)} ×${w.x}`).join(", ")}. Support with a ${r.addTypes.slice(0, 4).map(cap).join(" / ")} type${r.mons.length ? ` — try ${r.mons.map(cap).join(", ")}` : ""}.</div></div>`).join("")
+    : `<p class="muted">No major shared weaknesses — solid defensive spread.</p>`;
+  const roleHtml = a.missingRoles.length
+    ? `<ul class="tc-list">${a.missingRoles.map((r) => `<li>Missing ${r}.</li>`).join("")}</ul>`
+    : `<p class="muted">All core roles covered.</p>`;
+  const upHtml = a.upgrades.length
+    ? a.upgrades.map((u) => `<li><b>${cap(u.mon)}</b> <span class="tc-kind">${u.kind}</span> ${u.text}</li>`).join("")
+    : `<li class="muted">Every set looks complete — great job.</li>`;
+  const labelClass = a.label.split(" ")[0].toLowerCase();
+  body.innerHTML =
+    `<div class="tc-head"><h2>Team Coach</h2><span class="tc-rating tc-${labelClass}">${a.label}</span></div>` +
+    `<div class="tc-score"><div class="bar"><i style="width:${a.score}%"></i></div><span>${a.score}/100</span></div>` +
+    `<p class="hint">Rating blends type weaknesses, missing roles, and how complete each Pokémon's spread &amp; moves are. ${a.count}/6 slots filled.</p>` +
+    `<h3 class="cz-h">Top team risks</h3>${riskHtml}` +
+    `<h3 class="cz-h">Role coverage</h3>${roleHtml}` +
+    `<h3 class="cz-h">Highest-impact upgrades</h3><ul class="tc-list">${upHtml}</ul>`;
+  modal.hidden = false;
 }
 
 /* ---------- hunt tab ---------- */
@@ -1827,6 +1971,7 @@ function wire() {
   pBtn("party-rename", renameParty);
   pBtn("party-delete", deleteParty);
   pBtn("party-random", randomizeParty);
+  pBtn("party-coach", openTeamCoach);
   const partyBody = document.getElementById("party-body");
   if (partyBody) {
     const onEdit = (e) => {

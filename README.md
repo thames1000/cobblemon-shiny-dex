@@ -75,9 +75,11 @@ and retire Pages.
 - `scripts/build-moves.js` regenerates `js/data/moves.json` (the **Party** tab's move pickers + type-biased random
   generator + Coach) — name/type/category/power/accuracy per move, slimmed from Pokémon Showdown's move dex and
   filtered to moves at least one Pokémon can learn (so Struggle and the like are gone).
-- `scripts/build-coach.js` regenerates `js/data/coach.json` — per-species base stats, abilities and **legal move
-  pool** (from Showdown's pokedex + learnsets, keyed by national dex). Powers the per-species legal-move pickers and
-  the **Coach** (suggested nature / EVs / moves + type matchups). Move pools are standard, not Cobblemon-exact.
+- `scripts/build-coach.js` regenerates `js/data/coach.json` — per-species base stats, abilities (incl. the hidden
+  one) and **legal move pool** (from Showdown's pokedex + learnsets, keyed by national dex). Powers the per-species
+  legal-move pickers, the per-Pokémon **Coach** (suggested nature / ability / EVs / moves + type matchups) and the
+  whole-party **Team Coach** (rating, shared-weakness risks with teammate suggestions, role gaps, per-mon upgrades).
+  Move pools are standard, not Cobblemon-exact.
 - `scripts/build-spawns.js` regenerates `js/data/spawns.json` from a `spawn_pool_world` directory.
   This pack uses **Cobbleverse** spawn rules (its bundled `COBBLEVERSE-DP-*.zip` datapack), which cover
   **1017 species** — including legendaries, mythicals and paradox mons that have *no* spawn in base Cobblemon.

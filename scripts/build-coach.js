@@ -62,11 +62,13 @@ async function main() {
     const b = e.baseStats;
     const base = { hp: b.hp, atk: b.atk, def: b.def, spa: b.spa, spd: b.spd, spe: b.spe };
     const bst = base.hp + base.atk + base.def + base.spa + base.spd + base.spe;
-    const abilities = Object.values(e.abilities || {});
+    const ab = e.abilities || {};
+    const abilities = Object.values(ab);
+    const hidden = ab.H || "";   // hidden ability (often the competitive pick)
     const moveIds = [...new Set(collectMoves(id, dex, learn))];
     const moves = moveIds.map((m) => moveName[m]).filter(Boolean).sort();
     if (!moves.length) noMoves++;
-    out[sp.dex] = { base, bst, abilities, moves };
+    out[sp.dex] = { base, bst, abilities, hidden, moves };
   }
 
   const dest = path.join(__dirname, "..", "js", "data", "coach.json");

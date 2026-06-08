@@ -14,6 +14,7 @@ const STATE_BADGE = { seen: "S", caught: "C", shiny: "✨", boxed: "📦" };
 
 let SPECIES = [];   // [{dex,name,types,gen}]
 let FORMS = null;   // {mega:[],primal:[],gmax:[]}
+let VARIANTS = null; // {regional:{alolan,galarian,hisuian,paldean}, cosmetic:[]}
 let DEX_BY_NUM = {}; // dex -> species
 
 // Pack defaults (Cobblemon + Unchained + Cobbreeding). All editable in-app.
@@ -28,7 +29,7 @@ function defaultHunt() {
   return { mode: "chain", activeDex: null, sessions: {}, finds: [] };
 }
 function freshState() {
-  return { dex: {}, forms: {}, config: defaultConfig(), hunt: defaultHunt() };
+  return { dex: {}, forms: {}, variants: {}, config: defaultConfig(), hunt: defaultHunt() };
 }
 let state = freshState();
 
@@ -36,6 +37,7 @@ let state = freshState();
 function normalize() {
   if (!state.dex) state.dex = {};
   if (!state.forms) state.forms = {};
+  if (!state.variants) state.variants = {};
   state.config = Object.assign(defaultConfig(), state.config || {});
   state.hunt = Object.assign(defaultHunt(), state.hunt || {});
   if (!state.hunt.sessions) state.hunt.sessions = {};
@@ -261,6 +263,61 @@ function renderFormsStats() {
     `<span class="stat">GMax ${FORMS.gmax.filter(f=>state.forms[f.id]).length}/${FORMS.gmax.length}</span>`;
 }
 
+/* ---------- variants tab (regional + cosmetic forms) ---------- */
+const VARIANT_GROUPS = [
+  ["alolan", "Alolan"], ["galarian", "Galarian"], ["hisuian", "Hisuian"], ["paldean", "Paldean"],
+];
+function allVariants() {
+  if (!VARIANTS) return [];
+  return [...VARIANTS.regional.alolan, ...VARIANTS.regional.galarian,
+    ...VARIANTS.regional.hisuian, ...VARIANTS.regional.paldean, ...VARIANTS.cosmetic];
+}
+function variantCard(v) {
+  const have = !!state.variants[v.id];
+  const el = document.createElement("div");
+  el.className = `mon ${have ? "f-unlocked" : "f-locked"}`;
+  el.dataset.variant = v.id;
+  el.title = `${v.base} · ${v.name}`;
+  el.innerHTML =
+    `${have ? `<span class="badge">✓</span>` : ""}` +
+    `<img loading="lazy" src="${spriteUrl(v.dex, false)}" alt="${v.base} ${v.name}" />` +
+    `<div class="dexno">#${String(v.dex).padStart(4, "0")}</div>` +
+    `<div class="nm">${v.base.replace(/-/g, " ")}</div>` +
+    `<div class="vform">${v.name}</div>`;
+  return el;
+}
+function variantMatch(v) {
+  const q = els.variantSearch.value.trim().toLowerCase().replace(/^#/, "");
+  if (!q) return true;
+  return v.base.toLowerCase().includes(q) || v.name.toLowerCase().includes(q) || String(v.dex) === q;
+}
+function renderVariantGrid(id, list) {
+  const grid = document.getElementById(id);
+  grid.innerHTML = "";
+  const frag = document.createDocumentFragment();
+  list.filter(variantMatch).forEach((v) => frag.appendChild(variantCard(v)));
+  grid.appendChild(frag);
+}
+function renderVariants() {
+  if (!VARIANTS) return;
+  for (const [key] of VARIANT_GROUPS) renderVariantGrid(`variants-grid-${key}`, VARIANTS.regional[key]);
+  renderVariantGrid("variants-grid-cosmetic", VARIANTS.cosmetic);
+  renderVariantsStats();
+}
+function renderVariantsStats() {
+  const all = allVariants();
+  const have = all.filter((v) => state.variants[v.id]).length;
+  const pct = all.length ? ((have / all.length) * 100).toFixed(0) : 0;
+  const regional = [...VARIANTS.regional.alolan, ...VARIANTS.regional.galarian,
+    ...VARIANTS.regional.hisuian, ...VARIANTS.regional.paldean];
+  const regHave = regional.filter((v) => state.variants[v.id]).length;
+  els.variantsStats.innerHTML =
+    `<span class="stat"><b>${have}</b>/${all.length} caught (${pct}%)</span>` +
+    `<div class="bar"><i style="width:${pct}%"></i></div>` +
+    `<span class="stat">Regional ${regHave}/${regional.length}</span>` +
+    `<span class="stat">Cosmetic ${VARIANTS.cosmetic.filter((v) => state.variants[v.id]).length}/${VARIANTS.cosmetic.length}</span>`;
+}
+
 /* ---------- hunt tab ---------- */
 const MODE_DESC = {
   chain: "Unchained chaining: each +1 is a KO of your target. Same-species KO streak raises shiny odds via threshold tiers. KO'ing a different species resets the streak.",
@@ -436,6 +493,17 @@ let SPAWNS = {};        // dex -> [entry]
 let BIOME_INDEX = {};   // biome -> [{dex, entry}]
 const RARITY_ORDER = { common: 0, uncommon: 1, rare: 2, "ultra-rare": 3 };
 let spawnMode = "mon";
+
+// Cobbleverse marks a disabled wild spawn with a weight-0 row tagged the fake
+// "not spawn" biome (e.g. Pikachu, which only comes from Pichu). Drop those so
+// the species reports no wild spawn instead of leaking a bogus biome. (Legit
+// weight-0 structure spawns have an empty `b` but a populated `st`, so are kept.)
+function sanitizeSpawns() {
+  for (const dex of Object.keys(SPAWNS)) {
+    const rows = SPAWNS[dex].filter((e) => !(e.b || []).includes("not spawn"));
+    if (rows.length) SPAWNS[dex] = rows; else delete SPAWNS[dex];
+  }
+}
 
 function buildBiomeIndex() {
   BIOME_INDEX = {};
@@ -710,7 +778,9 @@ function computeAttraction(biome, seasonings) {
   for (const { dex, entry } of pool) {
     if (!buckets[entry.r]) continue;
     const mult = snackMult(DEX_BY_NUM[dex], seasonings);
-    buckets[entry.r].push({ dex, w: (entry.w || 1) * mult, boosted: mult > 1 });
+    const w = (entry.w || 0) * mult;   // weight-0 spawns don't roll, so they can't be lured
+    if (w <= 0) continue;
+    buckets[entry.r].push({ dex, w, boosted: mult > 1 });
   }
   // Only buckets with entries carry probability mass; renormalise across those present.
   const present = BUCKETS.filter((b) => buckets[b].length);
@@ -963,7 +1033,7 @@ function importData(file) {
       state = Object.assign(freshState(), d);
       normalize();
       save();
-      renderDex(); renderForms(); fillConfigInputs(); renderHunt(); renderBoxes();
+      renderDex(); renderForms(); renderVariants(); fillConfigInputs(); renderHunt(); renderBoxes();
       alert("Imported.");
     } catch (e) { alert("Import failed: " + e.message); }
   };
@@ -980,6 +1050,8 @@ function grabEls() {
     dexGen: document.getElementById("dex-gen"),
     dexFilter: document.getElementById("dex-filter"),
     formsStats: document.getElementById("forms-stats"),
+    variantsStats: document.getElementById("variants-stats"),
+    variantSearch: document.getElementById("variant-search"),
     boxesStats: document.getElementById("boxes-stats"),
     boxSelect: document.getElementById("box-select"),
     boxGrid: document.getElementById("box-grid"),
@@ -1053,6 +1125,23 @@ function wire() {
     if (state.forms[id]) delete state.forms[id]; else state.forms[id] = true;
     save(); renderForms();
   });
+
+  // Variants grid: toggle caught (in-place so a tap doesn't rebuild 270 cards).
+  document.getElementById("panel-variants").addEventListener("click", (e) => {
+    const card = e.target.closest(".mon");
+    if (!card || !card.dataset.variant) return;
+    const id = card.dataset.variant;
+    const have = !state.variants[id];
+    if (have) state.variants[id] = true; else delete state.variants[id];
+    save();
+    card.classList.toggle("f-unlocked", have);
+    card.classList.toggle("f-locked", !have);
+    const badge = card.querySelector(".badge");
+    if (have && !badge) card.insertAdjacentHTML("afterbegin", `<span class="badge">✓</span>`);
+    if (!have && badge) badge.remove();
+    renderVariantsStats();
+  });
+  els.variantSearch.addEventListener("input", renderVariants);
 
   els.dexSearch.addEventListener("input", renderDex);
   els.dexGen.addEventListener("change", renderDex);
@@ -1160,7 +1249,7 @@ function wire() {
   els.resetAll.addEventListener("click", () => {
     if (confirm("Erase ALL progress? Export first if unsure.")) {
       state = freshState();
-      save(); renderDex(); renderForms(); fillConfigInputs(); renderHunt(); renderBoxes();
+      save(); renderDex(); renderForms(); renderVariants(); fillConfigInputs(); renderHunt(); renderBoxes();
     }
   });
 }
@@ -1200,20 +1289,23 @@ if ("serviceWorker" in navigator) {
 async function boot() {
   grabEls();
   load();
-  const [sp, fm, spawns, berries] = await Promise.all([
+  const [sp, fm, spawns, berries, variants] = await Promise.all([
     fetch("js/data/species.json").then((r) => r.json()),
     fetch("js/data/forms.json").then((r) => r.json()),
     fetch("js/data/spawns.json").then((r) => r.json()).catch(() => ({})),
     fetch("js/data/berries.json").then((r) => r.json()).catch(() => []),
+    fetch("js/data/variants.json").then((r) => r.json()).catch(() => ({ regional: { alolan: [], galarian: [], hisuian: [], paldean: [] }, cosmetic: [] })),
   ]);
   SPECIES = sp;
   FORMS = { mega: fm.mega, primal: fm.primal, gmax: fm.gmax };
+  VARIANTS = variants;
   SPAWNS = spawns;
   BERRIES = berries;
   BERRY_BY_ID = {};
   BERRIES.forEach((b) => (BERRY_BY_ID[b.id] = b));
   DEX_BY_NUM = {};
   SPECIES.forEach((s) => (DEX_BY_NUM[s.dex] = s));
+  sanitizeSpawns();
   buildBiomeIndex();
 
   // Populate the target datalist once. Put the name in the label too, so browsers
@@ -1246,6 +1338,7 @@ async function boot() {
   fillConfigInputs();
   renderDex();
   renderForms();
+  renderVariants();
   renderHunt();
   renderFarm();
   renderBoxes();

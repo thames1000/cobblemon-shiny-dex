@@ -126,6 +126,11 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .mon.s-boxed { border-color: var(--boxed); box-shadow: 0 0 0 1px var(--boxed) inset; }
 .mon.s-boxed .badge { background: var(--boxed); color: #043024; }
 
+/* variant form label under the base name */
+.mon .vform { font-size: .62rem; line-height: 1.1; margin-top: 1px; color: var(--accent);
+  text-transform: capitalize; word-break: break-word; }
+.mon.f-locked .vform { color: var(--muted); }
+
 /* forms cards reuse .mon but use binary unlocked state */
 .mon.f-locked { opacity: .5; }
 .mon.f-locked img { filter: grayscale(1) brightness(.7); }

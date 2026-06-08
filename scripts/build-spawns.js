@@ -115,16 +115,24 @@ function main() {
       if (sp.type && sp.type !== "pokemon") continue;
       const c = sp.condition || {};
 
+      // Cobbleverse disables a wild spawn with a weight-0 "not spawn" sentinel
+      // (e.g. Pikachu). Drop those so the species reads as having no wild spawn.
+      const isDisabled = (c.biomes || []).some((t) => /not[_\s-]?spawn/i.test(t));
+      if (isDisabled && (sp.weight === 0 || sp.weight == null)) continue;
+
       // Split biome conditions into real biomes vs. named custom spawn sites.
       const biomes = [];
       const sites = [];
       for (const tag of (c.biomes || [])) {
+        if (/not[_\s-]?spawn/i.test(tag)) continue;          // skip disable sentinel
         if (/custom_spawn/.test(tag)) sites.push(cleanStructure(tag));
         else biomes.push(cleanBiome(tag));
       }
       for (const tag of (c.structures || [])) sites.push(cleanStructure(tag));
 
       const presets = (sp.presets || []).filter((p) => CONTEXT_PRESETS.has(p));
+      // Nothing meaningful left to locate this spawn — skip the empty row.
+      if (!biomes.length && !sites.length && !presets.length) continue;
       const row = {
         b: biomes,
         r: sp.bucket || "common",

@@ -23,6 +23,7 @@
     <button class="tab active" data-tab="dex">Dex</button>
     <button class="tab" data-tab="boxes">Boxes</button>
     <button class="tab" data-tab="forms">Mega/GMax</button>
+    <button class="tab" data-tab="variants">Variants</button>
     <button class="tab" data-tab="hunt">Hunt</button>
     <button class="tab" data-tab="spawns">Spawns</button>
     <button class="tab" data-tab="snack">PokéSnack</button>
@@ -95,6 +96,28 @@
       <div class="grid" id="forms-grid-primal"></div>
       <h2 class="section-h">Gigantamax</h2>
       <div class="grid" id="forms-grid-gmax"></div>
+    </section>
+
+    <!-- ============ VARIANTS TAB ============ -->
+    <section class="panel" id="panel-variants">
+      <div class="stats-bar" id="variants-stats"></div>
+      <p class="hint">Regional forms (Alolan / Galarian / Hisuian / Paldean) and cosmetic variants (Pikachu caps,
+        Vivillon patterns, Unown…). Tracked separately from the main dex. Tap a card to mark it caught. Variants
+        share the base sprite — the label shows the form. <strong>Pack-specific patterns</strong> (e.g. Cobbleverse's
+        Magikarp/Torterra/Gyarados) appear after regenerating <code>variants.json</code> from your datapack.</p>
+      <div class="toolbar">
+        <input type="search" id="variant-search" class="search" placeholder="Search base name, form or #dex…" />
+      </div>
+      <h2 class="section-h">Alolan</h2>
+      <div class="grid" id="variants-grid-alolan"></div>
+      <h2 class="section-h">Galarian</h2>
+      <div class="grid" id="variants-grid-galarian"></div>
+      <h2 class="section-h">Hisuian</h2>
+      <div class="grid" id="variants-grid-hisuian"></div>
+      <h2 class="section-h">Paldean</h2>
+      <div class="grid" id="variants-grid-paldean"></div>
+      <h2 class="section-h">Cosmetic &amp; other forms</h2>
+      <div class="grid" id="variants-grid-cosmetic"></div>
     </section>
 
     <!-- ============ HUNT TAB ============ -->

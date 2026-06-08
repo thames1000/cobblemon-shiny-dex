@@ -68,11 +68,15 @@ async function bootCloud() {
     getRedirectResult, createUserWithEmailAndPassword, signInWithEmailAndPassword,
     signOut, sendPasswordResetEmail,
   } = authMod;
-  const { getFirestore, doc, getDoc, setDoc } = fsMod;
+  const { initializeFirestore, doc, getDoc, setDoc } = fsMod;
 
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
-  const db = getFirestore(app);
+  // Auto-detect long-polling instead of the default streaming WebChannel. Firefox
+  // (and some extensions / corporate proxies) break the WebChannel transport, which
+  // the SDK then surfaces as a misleading "client is offline" error. Long-polling
+  // uses ordinary HTTP requests and works everywhere.
+  const db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
   const googleProvider = new GoogleAuthProvider();
   const userDoc = (uid) => doc(db, "users", uid);
 

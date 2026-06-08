@@ -45,6 +45,11 @@ const isSkipped = (form) =>
 function titleCase(s) {
   return String(s).replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()).trim();
 }
+// Sort cosmetic forms within a species alphabetically, but keep non-letter
+// names (Unown's "!" and "?") after Z instead of before A (where ASCII puts them).
+function cosmeticNameKey(name) {
+  return (/^[a-z]/i.test(name) ? "0" : "1") + String(name).toLowerCase();
+}
 // Pokémon Showdown sprite slug: strip accents + punctuation, lowercase.
 // (Cobblemon form names line up with Showdown's, e.g. "Pa'u" -> "pau".)
 function slugify(s) {
@@ -95,7 +100,7 @@ function main() {
   const nameToDex = {};
   walk(SRC, out, nameToDex);
   for (const k of Object.keys(out.regional)) out.regional[k].sort((a, b) => a.dex - b.dex);
-  out.cosmetic.sort((a, b) => a.dex - b.dex);
+  out.cosmetic.sort((a, b) => a.dex - b.dex || cosmeticNameKey(a.name).localeCompare(cosmeticNameKey(b.name)));
 
   const dest = path.join(__dirname, "..", "js", "data", "variants.json");
   out.cobblemon = existingCobblemon(dest); // owned by build-cobblemon-variants.js

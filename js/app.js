@@ -10,6 +10,8 @@ const SPRITE_BASE = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sp
 // Pokémon Showdown serves form-specific sprites by name (covers regional + cosmetic
 // variants the PokeAPI national-dex sprites don't). Pixel style matches the app.
 const SHOWDOWN_BASE = "https://play.pokemonshowdown.com/sprites/gen5";
+// Showdown serves shinies from a SEPARATE directory, not a /shiny/ subfolder.
+const SHOWDOWN_SHINY_BASE = "https://play.pokemonshowdown.com/sprites/gen5-shiny";
 // Cobblemon-original model variants (Magikarp/Gyarados Jump, Torterra trees, …)
 // have no Showdown sprite — the Cobblemon Wiki hosts a render of each (normal +
 // shiny). MediaWiki's Special:FilePath redirects a filename to the real image,
@@ -291,7 +293,7 @@ function variantArt(v, shiny) {
     if (shiny) return { src: v.wikiFileShiny ? WIKI_FILEPATH(v.wikiFileShiny) : fb, fb };
     return { src: WIKI_FILEPATH(v.wikiFile), fb };
   }
-  if (v.slug) return { src: `${SHOWDOWN_BASE}/${shiny ? "shiny/" : ""}${v.slug}.png`, fb };
+  if (v.slug) return { src: `${shiny ? SHOWDOWN_SHINY_BASE : SHOWDOWN_BASE}/${v.slug}.png`, fb };
   return { src: fb, fb };
 }
 // State per variant: absent = none, true = caught, "shiny" = caught shiny.

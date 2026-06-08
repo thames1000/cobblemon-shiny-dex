@@ -72,6 +72,9 @@ and retire Pages.
 - `scripts/build-berry-guide.js` regenerates `js/data/berry-guide.json` (the **Berries** tab — all 70 berries,
   their effect, and how to get each: 30 wild berries' biomes + preferred mulch, and 40 mutation parent recipes).
   Parsed from the Cobblemon Wiki "Berry Tree" page; sprites load on demand from the wiki via `Special:FilePath`.
+- `scripts/build-moves.js` regenerates `js/data/moves.json` (the **Party** tab's move pickers + type-biased random
+  generator) — name/type/category for every move, slimmed from Pokémon Showdown's move dex. Move choice is free
+  (not legality-checked); learnsets are intentionally not bundled (~3 MB).
 - `scripts/build-spawns.js` regenerates `js/data/spawns.json` from a `spawn_pool_world` directory.
   This pack uses **Cobbleverse** spawn rules (its bundled `COBBLEVERSE-DP-*.zip` datapack), which cover
   **1017 species** — including legendaries, mythicals and paradox mons that have *no* spawn in base Cobblemon.

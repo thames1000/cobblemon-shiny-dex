@@ -24,6 +24,7 @@ const DEX_STATES = ["none", "seen", "caught", "shiny", "boxed"];
 const STATE_BADGE = { seen: "S", caught: "C", shiny: "✨", boxed: "📦" };
 
 let SPECIES = [];   // [{dex,name,types,gen}]
+let MOVES = [];     // [{name,type,category}] — Party builder
 let FORMS = null;   // {mega:[],primal:[],gmax:[]}
 let VARIANTS = null; // {regional:{alolan,galarian,hisuian,paldean}, cosmetic:[]}
 let DEX_BY_NUM = {}; // dex -> species
@@ -39,8 +40,22 @@ function defaultConfig() {
 function defaultHunt() {
   return { mode: "chain", activeDex: null, sessions: {}, finds: [] };
 }
+// ---- Party builder state ----
+const STATS = [["hp", "HP"], ["atk", "Atk"], ["def", "Def"], ["spa", "SpA"], ["spd", "SpD"], ["spe", "Spe"]];
+function emptyMember() {
+  return {
+    dex: null, nature: "", moves: ["", "", "", ""],
+    evs: { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 },
+    ivs: { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 },
+  };
+}
+function uid() { return "p" + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36); }
+function newParty(name) {
+  return { id: uid(), name: name || "Party 1", members: Array.from({ length: 6 }, emptyMember) };
+}
+function defaultParty() { const p = newParty("Party 1"); return { active: p.id, list: [p] }; }
 function freshState() {
-  return { dex: {}, forms: {}, variants: {}, berries: {}, config: defaultConfig(), hunt: defaultHunt() };
+  return { dex: {}, forms: {}, variants: {}, berries: {}, party: defaultParty(), config: defaultConfig(), hunt: defaultHunt() };
 }
 let state = freshState();
 
@@ -50,10 +65,33 @@ function normalize() {
   if (!state.forms) state.forms = {};
   if (!state.variants) state.variants = {};
   if (!state.berries) state.berries = {};
+  normalizeParty();
   state.config = Object.assign(defaultConfig(), state.config || {});
   state.hunt = Object.assign(defaultHunt(), state.hunt || {});
   if (!state.hunt.sessions) state.hunt.sessions = {};
   if (!Array.isArray(state.hunt.finds)) state.hunt.finds = [];
+}
+function normalizeParty() {
+  const p = state.party;
+  if (!p || !Array.isArray(p.list) || !p.list.length) { state.party = defaultParty(); return; }
+  for (const party of p.list) {
+    if (!party.id) party.id = uid();
+    if (!party.name) party.name = "Party";
+    if (!Array.isArray(party.members)) party.members = [];
+    while (party.members.length < 6) party.members.push(emptyMember());
+    party.members = party.members.slice(0, 6).map((m) => {
+      const e = emptyMember();
+      if (!m || typeof m !== "object") return e;
+      return {
+        dex: Number.isFinite(m.dex) ? m.dex : null,
+        nature: typeof m.nature === "string" ? m.nature : "",
+        moves: [0, 1, 2, 3].map((i) => (Array.isArray(m.moves) && m.moves[i]) || ""),
+        evs: Object.assign(e.evs, m.evs || {}),
+        ivs: Object.assign(e.ivs, m.ivs || {}),
+      };
+    });
+  }
+  if (!p.active || !p.list.some((x) => x.id === p.active)) p.active = p.list[0].id;
 }
 function load() {
   try {
@@ -466,6 +504,170 @@ function renderBerriesStats() {
     `<div class="bar"><i style="width:${pct}%"></i></div>` +
     `<span class="stat">🌿 ${n("natural")} wild</span>` +
     `<span class="stat">⚗️ ${n("mutation")} mutation</span>`;
+}
+
+/* ---------- party builder tab ---------- */
+// [statUp, statDown]; empty = neutral nature.
+const NATURES = {
+  Hardy: [], Lonely: ["atk", "def"], Brave: ["atk", "spe"], Adamant: ["atk", "spa"], Naughty: ["atk", "spd"],
+  Bold: ["def", "atk"], Docile: [], Relaxed: ["def", "spe"], Impish: ["def", "spa"], Lax: ["def", "spd"],
+  Timid: ["spe", "atk"], Hasty: ["spe", "def"], Serious: [], Jolly: ["spe", "spa"], Naive: ["spe", "spd"],
+  Modest: ["spa", "atk"], Mild: ["spa", "def"], Quiet: ["spa", "spe"], Bashful: [], Rash: ["spa", "spd"],
+  Calm: ["spd", "atk"], Gentle: ["spd", "def"], Sassy: ["spd", "spe"], Careful: ["spd", "spa"], Quirky: [],
+};
+const NATURE_NAMES = Object.keys(NATURES);
+const EV_CAP = 252, EV_TOTAL = 510, IV_MAX = 31;
+const STAT_LABEL = Object.fromEntries(STATS);
+
+function activeParty() {
+  return state.party.list.find((p) => p.id === state.party.active) || state.party.list[0];
+}
+function evSum(m) { return STATS.reduce((s, [k]) => s + (m.evs[k] || 0), 0); }
+function natureBlurb(name) {
+  const n = NATURES[name];
+  if (!n || !n.length) return "—";
+  return `+${STAT_LABEL[n[0]]} −${STAT_LABEL[n[1]]}`;
+}
+function clampInt(v, lo, hi) { v = Math.round(Number(v) || 0); return Math.max(lo, Math.min(hi, v)); }
+
+function memberCardHtml(m, slot) {
+  const sp = m.dex ? DEX_BY_NUM[m.dex] : null;
+  const sprite = sp ? `<img src="${spriteUrl(sp.dex, false)}" alt="" />` : `<span class="pm-empty">＋</span>`;
+  const types = sp ? sp.types.map((t) => `<span class="ptype t-${t}">${t}</span>`).join("") : "";
+  const natOpts = `<option value="">Nature…</option>` + NATURE_NAMES.map((n) =>
+    `<option value="${n}"${m.nature === n ? " selected" : ""}>${n} (${natureBlurb(n)})</option>`).join("");
+  const moves = [0, 1, 2, 3].map((i) =>
+    `<input class="pm-move" list="moves-list" data-slot="${slot}" data-k="move" data-i="${i}" ` +
+    `value="${m.moves[i] || ""}" placeholder="Move ${i + 1}" />`).join("");
+  const total = evSum(m);
+  const evRow = STATS.map(([k, lbl]) =>
+    `<label class="pm-stat"><span>${lbl}</span><input type="number" min="0" max="${EV_CAP}" ` +
+    `data-slot="${slot}" data-k="ev" data-stat="${k}" value="${m.evs[k]}" /></label>`).join("");
+  const ivRow = STATS.map(([k, lbl]) =>
+    `<label class="pm-stat"><span>${lbl}</span><input type="number" min="0" max="${IV_MAX}" ` +
+    `data-slot="${slot}" data-k="iv" data-stat="${k}" value="${m.ivs[k]}" /></label>`).join("");
+  return `<div class="pm-card" data-slot="${slot}">` +
+    `<div class="pm-head">` +
+      `<div class="pm-sprite">${sprite}</div>` +
+      `<div class="pm-id">` +
+        `<input class="pm-species" list="species-list" data-slot="${slot}" data-k="species" ` +
+          `value="${sp ? sp.name : ""}" placeholder="Slot ${slot + 1} — species…" />` +
+        `<div class="pm-types">${types}</div>` +
+      `</div>` +
+      `<button class="pm-clear" data-slot="${slot}" data-act="clear" title="Clear slot">✕</button>` +
+    `</div>` +
+    `<select class="pm-nature" data-slot="${slot}" data-k="nature">${natOpts}</select>` +
+    `<div class="pm-moves">${moves}</div>` +
+    `<div class="pm-block">` +
+      `<div class="pm-block-h">EVs <span class="pm-evtotal${total > EV_TOTAL ? " over" : ""}" data-slot="${slot}">${total}/510</span>` +
+        `<button class="pm-mini" data-slot="${slot}" data-act="ev0">clear</button></div>` +
+      `<div class="pm-stats">${evRow}</div>` +
+    `</div>` +
+    `<div class="pm-block">` +
+      `<div class="pm-block-h">IVs <span class="muted">0–31</span>` +
+        `<button class="pm-mini" data-slot="${slot}" data-act="ivmax">max</button>` +
+        `<button class="pm-mini" data-slot="${slot}" data-act="iv0">0</button></div>` +
+      `<div class="pm-stats">${ivRow}</div>` +
+    `</div>` +
+  `</div>`;
+}
+function renderParty() {
+  const host = document.getElementById("party-body");
+  if (!host) return;
+  const sel = document.getElementById("party-select");
+  if (sel) sel.innerHTML = state.party.list.map((p) =>
+    `<option value="${p.id}"${p.id === state.party.active ? " selected" : ""}>${p.name} (${p.members.filter((m) => m.dex).length}/6)</option>`).join("");
+  const party = activeParty();
+  host.innerHTML = `<div class="pm-grid">${party.members.map(memberCardHtml).join("")}</div>`;
+}
+// Update only the small derived bits after an inline edit (keeps input focus).
+function refreshMemberDerived(slot) {
+  const m = activeParty().members[slot];
+  const card = document.querySelector(`.pm-card[data-slot="${slot}"]`);
+  if (!card) return;
+  const sp = m.dex ? DEX_BY_NUM[m.dex] : null;
+  card.querySelector(".pm-sprite").innerHTML = sp ? `<img src="${spriteUrl(sp.dex, false)}" alt="" />` : `<span class="pm-empty">＋</span>`;
+  card.querySelector(".pm-types").innerHTML = sp ? sp.types.map((t) => `<span class="ptype t-${t}">${t}</span>`).join("") : "";
+  const total = evSum(m);
+  const tEl = card.querySelector(".pm-evtotal");
+  tEl.textContent = `${total}/510`;
+  tEl.classList.toggle("over", total > EV_TOTAL);
+}
+
+function partyEdit(slot, k, payload) {
+  const m = activeParty().members[slot];
+  if (k === "species") { const sp = findSpecies(payload); m.dex = sp ? sp.dex : null; }
+  else if (k === "nature") m.nature = payload;
+  else if (k === "move") m.moves[payload.i] = payload.value;
+  else if (k === "ev") m.evs[payload.stat] = clampInt(payload.value, 0, EV_CAP);
+  else if (k === "iv") m.ivs[payload.stat] = clampInt(payload.value, 0, IV_MAX);
+  save();
+}
+function partyAction(slot, act) {
+  const m = activeParty().members[slot];
+  if (act === "clear") activeParty().members[slot] = emptyMember();
+  else if (act === "ev0") for (const [s] of STATS) m.evs[s] = 0;
+  else if (act === "ivmax") for (const [s] of STATS) m.ivs[s] = IV_MAX;
+  else if (act === "iv0") for (const [s] of STATS) m.ivs[s] = 0;
+  save();
+  renderParty();
+}
+
+// ---- party management ----
+function selectParty(id) { state.party.active = id; save(); renderParty(); }
+function addParty() {
+  const name = (prompt("Name this party:", `Party ${state.party.list.length + 1}`) || "").trim();
+  if (name === null) return;
+  const p = newParty(name || `Party ${state.party.list.length + 1}`);
+  state.party.list.push(p); state.party.active = p.id; save(); renderParty();
+}
+function renameParty() {
+  const p = activeParty();
+  const name = prompt("Rename party:", p.name);
+  if (name == null) return;
+  p.name = name.trim() || p.name; save(); renderParty();
+}
+function deleteParty() {
+  if (state.party.list.length <= 1) { alert("Keep at least one party."); return; }
+  const p = activeParty();
+  if (!confirm(`Delete "${p.name}"?`)) return;
+  state.party.list = state.party.list.filter((x) => x.id !== p.id);
+  state.party.active = state.party.list[0].id; save(); renderParty();
+}
+
+// ---- random generator ----
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function randomMovesFor(sp) {
+  const typed = MOVES.filter((mv) => sp.types.includes(mv.type.toLowerCase()) && mv.category !== "Status");
+  const pool = typed.length >= 4 ? typed : MOVES;
+  const chosen = [];
+  let guard = 0;
+  while (chosen.length < 4 && guard++ < 200) {
+    const mv = pick(pool).name;
+    if (!chosen.includes(mv)) chosen.push(mv);
+  }
+  return chosen;
+}
+function randomEvs() {
+  const ev = { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 };
+  const keys = STATS.map(([k]) => k);
+  // two maxed offensive/utility stats + a small 6 — a valid 510-cap spread.
+  const a = pick(keys); let b = pick(keys); while (b === a) b = pick(keys);
+  let c = pick(keys); while (c === a || c === b) c = pick(keys);
+  ev[a] = 252; ev[b] = 252; ev[c] = 6;
+  return ev;
+}
+function randomMember() {
+  const sp = pick(SPECIES);
+  return {
+    dex: sp.dex, nature: pick(NATURE_NAMES), moves: randomMovesFor(sp),
+    evs: randomEvs(), ivs: { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 },
+  };
+}
+function randomizeParty() {
+  if (!confirm(`Replace all 6 slots of "${activeParty().name}" with a random team?`)) return;
+  activeParty().members = Array.from({ length: 6 }, randomMember);
+  save(); renderParty();
 }
 
 /* ---------- hunt tab ---------- */
@@ -1184,7 +1386,7 @@ function importData(file) {
       state = Object.assign(freshState(), d);
       normalize();
       save();
-      renderDex(); renderForms(); renderVariants(); renderBerries();
+      renderDex(); renderForms(); renderVariants(); renderBerries(); renderParty();
       fillConfigInputs(); renderHunt(); renderBoxes(); renderSnack();
       const dexN = Object.keys(state.dex).length;
       const varN = Object.keys(state.variants).length;
@@ -1413,6 +1615,41 @@ function wire() {
     showTab("spawns");
   });
 
+  // Party tab: management buttons + delegated member edits.
+  const partySelect = document.getElementById("party-select");
+  if (partySelect) partySelect.addEventListener("change", (e) => selectParty(e.target.value));
+  const pBtn = (id, fn) => { const b = document.getElementById(id); if (b) b.addEventListener("click", fn); };
+  pBtn("party-new", addParty);
+  pBtn("party-rename", renameParty);
+  pBtn("party-delete", deleteParty);
+  pBtn("party-random", randomizeParty);
+  const partyBody = document.getElementById("party-body");
+  if (partyBody) {
+    const onEdit = (e) => {
+      const el = e.target.closest("[data-k]");
+      if (!el) return;
+      const slot = Number(el.dataset.slot);
+      const k = el.dataset.k;
+      if (k === "ev" || k === "iv") {
+        partyEdit(slot, k, { stat: el.dataset.stat, value: el.value });
+        // reflect the clamped value back into the field once editing settles
+        if (e.type === "change") el.value = activeParty().members[slot][k === "ev" ? "evs" : "ivs"][el.dataset.stat];
+        refreshMemberDerived(slot);
+      } else if (k === "move") {
+        partyEdit(slot, k, { i: Number(el.dataset.i), value: el.value });
+      } else {
+        partyEdit(slot, k, el.value);
+        if (k === "species") refreshMemberDerived(slot);
+      }
+    };
+    partyBody.addEventListener("input", onEdit);
+    partyBody.addEventListener("change", onEdit);
+    partyBody.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-act]");
+      if (btn) partyAction(Number(btn.dataset.slot), btn.dataset.act);
+    });
+  }
+
   // Farm tab
   ["farmTrees", "farmGrowth", "farmYield", "farmPerBall", "farmTarget"].forEach((k) =>
     els[k].addEventListener("input", renderFarmApricorn));
@@ -1474,15 +1711,17 @@ if ("serviceWorker" in navigator) {
 async function boot() {
   grabEls();
   load();
-  const [sp, fm, spawns, berries, variants, berryGuide] = await Promise.all([
+  const [sp, fm, spawns, berries, variants, berryGuide, moves] = await Promise.all([
     fetch("js/data/species.json").then((r) => r.json()),
     fetch("js/data/forms.json").then((r) => r.json()),
     fetch("js/data/spawns.json").then((r) => r.json()).catch(() => ({})),
     fetch("js/data/berries.json").then((r) => r.json()).catch(() => []),
     fetch("js/data/variants.json").then((r) => r.json()).catch(() => ({ regional: { alolan: [], galarian: [], hisuian: [], paldean: [] }, cosmetic: [], unown: [], cobblemon: [] })),
     fetch("js/data/berry-guide.json").then((r) => r.json()).catch(() => []),
+    fetch("js/data/moves.json").then((r) => r.json()).catch(() => []),
   ]);
   SPECIES = sp;
+  MOVES = moves;
   FORMS = { mega: fm.mega, primal: fm.primal, gmax: fm.gmax };
   VARIANTS = variants;
   SPAWNS = spawns;
@@ -1500,6 +1739,11 @@ async function boot() {
   // that filter suggestions by the label (not the value) still match name typing.
   els.speciesList.innerHTML = SPECIES
     .map((s) => `<option value="${s.name}">#${String(s.dex).padStart(4, "0")} ${s.name}</option>`).join("");
+
+  // Party builder move autocomplete (name + type/category label).
+  const movesList = document.getElementById("moves-list");
+  if (movesList) movesList.innerHTML = MOVES
+    .map((m) => `<option value="${m.name}">${m.type} · ${m.category}</option>`).join("");
 
   // Populate biome dropdown (sorted, with spawn counts).
   const biomeOpts = Object.keys(BIOME_INDEX).sort()
@@ -1532,6 +1776,7 @@ async function boot() {
   renderBoxes();
   renderSnack();
   renderBerries();
+  renderParty();
   const hash = location.hash.replace("#", "");
   if (hash) showTab(hash);
 }

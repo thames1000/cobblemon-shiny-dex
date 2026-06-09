@@ -333,6 +333,8 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .ctrl-btn.danger { background: var(--danger); color: #fff; border-color: transparent; }
 .ctrl-btn.ghost { background: transparent; border-color: transparent; color: var(--muted); font-weight: 500; }
 .ctrl-btn.ghost:hover { color: var(--accent); }
+.hotkey-btn { min-width: 96px; font-family: inherit; }
+.hotkey-btn.capturing { border-color: var(--accent); color: var(--accent); animation: pulse 1s infinite; }
 
 /* Account / cloud sync (Data tab) */
 .account-auth input[type="email"], .account-auth input[type="password"] {

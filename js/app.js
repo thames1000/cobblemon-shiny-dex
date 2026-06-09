@@ -37,6 +37,7 @@ function defaultConfig() {
     baseShinyRate: 8192,
     unchainedThresholds: [[100, 1], [300, 2], [500, 3]], // [koStreak, +shinyChances]
     masudaMultiplier: 4,
+    huntHotkey: "Space", // KeyboardEvent.code that does +1 mid-hunt; "" = disabled
   };
 }
 function defaultHunt() {
@@ -69,6 +70,7 @@ function normalize() {
   if (!state.berries) state.berries = {};
   normalizeParty();
   state.config = Object.assign(defaultConfig(), state.config || {});
+  if (typeof state.config.huntHotkey !== "string") state.config.huntHotkey = "Space";
   state.hunt = Object.assign(defaultHunt(), state.hunt || {});
   // Sessions must be a plain object of well-formed entries. Older/corrupt
   // exports may have it missing, as an array, or holding null/garbage values —
@@ -1728,6 +1730,35 @@ function fillConfigInputs() {
   els.cfgBase.value = state.config.baseShinyRate;
   els.cfgMasuda.value = state.config.masudaMultiplier;
   els.cfgThresholds.value = state.config.unchainedThresholds.map(([a, b]) => `${a}:${b}`).join(", ");
+  refreshHotkeyBtn();
+}
+
+/* ---------- configurable +1 hotkey ---------- */
+let capturingHotkey = false;
+// Friendly label for a KeyboardEvent.code (what we store, so it's layout-stable).
+function hotkeyLabel(code) {
+  if (!code) return "Off";
+  const named = {
+    Space: "Space", Enter: "Enter", Tab: "Tab", Backspace: "Backspace",
+    ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→",
+    NumpadAdd: "Numpad +", NumpadSubtract: "Numpad −", NumpadEnter: "Numpad Enter",
+    NumpadMultiply: "Numpad ×", NumpadDivide: "Numpad ÷", NumpadDecimal: "Numpad .",
+    Backquote: "`", Minus: "-", Equal: "=", BracketLeft: "[", BracketRight: "]",
+    Semicolon: ";", Quote: "'", Comma: ",", Period: ".", Slash: "/", Backslash: "\\",
+  };
+  if (named[code]) return named[code];
+  let m;
+  if ((m = code.match(/^Key([A-Z])$/))) return m[1];
+  if ((m = code.match(/^Digit(\d)$/))) return m[1];
+  if ((m = code.match(/^Numpad(\d)$/))) return "Numpad " + m[1];
+  return code; // F1…F12 and anything exotic show their raw code
+}
+function refreshHotkeyBtn() {
+  if (!els.cfgHotkey) return;
+  capturingHotkey = false;
+  els.cfgHotkey.classList.remove("capturing");
+  els.cfgHotkey.textContent = hotkeyLabel(state.config.huntHotkey);
+  els.cfgHotkey.blur();
 }
 
 /* ---------- spawns tab ---------- */
@@ -2321,6 +2352,8 @@ function grabEls() {
     cfgBase: document.getElementById("cfg-base"),
     cfgThresholds: document.getElementById("cfg-thresholds"),
     cfgMasuda: document.getElementById("cfg-masuda"),
+    cfgHotkey: document.getElementById("cfg-hotkey"),
+    cfgHotkeyClear: document.getElementById("cfg-hotkey-clear"),
     spawnInput: document.getElementById("spawn-input"),
     spawnBiomeSelect: document.getElementById("spawn-biome-select"),
     spawnResults: document.getElementById("spawn-results"),
@@ -2641,12 +2674,37 @@ function wire() {
   document.querySelectorAll(".quick-odds").forEach((b) =>
     b.addEventListener("click", () => quickOdds(b.dataset.odds)));
 
-  // Spacebar = +1 while on the Hunt tab (and not typing in a field).
+  // Configurable +1 hotkey. Two roles in one listener:
+  //  - capture mode: clicking the settings button arms it; the next key becomes
+  //    the hotkey (Esc cancels, bare modifiers ignored).
+  //  - normal: the configured key does +1 on the active hunt FROM ANY TAB — but
+  //    only while a hunt is active and you're not typing, so it never hijacks the
+  //    key otherwise. Default Space; change it in Hunt → Odds settings.
+  els.cfgHotkey.addEventListener("click", () => {
+    capturingHotkey = true;
+    els.cfgHotkey.textContent = "Press a key…";
+    els.cfgHotkey.classList.add("capturing");
+  });
+  els.cfgHotkeyClear.addEventListener("click", () => {
+    state.config.huntHotkey = ""; save(); refreshHotkeyBtn();
+  });
   document.addEventListener("keydown", (e) => {
-    if (e.code !== "Space") return;
-    const onHunt = document.getElementById("panel-hunt").classList.contains("active");
-    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
-    if (onHunt && !typing) { e.preventDefault(); bumpCount(1); }
+    if (capturingHotkey) {
+      e.preventDefault();
+      if (e.key !== "Escape" && !/^(Control|Shift|Alt|Meta|OS)/.test(e.code)) {
+        state.config.huntHotkey = e.code; save();
+      }
+      refreshHotkeyBtn();
+      return;
+    }
+    const hk = state.config.huntHotkey;
+    if (!hk || e.code !== hk || e.repeat) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (state.hunt.activeDex == null) return; // no active hunt → leave the key alone
+    const ae = document.activeElement;
+    if (ae && (/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) || ae.isContentEditable)) return;
+    e.preventDefault();
+    bumpCount(1);
   });
 
   els.exportBtn.addEventListener("click", exportData);

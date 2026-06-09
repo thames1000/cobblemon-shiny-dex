@@ -190,8 +190,16 @@
         <div class="controls" style="margin-top:8px">
           <button id="hunt-load" class="ctrl-btn">Load target</button>
           <button id="hunt-random" class="ctrl-btn good" title="Pick a random target to hunt">🎲 Surprise me</button>
+          <select id="hunt-random-scope" class="select" title="Which Pokémon Surprise me picks from">
+            <option value="smart">Wishlist / new</option>
+            <option value="unshiny">Not yet shiny</option>
+            <option value="owned">Owned — any</option>
+            <option value="owned-shiny">Owned — shiny only</option>
+            <option value="owned-plain">Owned — not shiny</option>
+            <option value="all">Anything</option>
+          </select>
         </div>
-        <p class="hint" style="margin:6px 0 0">Bored? Roll a random Pokémon to hunt — favours ones you haven't shiny-caught yet.</p>
+        <p class="hint" style="margin:6px 0 0">Bored? Roll a random Pokémon to hunt — pick the pool it draws from on the right.</p>
       </div>
 
       <div class="card" id="hunt-active-card" hidden>

@@ -38,6 +38,7 @@ function defaultConfig() {
     unchainedThresholds: [[100, 1], [300, 2], [500, 3]], // [koStreak, +shinyChances]
     masudaMultiplier: 4,
     huntHotkey: "Space", // KeyboardEvent.code that does +1 mid-hunt; "" = disabled
+    randomScope: "smart", // pool for 🎲 Surprise me — see randomPool()
   };
 }
 function defaultHunt() {
@@ -75,6 +76,7 @@ function normalize() {
   normalizeParty();
   state.config = Object.assign(defaultConfig(), state.config || {});
   if (typeof state.config.huntHotkey !== "string") state.config.huntHotkey = "Space";
+  if (typeof state.config.randomScope !== "string") state.config.randomScope = "smart";
   state.hunt = Object.assign(defaultHunt(), state.hunt || {});
   // Sessions must be a plain object of well-formed entries. Older/corrupt
   // exports may have it missing, as an array, or holding null/garbage values —
@@ -1513,13 +1515,36 @@ function loadTarget(raw) {
   ensureSession(state.hunt.mode, sp.dex);
   save(); renderHunt();
 }
-// Bored? Roll a random target. Prefers your wishlist (un-caught), then any
-// species you haven't shiny-caught yet, then anything (you legend).
+// The pool 🎲 Surprise me draws from, per the chosen scope.
+//  smart        – wishlist (un-caught) → not-yet-shiny → anything  (the default)
+//  unshiny      – anything you haven't shiny-caught yet
+//  owned        – anything you own (caught, shiny or boxed)
+//  owned-shiny  – only ones you own shiny (shiny or boxed)
+//  owned-plain  – ones you own but haven't shiny'd (caught only)
+//  all          – literally any species
+function randomPool(scope) {
+  const owned = (st) => st === "caught" || st === "shiny" || st === "boxed";
+  const hasShiny = (st) => st === "shiny" || st === "boxed";
+  switch (scope) {
+    case "unshiny": return SPECIES.filter((sp) => !hasShiny(dexState(sp.dex)));
+    case "owned": return SPECIES.filter((sp) => owned(dexState(sp.dex)));
+    case "owned-shiny": return SPECIES.filter((sp) => hasShiny(dexState(sp.dex)));
+    case "owned-plain": return SPECIES.filter((sp) => dexState(sp.dex) === "caught");
+    case "all": return SPECIES.slice();
+    case "smart":
+    default: {
+      const notDone = (sp) => !hasShiny(dexState(sp.dex));
+      const wished = state.wishlist.map((d) => DEX_BY_NUM[d]).filter((sp) => sp && notDone(sp));
+      if (wished.length) return wished;
+      const fresh = SPECIES.filter(notDone);
+      return fresh.length ? fresh : SPECIES.slice();
+    }
+  }
+}
+// Bored? Roll a random target from the chosen scope.
 function randomHuntTarget() {
-  const notDone = (sp) => { const st = dexState(sp.dex); return st !== "shiny" && st !== "boxed"; };
-  const wished = state.wishlist.map((d) => DEX_BY_NUM[d]).filter((sp) => sp && notDone(sp));
-  const fresh = SPECIES.filter(notDone);
-  const pool = wished.length ? wished : (fresh.length ? fresh : SPECIES);
+  const pool = randomPool(state.config.randomScope || "smart");
+  if (!pool.length) { alert("Nothing matches that random filter yet — try a different one."); return; }
   const sp = pool[Math.floor(Math.random() * pool.length)];
   state.hunt.activeDex = sp.dex;
   ensureSession(state.hunt.mode, sp.dex);
@@ -1938,6 +1963,7 @@ function fillConfigInputs() {
   els.cfgBase.value = state.config.baseShinyRate;
   els.cfgMasuda.value = state.config.masudaMultiplier;
   els.cfgThresholds.value = state.config.unchainedThresholds.map(([a, b]) => `${a}:${b}`).join(", ");
+  if (els.huntRandomScope) els.huntRandomScope.value = state.config.randomScope || "smart";
   refreshHotkeyBtn();
 }
 
@@ -2555,6 +2581,7 @@ function grabEls() {
     huntCountLabel: document.getElementById("hunt-count-label"),
     huntOdds: document.getElementById("hunt-odds"),
     huntInput: document.getElementById("hunt-input"),
+    huntRandomScope: document.getElementById("hunt-random-scope"),
     speciesList: document.getElementById("species-list"),
     huntFinds: document.getElementById("hunt-finds"),
     huntActiveCard: document.getElementById("hunt-active-card"),
@@ -2779,6 +2806,7 @@ function wire() {
   document.getElementById("hunt-boxed").addEventListener("click", () => foundShiny(true));
   document.getElementById("hunt-load").addEventListener("click", () => loadTarget(els.huntInput.value));
   document.getElementById("hunt-random").addEventListener("click", randomHuntTarget);
+  els.huntRandomScope.addEventListener("change", () => { state.config.randomScope = els.huntRandomScope.value; save(); });
   els.huntActive.addEventListener("click", (e) => {
     const drop = e.target.closest(".ah-drop");
     if (drop) { e.stopPropagation(); dropHunt(drop.dataset.mode, Number(drop.dataset.dex)); return; }

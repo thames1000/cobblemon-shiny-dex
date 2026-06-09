@@ -116,8 +116,43 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
   background: rgba(11, 19, 34, .8); color: var(--text); border: 1px solid var(--line); border-radius: 6px;
 }
 .dash-gap-hunt { left: 2px; }
-.dash-gap-box { right: 2px; }
-.dash-gap-hunt:hover, .dash-gap-box:hover { border-color: var(--accent); }
+.dash-gap-box, .dash-wl-star { right: 2px; }
+.dash-wl-star { color: var(--gold); border-color: var(--gold); }
+.dash-gap-hunt:hover, .dash-gap-box:hover, .dash-wl-star:hover { border-color: var(--accent); }
+.dash-gap.wl-done { opacity: .72; }
+.dash-gap .wl-badge { position: absolute; bottom: 2px; right: 3px; font-size: .7rem; }
+
+/* Luck chips (#6) */
+.luck-chip { font-size: .68rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; white-space: nowrap; }
+.luck-amazing { background: var(--gold); color: #3a2c00; }
+.luck-great { background: var(--boxed); color: #043024; }
+.luck-good { background: #2b6d63; color: #d6fff8; }
+.luck-avg { background: var(--panel-2); color: var(--muted); }
+.luck-bad { background: #6b4a1e; color: #ffe1b0; }
+.luck-rough { background: #7a3b1e; color: #ffd9c2; }
+.luck-brutal { background: var(--danger); color: #fff; }
+
+/* Stats tab */
+.stats-luck { margin-top: 8px; display: grid; gap: 6px; }
+.luck-line { font-size: .9rem; }
+.time-bars { display: flex; align-items: flex-end; gap: 10px; height: 96px; padding-top: 6px; }
+.time-col { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 3px; }
+.time-n { font-size: .72rem; color: var(--muted); }
+.time-bar { width: 70%; max-width: 42px; background: linear-gradient(180deg, var(--accent), var(--boxed)); border-radius: 4px 4px 0 0; }
+.time-lbl { font-size: .72rem; color: var(--muted); }
+.ms-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.ms-badge {
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px;
+  display: grid; grid-template-columns: auto 1fr; grid-template-areas: "icon title" "icon desc" "icon prog";
+  column-gap: 8px; row-gap: 1px; opacity: .55; filter: grayscale(.6);
+}
+.ms-badge.done { opacity: 1; filter: none; border-color: var(--gold); }
+.ms-icon { grid-area: icon; font-size: 1.6rem; align-self: center; }
+.ms-title { grid-area: title; font-weight: 700; font-size: .9rem; }
+.ms-desc { grid-area: desc; font-size: .72rem; color: var(--muted); line-height: 1.2; }
+.ms-prog { grid-area: prog; font-size: .72rem; color: var(--accent); }
+.ms-badge.done .ms-prog { color: var(--boxed); }
+#panel-stats .card h2 { margin: 0 0 8px; font-size: 1.05rem; }
 
 /* Toolbar */
 .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
@@ -166,6 +201,20 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .mon-hunt:hover { border-color: var(--accent); }
 .mon-hunt:focus-visible { opacity: 1; outline: 2px solid var(--accent); outline-offset: 1px; }
 @media (hover: none) { .mon-hunt { opacity: .85; } }
+/* ★ wishlist toggle — sits under the hunt button. Hollow + hover-reveal until
+   starred, then a solid gold star that stays visible. */
+.mon-star {
+  position: absolute; top: 28px; left: 3px; z-index: 2; width: 22px; height: 22px;
+  padding: 0; line-height: 20px; font-size: .82rem; text-align: center; cursor: pointer;
+  background: rgba(11, 19, 34, .72); color: var(--muted);
+  border: 1px solid var(--line); border-radius: 6px;
+  opacity: 0; transition: opacity .12s, border-color .12s, color .12s;
+}
+.mon:hover .mon-star, .mon:focus-within .mon-star { opacity: 1; }
+.mon-star:hover { border-color: var(--gold); color: var(--gold); }
+.mon-star:focus-visible { opacity: 1; outline: 2px solid var(--gold); outline-offset: 1px; }
+.mon-star.on { opacity: 1; color: var(--gold); border-color: var(--gold); }
+@media (hover: none) { .mon-star { opacity: .85; } }
 
 /* state styling */
 .mon.s-none { opacity: .5; }

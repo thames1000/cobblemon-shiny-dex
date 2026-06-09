@@ -27,6 +27,7 @@
     <button class="tab" data-tab="forms">Mega/GMax</button>
     <button class="tab" data-tab="variants">Variants</button>
     <button class="tab" data-tab="hunt">Hunt</button>
+    <button class="tab" data-tab="stats">Stats</button>
     <button class="tab" data-tab="spawns">Spawns</button>
     <button class="tab" data-tab="snack">PokéSnack</button>
     <button class="tab" data-tab="berries">Berries</button>
@@ -41,6 +42,7 @@
         <div class="card dash-hunt" id="dash-hunt"></div>
         <div class="card" id="dash-progress"></div>
       </div>
+      <div class="card" id="dash-wishlist"></div>
       <div class="card" id="dash-gaps"></div>
       <div class="card" id="dash-finds"></div>
     </section>
@@ -65,6 +67,7 @@
           <option value="shiny-not-boxed">Shiny, not boxed</option>
           <option value="boxed">Boxed</option>
           <option value="missing">Not caught</option>
+          <option value="wishlist">★ Wishlisted</option>
         </select>
       </div>
 
@@ -222,6 +225,13 @@
         <h2>Recent finds</h2>
         <div id="hunt-finds"><p class="hint" id="hunt-no-finds">No shinies logged yet — go get one. ✨</p></div>
       </div>
+    </section>
+
+    <!-- ============ STATS TAB ============ -->
+    <section class="panel" id="panel-stats">
+      <div class="card" id="stats-summary"></div>
+      <div class="card" id="stats-time"></div>
+      <div class="card" id="stats-milestones"></div>
     </section>
 
     <!-- ============ SPAWNS TAB ============ -->

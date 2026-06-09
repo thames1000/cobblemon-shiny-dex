@@ -58,7 +58,7 @@ function newParty(name) {
 }
 function defaultParty() { const p = newParty("Party 1"); return { active: p.id, list: [p] }; }
 function freshState() {
-  return { dex: {}, forms: {}, variants: {}, berries: {}, party: defaultParty(), config: defaultConfig(), hunt: defaultHunt() };
+  return { dex: {}, forms: {}, variants: {}, berries: {}, wishlist: [], party: defaultParty(), config: defaultConfig(), hunt: defaultHunt() };
 }
 let state = freshState();
 
@@ -68,6 +68,10 @@ function normalize() {
   if (!state.forms) state.forms = {};
   if (!state.variants) state.variants = {};
   if (!state.berries) state.berries = {};
+  // Wishlist: unique, finite dex numbers, in add order.
+  const rawWish = Array.isArray(state.wishlist) ? state.wishlist : [];
+  const seenWish = new Set();
+  state.wishlist = rawWish.map(Number).filter((d) => Number.isFinite(d) && !seenWish.has(d) && seenWish.add(d));
   normalizeParty();
   state.config = Object.assign(defaultConfig(), state.config || {});
   if (typeof state.config.huntHotkey !== "string") state.config.huntHotkey = "Space";
@@ -198,6 +202,7 @@ function applyRemoteState(json) {
 function renderAll() {
   renderDex(); renderForms(); renderVariants(); renderBerries(); renderParty();
   fillConfigInputs(); renderHunt(); renderBoxes(); renderSnack();
+  renderDashboard(); renderStats();
 }
 
 /* ----- account UI ----- */
@@ -375,9 +380,12 @@ function monCard(sp) {
   const el = document.createElement("div");
   el.className = `mon s-${st}`;
   el.dataset.dex = sp.dex;
+  const nm = sp.name.replace(/-/g, " ");
+  const wished = state.wishlist.includes(sp.dex);
   el.innerHTML =
     `${STATE_BADGE[st] ? `<span class="badge">${STATE_BADGE[st]}</span>` : ""}` +
-    `<button class="mon-hunt" title="Start a hunt for ${sp.name.replace(/-/g, " ")}" aria-label="Start a hunt for ${sp.name.replace(/-/g, " ")}">🎯</button>` +
+    `<button class="mon-hunt" title="Start a hunt for ${nm}" aria-label="Start a hunt for ${nm}">🎯</button>` +
+    `<button class="mon-star${wished ? " on" : ""}" title="${wished ? "Remove from" : "Add to"} wishlist" aria-label="${wished ? "Remove from" : "Add to"} wishlist for ${nm}">${wished ? "★" : "☆"}</button>` +
     `<img loading="lazy" src="${spriteUrl(sp.dex, shiny)}" alt="${sp.name}" />` +
     `<div class="dexno">#${String(sp.dex).padStart(4, "0")}</div>` +
     `<div class="nm">${sp.name.replace(/-/g, " ")}</div>`;
@@ -398,6 +406,7 @@ function matchesDexFilter(sp) {
   if (f === "shiny-not-boxed" && st !== "shiny") return false;
   if (f === "boxed" && st !== "boxed") return false;
   if (f === "missing" && st !== "none") return false;
+  if (f === "wishlist" && !state.wishlist.includes(sp.dex)) return false;
   return true;
 }
 
@@ -1482,15 +1491,7 @@ function renderFinds() {
     wrap.innerHTML = `<p class="hint">No shinies logged yet — go get one. ✨</p>`;
     return;
   }
-  wrap.innerHTML = finds.slice().reverse().map((f) => {
-    const d = new Date(f.foundAt);
-    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    return `<div class="find-row">
-      <img src="${spriteUrl(f.dex, true)}" alt="" />
-      <span class="find-name">${(f.name || "").replace(/-/g, " ")}</span>
-      <span class="muted">${f.mode} · ${f.count}${f.mode === "breeding" ? " eggs" : f.mode === "chain" ? " KOs" : ""} · ${date}</span>
-    </div>`;
-  }).join("");
+  wrap.innerHTML = finds.slice().reverse().map(findRowHtml).join("");
 }
 
 function setMode(mode) { state.hunt.mode = mode; save(); renderHunt(); }
@@ -1512,12 +1513,13 @@ function loadTarget(raw) {
   ensureSession(state.hunt.mode, sp.dex);
   save(); renderHunt();
 }
-// Bored? Roll a random target. Prefers species you haven't shiny-caught yet so
-// it actually gives you somewhere new to go; falls back to anything if you've
-// caught them all (you legend).
+// Bored? Roll a random target. Prefers your wishlist (un-caught), then any
+// species you haven't shiny-caught yet, then anything (you legend).
 function randomHuntTarget() {
-  const fresh = SPECIES.filter((s) => { const st = dexState(s.dex); return st !== "shiny" && st !== "boxed"; });
-  const pool = fresh.length ? fresh : SPECIES;
+  const notDone = (sp) => { const st = dexState(sp.dex); return st !== "shiny" && st !== "boxed"; };
+  const wished = state.wishlist.map((d) => DEX_BY_NUM[d]).filter((sp) => sp && notDone(sp));
+  const fresh = SPECIES.filter(notDone);
+  const pool = wished.length ? wished : (fresh.length ? fresh : SPECIES);
   const sp = pool[Math.floor(Math.random() * pool.length)];
   state.hunt.activeDex = sp.dex;
   ensureSession(state.hunt.mode, sp.dex);
@@ -1534,12 +1536,15 @@ function foundShiny(boxed) {
   if (h.activeDex == null) { alert("Load a target first."); return; }
   const sp = DEX_BY_NUM[h.activeDex];
   const s = ensureSession(h.mode, h.activeDex);
-  state.hunt.finds.push({ dex: h.activeDex, name: sp ? sp.name : String(h.activeDex), mode: h.mode, count: s.count, foundAt: Date.now() });
+  // Stamp the luck (vs the odds in effect right now) so it stays accurate even
+  // if the pack's odds settings change later.
+  const luck = computeLuck(h.mode, s.count).p;
+  state.hunt.finds.push({ dex: h.activeDex, name: sp ? sp.name : String(h.activeDex), mode: h.mode, count: s.count, foundAt: Date.now(), luck });
   if (boxed) state.dex[String(h.activeDex)] = "boxed";
   else if (dexState(h.activeDex) !== "boxed") state.dex[String(h.activeDex)] = "shiny";
   // Reset this session's count for a fresh hunt.
   s.count = 0;
-  save(); renderHunt(); renderDex(); renderBoxes(); refreshDashboard();
+  save(); renderHunt(); renderDex(); renderBoxes(); refreshDashboard(); refreshStats();
 }
 
 /* ---------- start a hunt from a Dex card ---------- */
@@ -1575,6 +1580,53 @@ function startHuntFromDex(mode) {
   showTab("hunt");
 }
 
+/* ---------- luck (#6) ---------- */
+// Effective flat "1 in N" odds for the non-chain modes.
+function effectiveFlatOdds(mode) {
+  const base = state.config.baseShinyRate;
+  return mode === "breeding" ? base / state.config.masudaMultiplier : base;
+}
+// p = fraction of equivalent hunts that would STILL be searching at this count,
+// i.e. how lucky this find was (higher = luckier; .5 ≈ the median hunt).
+// expected = mean count for flat modes (null for chains, whose odds vary by streak).
+function computeLuck(mode, count) {
+  count = Math.max(0, Number(count) || 0);
+  if (mode === "chain") return { p: 1 - cumulativeChain(count), expected: null };
+  const odds = effectiveFlatOdds(mode);
+  return { p: Math.pow(1 - 1 / odds, count), expected: Math.round(odds) };
+}
+function findLuckP(f) {
+  return (typeof f.luck === "number") ? f.luck : computeLuck(f.mode, f.count).p;
+}
+function luckBadge(p) {
+  if (p >= 0.95) return { cls: "luck-amazing", txt: "🍀 Insane luck" };
+  if (p >= 0.80) return { cls: "luck-great", txt: "🍀 Very lucky" };
+  if (p >= 0.60) return { cls: "luck-good", txt: "Lucky" };
+  if (p >= 0.40) return { cls: "luck-avg", txt: "Average" };
+  if (p >= 0.20) return { cls: "luck-bad", txt: "Unlucky" };
+  if (p >= 0.05) return { cls: "luck-rough", txt: "Rough" };
+  return { cls: "luck-brutal", txt: "💀 Brutal" };
+}
+// Shared "recent finds" row (Home + Hunt + Stats), now with a luck chip.
+function findRowHtml(f) {
+  const d = new Date(f.foundAt);
+  const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const unit = f.mode === "breeding" ? " eggs" : f.mode === "chain" ? " KOs" : "";
+  const p = findLuckP(f);
+  const b = luckBadge(p);
+  return `<div class="find-row"><img src="${spriteUrl(f.dex, true)}" alt="" />` +
+    `<span class="find-name">${(f.name || "").replace(/-/g, " ")}</span>` +
+    `<span class="luck-chip ${b.cls}" title="Luckier than ${Math.round(p * 100)}% of equivalent hunts">${b.txt}</span>` +
+    `<span class="muted">${f.mode} · ${f.count}${unit} · ${date}</span></div>`;
+}
+
+/* ---------- wishlist (#8) ---------- */
+function toggleWishlist(dex) {
+  const i = state.wishlist.indexOf(dex);
+  if (i >= 0) state.wishlist.splice(i, 1); else state.wishlist.push(dex);
+  save();
+}
+
 /* ---------- home / dashboard ---------- */
 const MODE_NAME = { chain: "KO-Chain", breeding: "Breeding", encounter: "Encounter" };
 
@@ -1588,8 +1640,34 @@ function refreshDashboard() {
 function renderDashboard() {
   renderDashHunt();
   renderDashProgress();
+  renderDashWishlist();
   renderDashGaps();
   renderDashFinds();
+}
+
+function renderDashWishlist() {
+  const el = document.getElementById("dash-wishlist");
+  if (!el) return;
+  const list = state.wishlist.map((d) => DEX_BY_NUM[d]).filter(Boolean);
+  if (!list.length) {
+    el.innerHTML = `<h2>★ Wishlist</h2><p class="hint">Star Pokémon on the Dex (tap ☆) to pin your hunt goals here. 🎲 Surprise me favours them.</p>`;
+    return;
+  }
+  el.innerHTML =
+    `<h2>★ Wishlist <span class="muted">— ${list.length}</span></h2>` +
+    `<div class="dash-gaps-row">` + list.map((sp) => {
+      const st = dexState(sp.dex);
+      const done = st === "shiny" || st === "boxed";
+      const nm = sp.name.replace(/-/g, " ");
+      return `<div class="dash-gap${done ? " wl-done" : ""}" data-dex="${sp.dex}" role="button" tabindex="0" title="Jump to ${nm} in Boxes">` +
+        `<button class="dash-gap-hunt" data-dex="${sp.dex}" title="Start a hunt for ${nm}">🎯</button>` +
+        `<button class="dash-wl-star" data-dex="${sp.dex}" title="Remove ${nm} from wishlist">★</button>` +
+        `<img loading="lazy" src="${spriteUrl(sp.dex, done)}" alt="${sp.name}" />` +
+        `<span class="dash-gap-no">#${String(sp.dex).padStart(4, "0")}</span>` +
+        `<span class="dash-gap-nm">${nm}</span>` +
+        `${done ? `<span class="wl-badge">${st === "boxed" ? "📦" : "✨"}</span>` : ""}` +
+      `</div>`;
+    }).join("") + `</div>`;
 }
 
 function renderDashHunt() {
@@ -1698,20 +1776,150 @@ function renderDashFinds() {
   const recent = finds.slice(-5).reverse();
   el.innerHTML =
     `<h2>Recent finds <span class="muted">— ${finds.length} total</span></h2>` +
-    recent.map((f) => {
-      const d = new Date(f.foundAt);
-      const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      const unit = f.mode === "breeding" ? " eggs" : f.mode === "chain" ? " KOs" : "";
-      return `<div class="find-row"><img src="${spriteUrl(f.dex, true)}" alt="" />` +
-        `<span class="find-name">${(f.name || "").replace(/-/g, " ")}</span>` +
-        `<span class="muted">${f.mode} · ${f.count}${unit} · ${date}</span></div>`;
-    }).join("");
+    recent.map(findRowHtml).join("");
 }
 
 // Mark a species boxed straight from the dashboard's "next gaps" list.
 function markBoxed(dex) {
   state.dex[String(dex)] = "boxed";
-  save(); renderDex(); renderBoxes(); refreshDashboard();
+  save(); renderDex(); renderBoxes(); refreshDashboard(); refreshStats();
+}
+
+/* ---------- stats & milestones (#5) ---------- */
+function dexCounts() {
+  let caught = 0, shiny = 0, boxed = 0;
+  const genTot = {}, genBox = {};
+  for (const sp of SPECIES) {
+    const st = dexState(sp.dex);
+    if (st === "caught" || st === "shiny" || st === "boxed") caught++;
+    if (st === "shiny" || st === "boxed") shiny++;
+    if (st === "boxed") boxed++;
+    genTot[sp.gen] = (genTot[sp.gen] || 0) + 1;
+    if (st === "boxed") genBox[sp.gen] = (genBox[sp.gen] || 0) + 1;
+  }
+  return { caught, shiny, boxed, genTot, genBox, total: SPECIES.length };
+}
+
+function refreshStats() {
+  const p = document.getElementById("panel-stats");
+  if (p && p.classList.contains("active")) renderStats();
+}
+function renderStats() {
+  renderStatsSummary();
+  renderStatsTime();
+  renderStatsMilestones();
+}
+
+// Compact reference to a find: sprite-less name + count + luck word.
+function findRef(f) {
+  const nm = (f.name || "").replace(/-/g, " ");
+  const unit = f.mode === "breeding" ? " eggs" : f.mode === "chain" ? " KOs" : " enc.";
+  const b = luckBadge(findLuckP(f));
+  return `<b>${nm}</b> <span class="muted">(${f.count}${unit})</span> <span class="luck-chip ${b.cls}">${b.txt}</span>`;
+}
+
+function renderStatsSummary() {
+  const el = document.getElementById("stats-summary");
+  if (!el) return;
+  const finds = state.hunt.finds;
+  const c = dexCounts();
+  if (!finds.length) {
+    el.innerHTML =
+      `<h2>Stats</h2>` +
+      `<div class="dash-stat-line">` +
+        `<span class="stat"><b>${c.shiny}</b>/${c.total} shiny</span>` +
+        `<span class="stat">📦 boxed <b>${c.boxed}</b></span>` +
+        `<span class="stat">caught <b>${c.caught}</b></span>` +
+      `</div>` +
+      `<p class="hint">No shinies logged yet — log finds with ✨ Found! / 📦 Boxed! and your luck stats appear here.</p>`;
+    return;
+  }
+  const byMode = { chain: 0, breeding: 0, encounter: 0 };
+  let totalEnc = 0, best = null, worst = null;
+  for (const f of finds) {
+    byMode[f.mode] = (byMode[f.mode] || 0) + 1;
+    totalEnc += Number(f.count) || 0;
+    const p = findLuckP(f);
+    if (!best || p > best.p) best = { f, p };
+    if (!worst || p < worst.p) worst = { f, p };
+  }
+  const avg = Math.round(totalEnc / finds.length);
+  el.innerHTML =
+    `<h2>Stats <span class="muted">— ${finds.length} shiny logged</span></h2>` +
+    `<div class="dash-stat-line">` +
+      `<span class="stat"><b>${c.shiny}</b>/${c.total} shiny</span>` +
+      `<span class="stat">📦 boxed <b>${c.boxed}</b></span>` +
+      `<span class="stat">caught <b>${c.caught}</b></span>` +
+    `</div>` +
+    `<div class="dash-stat-line">` +
+      `<span class="stat">total tracked <b>${totalEnc.toLocaleString()}</b></span>` +
+      `<span class="stat">avg / shiny <b>${avg.toLocaleString()}</b></span>` +
+      `<span class="stat">chain <b>${byMode.chain}</b> · breed <b>${byMode.breeding}</b> · enc <b>${byMode.encounter}</b></span>` +
+    `</div>` +
+    `<div class="stats-luck">` +
+      `<div class="luck-line">🍀 Luckiest: ${findRef(best.f)}</div>` +
+      `<div class="luck-line">💀 Unluckiest: ${findRef(worst.f)}</div>` +
+    `</div>`;
+}
+
+function renderStatsTime() {
+  const el = document.getElementById("stats-time");
+  if (!el) return;
+  const finds = state.hunt.finds;
+  if (!finds.length) { el.innerHTML = `<h2>Finds over time</h2><p class="hint">No finds yet.</p>`; return; }
+  const now = new Date();
+  const months = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({ y: d.getFullYear(), m: d.getMonth(), label: d.toLocaleString(undefined, { month: "short" }), count: 0 });
+  }
+  for (const f of finds) {
+    const d = new Date(f.foundAt);
+    const b = months.find((x) => x.y === d.getFullYear() && x.m === d.getMonth());
+    if (b) b.count++;
+  }
+  const max = Math.max(1, ...months.map((b) => b.count));
+  el.innerHTML =
+    `<h2>Finds over time <span class="muted">— last 6 months</span></h2>` +
+    `<div class="time-bars">` + months.map((b) =>
+      `<div class="time-col" title="${b.count} in ${b.label}">` +
+        `<span class="time-n">${b.count}</span>` +
+        `<div class="time-bar" style="height:${Math.round((b.count / max) * 64) + 2}px"></div>` +
+        `<span class="time-lbl">${b.label}</span>` +
+      `</div>`).join("") + `</div>`;
+}
+
+function renderStatsMilestones() {
+  const el = document.getElementById("stats-milestones");
+  if (!el) return;
+  const c = dexCounts();
+  const finds = state.hunt.finds;
+  const totalEnc = finds.reduce((s, f) => s + (Number(f.count) || 0), 0);
+  const gensComplete = Object.keys(c.genTot).filter((g) => (c.genBox[g] || 0) === c.genTot[g]).length;
+  const bestLuck = finds.reduce((m, f) => Math.max(m, findLuckP(f)), 0);
+  const longest = finds.reduce((m, f) => Math.max(m, Number(f.count) || 0), 0);
+  const M = [
+    { icon: "✨", title: "First Shiny", desc: "Log your first shiny", done: finds.length >= 1, prog: `${finds.length}` },
+    { icon: "🔟", title: "Perfect Ten", desc: "10 shinies logged", done: finds.length >= 10, prog: `${finds.length}/10` },
+    { icon: "💯", title: "Centurion", desc: "100 shinies logged", done: finds.length >= 100, prog: `${finds.length}/100` },
+    { icon: "🌟", title: "Shiny Charm", desc: "250 shinies logged", done: finds.length >= 250, prog: `${finds.length}/250` },
+    { icon: "📦", title: "Box Filler", desc: "100 species boxed", done: c.boxed >= 100, prog: `${c.boxed}/100` },
+    { icon: "🗺️", title: "Region Master", desc: "Complete a full generation", done: gensComplete >= 1, prog: `${gensComplete} gen${gensComplete === 1 ? "" : "s"}` },
+    { icon: "🏆", title: "Living Legend", desc: `Box all ${c.total}`, done: c.boxed >= c.total, prog: `${c.boxed}/${c.total}` },
+    { icon: "🍀", title: "Beginner's Luck", desc: "A find luckier than 95%", done: bestLuck >= 0.95, prog: `best ${Math.round(bestLuck * 100)}%` },
+    { icon: "⛏️", title: "The Grind", desc: "A single hunt past 1,000", done: longest >= 1000, prog: `best ${longest.toLocaleString()}` },
+    { icon: "🔥", title: "Dedicated Hunter", desc: "10,000 total encounters", done: totalEnc >= 10000, prog: `${totalEnc.toLocaleString()}` },
+  ];
+  const got = M.filter((m) => m.done).length;
+  el.innerHTML =
+    `<h2>Milestones <span class="muted">— ${got}/${M.length}</span></h2>` +
+    `<div class="ms-grid">` + M.map((m) =>
+      `<div class="ms-badge${m.done ? " done" : ""}" title="${m.desc}">` +
+        `<span class="ms-icon">${m.icon}</span>` +
+        `<span class="ms-title">${m.title}</span>` +
+        `<span class="ms-desc">${m.desc}</span>` +
+        `<span class="ms-prog">${m.done ? "✓ unlocked" : (m.prog || "")}</span>` +
+      `</div>`).join("") + `</div>`;
 }
 
 function applyConfigInputs() {
@@ -2287,6 +2495,7 @@ function showTab(name) {
   document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("active", p.id === `panel-${name}`));
   if (name === "boxes") renderBoxes(); // refresh in case dex changed on another tab
   if (name === "home") renderDashboard();
+  if (name === "stats") renderStats();
   location.hash = name;
 }
 
@@ -2310,6 +2519,7 @@ function importData(file) {
       save();
       renderDex(); renderForms(); renderVariants(); renderBerries(); renderParty();
       fillConfigInputs(); renderHunt(); renderBoxes(); renderSnack();
+      renderDashboard(); renderStats();
       const dexN = Object.keys(state.dex).length;
       const varN = Object.keys(state.variants).length;
       const berryN = Object.keys(state.berries).length;
@@ -2424,6 +2634,8 @@ function wire() {
       if (gapHunt) { e.stopPropagation(); openHuntStart(Number(gapHunt.dataset.dex)); return; }
       const gapBox = e.target.closest(".dash-gap-box");
       if (gapBox) { e.stopPropagation(); markBoxed(Number(gapBox.dataset.dex)); return; }
+      const wlStar = e.target.closest(".dash-wl-star");
+      if (wlStar) { e.stopPropagation(); toggleWishlist(Number(wlStar.dataset.dex)); renderDex(); refreshDashboard(); return; }
       const gap = e.target.closest(".dash-gap[data-dex]");
       if (gap) { showTab("boxes"); jumpToSpecies(DEX_BY_NUM[Number(gap.dataset.dex)]); return; }
     });
@@ -2438,13 +2650,21 @@ function wire() {
   els.dexGrid.addEventListener("click", (e) => {
     const huntBtn = e.target.closest(".mon-hunt");
     if (huntBtn) { e.stopPropagation(); openHuntStart(Number(huntBtn.closest(".mon").dataset.dex)); return; }
+    const starBtn = e.target.closest(".mon-star");
+    if (starBtn) {
+      e.stopPropagation();
+      const card = starBtn.closest(".mon");
+      toggleWishlist(Number(card.dataset.dex));
+      refreshCard(card, Number(card.dataset.dex));
+      return;
+    }
     const card = e.target.closest(".mon");
     if (!card) return;
     cycleDex(Number(card.dataset.dex), false);
     refreshCard(card, Number(card.dataset.dex));
   });
   els.dexGrid.addEventListener("contextmenu", (e) => {
-    if (e.target.closest(".mon-hunt")) { e.preventDefault(); return; }
+    if (e.target.closest(".mon-hunt") || e.target.closest(".mon-star")) { e.preventDefault(); return; }
     const card = e.target.closest(".mon");
     if (!card) return;
     e.preventDefault();
@@ -2713,7 +2933,8 @@ function wire() {
   els.resetAll.addEventListener("click", () => {
     if (confirm("Erase ALL progress? Export first if unsure.")) {
       state = freshState();
-      save(); renderDex(); renderForms(); renderVariants(); fillConfigInputs(); renderHunt(); renderBoxes();
+      save(); renderDex(); renderForms(); renderVariants(); renderBerries(); renderParty();
+      fillConfigInputs(); renderHunt(); renderBoxes(); renderSnack(); renderDashboard(); renderStats();
     }
   });
 
@@ -2854,6 +3075,7 @@ async function boot() {
   renderBerries();
   renderParty();
   renderDashboard();
+  renderStats();
   const hash = location.hash.replace("#", "");
   if (hash) showTab(hash);
 }

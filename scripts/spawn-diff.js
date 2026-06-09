@@ -41,6 +41,7 @@ function normOld(b) { return RELABEL[b] || b; }
 
 function fmt(e) {
   const p = [];
+  if (e.f) p.push("[" + e.f + "]");
   p.push(e.r + " Lv" + (e.lv || "?") + " w" + e.w);
   if (e.b && e.b.length) p.push("in " + e.b.join(", "));
   if (e.st && e.st.length) p.push("@ " + e.st.join(", "));

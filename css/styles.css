@@ -319,6 +319,12 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .struct-chip { background: color-mix(in srgb, var(--accent) 16%, var(--panel-2));
   border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); border-radius: 6px;
   padding: 2px 8px; font-size: .78rem; text-transform: capitalize; }
+/* Regional / functional form a spawn row belongs to (Galarian, East Sea, …). */
+.form-chip { background: color-mix(in srgb, var(--gold) 18%, var(--panel-2));
+  border: 1px solid color-mix(in srgb, var(--gold) 45%, var(--line)); border-radius: 6px;
+  padding: 2px 8px; font-size: .78rem; font-weight: 600; white-space: nowrap; }
+.form-tag { font-size: .64rem; font-weight: 600; line-height: 1.1; margin-top: 1px;
+  color: var(--gold); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .spawn-meta { font-size: .82rem; }
 /* Quest-summon (legendary) / raid-boss obtain note under a spawn row. */
 .spawn-quest { margin-top: 4px; font-size: .8rem; line-height: 1.35;

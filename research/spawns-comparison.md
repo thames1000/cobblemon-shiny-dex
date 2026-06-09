@@ -66,7 +66,7 @@ Biomes filtered to ones that **exist in this modpack** (vanilla only — no biom
 
 ## Biome labels added (new from datapack)
 
-- arid  _(new uses: 103)_
+- arid  _(new uses: 93)_
 - mangrove swamp  _(new uses: 15)_
 - mushroom  _(new uses: 63)_
 - nether  _(new uses: 18)_

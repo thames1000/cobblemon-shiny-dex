@@ -96,6 +96,84 @@ function biomeLabel(rawRef) {
   return readable(body.replace(/^is_/, ""));
 }
 
+// ---------- form / regional-variant labels ----------
+const REGION = {
+  galarian: "Galarian", alolan: "Alolan", hisuian: "Hisuian", paldean: "Paldean",
+  valencian: "Valencian", kantonian: "Kantonian", unovan: "Unovan", hisui: "Hisuian",
+  alola: "Alolan", galar: "Galarian", kanto: "Kantonian", unova: "Unovan",
+};
+// Cosmetic aspect keys: pure aesthetics that don't change where a mon spawns.
+// Map them to no form so identical-signature entries collapse into one row.
+const COSMETIC = {
+  character: 1, magikarp_jump: 1, special_spots: 1, face_spots: 1, face_spots2: 1,
+  meteor_shield: 1, core_color: 1, cosplay: 1, paint_color: 1, mooshtank: 1,
+  percent_cells: 1, tympole_pattern: 1, wooper_heart: 1, whiscash_nero: 1,
+  vivillon_wings: 1, snake_pattern: 1,
+};
+function titlecase(s) { return String(s).replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()).trim(); }
+function aspectLabel(k, v) {
+  if (COSMETIC[k]) return "";
+  switch (k) {
+    case "region_bias": return REGION[v] || (titlecase(v) + " form");
+    case "sea": return titlecase(v) + " Sea";
+    case "striped": return titlecase(v) + "-Striped";
+    case "flower": return titlecase(v) + " Flower";
+    case "bagworm_cloak": case "cloak": return titlecase(v) + " Cloak";
+    case "maushold_family": return "Family of " + titlecase(v);
+    case "dance_style": return titlecase(v) + " Style";
+    case "snake_pattern": return "";
+    case "bull_breed": return titlecase(v);
+    case "gender": return titlecase(v);
+    default: return titlecase(v); // wolf_form, sword_form, blossom_form, forecast, *_authenticity, ...
+  }
+}
+function formLabel(form) {
+  if (!form) return "";
+  const parts = [];
+  for (const tok of String(form).split(/\s+/)) {
+    if (tok.indexOf("=") >= 0) { const i = tok.indexOf("="); parts.push(aspectLabel(tok.slice(0, i), tok.slice(i + 1))); }
+    else parts.push(REGION[tok] || titlecase(tok));
+  }
+  return parts.filter(Boolean).join(" ");
+}
+
+// Signature of a spawn's conditions (everything EXCEPT which form it is). Entries
+// that share a signature are the same spawn and get merged.
+function signature(e) {
+  const s = (a) => (a || []).slice().sort();
+  return JSON.stringify([s(e.b), s(e.st), s(e.px), e.r, e.lv, e.w, e.t || 0, s(e.wx), e.sky === undefined ? null : e.sky, e.pos || 0, s(e.bo)]);
+}
+// Merge a dex's entries by signature; label rows where only a subset of the
+// species' forms spawn that way (regional/functional forms), drop the label
+// when all forms — or the base form — spawn identically.
+function mergeForms(entries) {
+  const allForms = {};
+  for (const e of entries) allForms[e.__form || ""] = 1;
+  const totalForms = Object.keys(allForms).length;
+  const groups = {}, order = [];
+  for (const e of entries) {
+    const sig = signature(e);
+    if (!groups[sig]) { groups[sig] = { entry: e, forms: {} }; order.push(sig); }
+    groups[sig].forms[e.__form || ""] = 1;
+  }
+  const out = [];
+  for (const sig of order) {
+    const g = groups[sig];
+    const fk = Object.keys(g.forms);
+    const hasBase = g.forms[""] === 1;
+    let label = "";
+    if (hasBase) label = "";                          // base form spawns here → standard
+    else if (fk.length === totalForms) label = "";    // every form spawns identically → not distinguishing
+    else if (fk.length > 3) label = "";               // big cosmetic swarm sharing one signature
+    else label = fk.slice().sort().join(" / ");
+    const e = g.entry;
+    delete e.__form;
+    if (label) e.f = label;
+    out.push(e);
+  }
+  return out;
+}
+
 function uniq(arr) {
   const out = [], seen = {};
   for (const x of arr) if (x != null && !seen[x]) { seen[x] = 1; out.push(x); }
@@ -165,6 +243,7 @@ function buildEntry(r) {
   if (st.length) e.st = st;
   const bo = notesOf(r);
   if (bo) e.bo = bo;
+  e.__form = formLabel(r.form);
   e._summonOnly = r.weight === 0;
   return e;
 }
@@ -193,7 +272,7 @@ function main() {
   for (const key of Object.keys(research)) {
     const sp = research[key];
     const dex = sp.dex != null ? String(sp.dex) : key;
-    const entries = [];
+    let entries = [];
     for (const r of sp.spawns) {
       // track which raw biome refs were dropped (for the report)
       for (const raw of r.biomes.include || []) {
@@ -208,6 +287,10 @@ function main() {
       if (!e.b.length && !(e.st && e.st.length) && e.w > 0) { stats.droppedForeignEntries++; continue; }
       entries.push(e);
     }
+
+    // Merge entries that differ only by (cosmetic) form; label rows where a
+    // subset of forms — e.g. Galarian, East Sea — spawns differently.
+    entries = mergeForms(entries);
 
     // Attach carried-over quest + raid metadata.
     const q = meta.q[dex];

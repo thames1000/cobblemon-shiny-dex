@@ -2068,6 +2068,8 @@ function biomeChip(b) {
     ? `<span class="struct-chip">🌍 ${b}</span>`
     : `<span class="biome-chip" data-biome="${b}">${b}</span>`;
 }
+// Regional / functional form this spawn row belongs to (Galarian, East Sea, …).
+function formChip(f) { return `<span class="form-chip">✦ ${f}</span>`; }
 
 function entryDetail(e) {
   const bits = [];
@@ -2112,7 +2114,7 @@ function renderSpawnByMon(dex) {
         : `<span class="muted">special / event</span>`;
       const meta = entryDetail(e);
       return `<div class="spawn-row">
-      <div class="spawn-biomes">${loc}</div>
+      <div class="spawn-biomes">${e.f ? formChip(e.f) : ""}${loc}</div>
       ${meta || e.r ? `<div class="spawn-meta">${rarityChip(e.r)} <span class="muted">${meta}</span></div>` : ""}
       ${e.raid && e.b.length ? `<div class="spawn-quest">⚔ Also a Cobblemon <b>Raid Den boss</b></div>` : ""}
       ${e.q ? questHtml(e.q) : ""}
@@ -2131,11 +2133,12 @@ function renderSpawnByBiome(biome) {
   if (!list.length) return `<div class="card"><p class="hint">Nothing indexed for that biome.</p></div>`;
   const cards = list.map(({ dex, entry }) => {
     const sp = DEX_BY_NUM[dex];
-    return `<div class="mon" data-dex="${dex}" title="${entryDetail(entry)}">
+    return `<div class="mon" data-dex="${dex}" title="${entry.f ? entry.f + " · " : ""}${entryDetail(entry)}">
       <span class="badge r-${entry.r}">${entry.r[0].toUpperCase()}</span>
       <img loading="lazy" src="${spriteUrl(dex)}" alt="${sp ? sp.name : dex}"/>
       <div class="dexno">#${String(dex).padStart(4, "0")}</div>
-      <div class="nm">${sp ? sp.name.replace(/-/g, " ") : dex}</div></div>`;
+      <div class="nm">${sp ? sp.name.replace(/-/g, " ") : dex}</div>
+      ${entry.f ? `<div class="form-tag">✦ ${entry.f}</div>` : ""}</div>`;
   }).join("");
   return `<div class="card"><h2 style="text-transform:capitalize">${biome} <span class="muted" style="font-weight:400">· ${list.length} spawns</span></h2></div>
     <div class="grid" id="spawn-biome-grid">${cards}</div>`;

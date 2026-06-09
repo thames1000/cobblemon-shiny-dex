@@ -76,7 +76,7 @@ function normalize() {
   normalizeParty();
   state.config = Object.assign(defaultConfig(), state.config || {});
   if (typeof state.config.huntHotkey !== "string") state.config.huntHotkey = "Space";
-  if (typeof state.config.randomScope !== "string") state.config.randomScope = "smart";
+  if (!["smart", "unshiny", "all"].includes(state.config.randomScope)) state.config.randomScope = "smart";
   state.hunt = Object.assign(defaultHunt(), state.hunt || {});
   // Sessions must be a plain object of well-formed entries. Older/corrupt
   // exports may have it missing, as an array, or holding null/garbage values —
@@ -992,17 +992,40 @@ function tierMatch(dex, mode) {
   return true;
 }
 function isLegendary(dex) { return !!(COACH[dex] && COACH[dex].leg); }
+// Restrict the random-team draw to a source pool.
+//  all          – every species with team data
+//  owned        – ones you own (caught, shiny or boxed)
+//  owned-shiny  – ones you own shiny (shiny or boxed)
+//  wishlist     – your ★ wishlist
+function teamPoolMatch(dex, pool) {
+  const st = dexState(dex);
+  if (pool === "owned") return st === "caught" || st === "shiny" || st === "boxed";
+  if (pool === "owned-shiny") return st === "shiny" || st === "boxed";
+  if (pool === "wishlist") return state.wishlist.includes(dex);
+  return true;
+}
 function randomizeParty() {
+  const pool = (document.getElementById("party-rand-pool") || {}).value || "all";
   const tier = (document.getElementById("party-rand-tier") || {}).value || "any";
   const legMode = (document.getElementById("party-rand-leg") || {}).value || "any";
+  const poolLbl = { all: "", owned: " from your owned", "owned-shiny": " from your shinies", wishlist: " from your wishlist" }[pool];
   const tierLbl = { any: "any tier", ou: "max-OU", uu: "max-UU" }[tier];
   const legLbl = { any: "", "0": ", no legendaries", "1": ", 1 legendary" }[legMode];
-  if (!confirm(`Replace all 6 slots of "${activeParty().name}" with a random ${tierLbl} team${legLbl}?`)) return;
 
   const haveCoach = (sp) => COACH[sp.dex];
-  const usable = (SPECIES.filter((sp) => haveCoach(sp) && tierMatch(sp.dex, tier)).length
-    ? SPECIES.filter((sp) => haveCoach(sp) && tierMatch(sp.dex, tier))
-    : SPECIES.filter(haveCoach));
+  // Base pool: team data + source filter (owned / shiny / wishlist).
+  const base = SPECIES.filter((sp) => haveCoach(sp) && teamPoolMatch(sp.dex, pool));
+  if (!base.length) {
+    alert(pool === "all"
+      ? "No species have team data."
+      : "Nothing in that pool has team data yet — catch some, or pick a different pool.");
+    return;
+  }
+  if (!confirm(`Replace all 6 slots of "${activeParty().name}" with a random ${tierLbl} team${poolLbl}${legLbl}?`)) return;
+
+  // Apply the tier ceiling within the pool, falling back to the whole pool if it empties.
+  const tiered = base.filter((sp) => tierMatch(sp.dex, tier));
+  const usable = tiered.length ? tiered : base;
   const nonLeg = usable.filter((sp) => !isLegendary(sp.dex));
   const used = new Set();
   const draw = (arr) => {
@@ -1013,11 +1036,16 @@ function randomizeParty() {
 
   const slots = [];
   if (legMode === "1") {
+    // Keep the legendary within the pool; if none qualify, just fill from the pool.
     const legPool = usable.filter((sp) => isLegendary(sp.dex));
-    const legSrc = legPool.length ? legPool : SPECIES.filter((sp) => haveCoach(sp) && isLegendary(sp.dex));
-    slots.push(draw(legSrc));
-    const others = nonLeg.length ? nonLeg : usable;
-    for (let i = 0; i < 5; i++) slots.push(draw(others));
+    const legSrc = legPool.length ? legPool : base.filter((sp) => isLegendary(sp.dex));
+    if (legSrc.length) {
+      slots.push(draw(legSrc));
+      const others = nonLeg.length ? nonLeg : usable;
+      for (let i = 0; i < 5; i++) slots.push(draw(others));
+    } else {
+      for (let i = 0; i < 6; i++) slots.push(draw(nonLeg.length ? nonLeg : usable));
+    }
   } else {
     const src = legMode === "0" ? (nonLeg.length ? nonLeg : usable) : usable;
     for (let i = 0; i < 6; i++) slots.push(draw(src));
@@ -1516,20 +1544,13 @@ function loadTarget(raw) {
   save(); renderHunt();
 }
 // The pool 🎲 Surprise me draws from, per the chosen scope.
-//  smart        – wishlist (un-caught) → not-yet-shiny → anything  (the default)
-//  unshiny      – anything you haven't shiny-caught yet
-//  owned        – anything you own (caught, shiny or boxed)
-//  owned-shiny  – only ones you own shiny (shiny or boxed)
-//  owned-plain  – ones you own but haven't shiny'd (caught only)
-//  all          – literally any species
+//  smart    – wishlist (un-caught) → not-yet-shiny → anything  (the default)
+//  unshiny  – anything you haven't shiny-caught yet
+//  all      – literally any species
 function randomPool(scope) {
-  const owned = (st) => st === "caught" || st === "shiny" || st === "boxed";
   const hasShiny = (st) => st === "shiny" || st === "boxed";
   switch (scope) {
     case "unshiny": return SPECIES.filter((sp) => !hasShiny(dexState(sp.dex)));
-    case "owned": return SPECIES.filter((sp) => owned(dexState(sp.dex)));
-    case "owned-shiny": return SPECIES.filter((sp) => hasShiny(dexState(sp.dex)));
-    case "owned-plain": return SPECIES.filter((sp) => dexState(sp.dex) === "caught");
     case "all": return SPECIES.slice();
     case "smart":
     default: {
@@ -1687,7 +1708,7 @@ function renderDashWishlist() {
       return `<div class="dash-gap${done ? " wl-done" : ""}" data-dex="${sp.dex}" role="button" tabindex="0" title="Jump to ${nm} in Boxes">` +
         `<button class="dash-gap-hunt" data-dex="${sp.dex}" title="Start a hunt for ${nm}">🎯</button>` +
         `<button class="dash-wl-star" data-dex="${sp.dex}" title="Remove ${nm} from wishlist">★</button>` +
-        `<img loading="lazy" src="${spriteUrl(sp.dex, done)}" alt="${sp.name}" />` +
+        `<img loading="lazy" src="${spriteUrl(sp.dex, true)}" alt="${sp.name}" />` +
         `<span class="dash-gap-no">#${String(sp.dex).padStart(4, "0")}</span>` +
         `<span class="dash-gap-nm">${nm}</span>` +
         `${done ? `<span class="wl-badge">${st === "boxed" ? "📦" : "✨"}</span>` : ""}` +
@@ -1778,12 +1799,11 @@ function renderDashGaps() {
   el.innerHTML =
     `<h2>Next to box <span class="muted">— your next ${gaps.length} gaps</span></h2>` +
     `<div class="dash-gaps-row">` + gaps.map((sp) => {
-      const shinyHave = dexState(sp.dex) === "shiny";
       const nm = sp.name.replace(/-/g, " ");
       return `<div class="dash-gap" data-dex="${sp.dex}" role="button" tabindex="0" title="Jump to ${nm} in Boxes">` +
         `<button class="dash-gap-hunt" data-dex="${sp.dex}" title="Start a hunt for ${nm}">🎯</button>` +
         `<button class="dash-gap-box" data-dex="${sp.dex}" title="Mark ${nm} boxed">📦</button>` +
-        `<img loading="lazy" src="${spriteUrl(sp.dex, shinyHave)}" alt="${sp.name}" />` +
+        `<img loading="lazy" src="${spriteUrl(sp.dex, true)}" alt="${sp.name}" />` +
         `<span class="dash-gap-no">#${String(sp.dex).padStart(4, "0")}</span>` +
         `<span class="dash-gap-nm">${nm}</span>` +
       `</div>`;

@@ -100,15 +100,26 @@ and retire Pages.
   legal-move pickers, the per-Pokémon **Coach** (suggested nature / ability / EVs / moves + type matchups) and the
   whole-party **Team Coach** (rating, shared-weakness risks with teammate suggestions, role gaps, per-mon upgrades).
   Move pools are standard, not Cobblemon-exact.
-- `scripts/build-spawns-wiki.js` regenerates `js/data/spawns.json` from the **Cobbleverse community wiki's**
-  per-species pages (`cazuike/cobbleverse-wiki`, `docs/pokemon/*.md`), which are generated from the **current
-  datapack (COBBLEVERSE-DP-v29)** — newer than the raw datapack `build-spawns.js` parsed. It covers **1023
-  species** with readable biome categories, **Raid Den boss** flags, and — importantly — the real way
-  legendaries/mythicals are obtained: not wild spawns but **quest-gated summons** (craft a radar → use a gating
-  item at a named structure, after a trainer prerequisite). The Spawns tab shows these as a 🧩 *Quest summon*
-  note (item · radar · prerequisite, plus the structure's host biome for the lake trio / weather duo / Heatran /
-  Deoxys from the Fandom wiki). Only **Type: Null / Silvally** have no spawn, raid, or quest entry.
-  `scripts/build-spawns.js` (the older datapack parser) is kept for regenerating from a raw `spawn_pool_world`.
+- **`js/data/spawns.json` is built straight from the real Cobbleverse datapack, not the wiki.** The pipeline is
+  two steps:
+  1. `scripts/extract-cobbleverse-spawns.js` reads the modpack's bundled `COBBLEVERSE-DP-v29` datapack
+     (`data/cobblemon/spawn_pool_world/*.json` — every species, 3119 spawn entries) and writes a complete,
+     loss-free dump to `research/cobbleverse-spawns-v29.json` (+ a readable `.md`). Each spawn keeps its
+     untouched datapack object plus derived fields; `#cobblemon:` biome tags are resolved via Cobblemon's own
+     tag files. Verified losslessly against the datapack (multiset of raw entries matches exactly).
+  2. `scripts/build-spawns-datapack.js` turns that into the compact `js/data/spawns.json` the Spawns tab uses,
+     applying two rules: (a) the datapack is the source of truth for biomes / rarity / level / weight / time /
+     weather / sky / structures / position / Y-moon-slime-fishing notes / weight-multiplier boosts; (b) **biomes
+     that don't exist in this modpack are dropped.** The pack ships **no biome mods** (no Aether / Bumblezone /
+     BYG / Biomes O' Plenty; Terralith is "credits only"), so only vanilla Minecraft biomes are real — any spawn
+     condition pointing only at a foreign-mod biome, or a `#cobblemon` category that resolves to foreign biomes
+     only (`is_sky` = Aether, `is_tropical_island`, `is_volcanic`, …), is removed. See
+     `research/spawns-comparison.md` for the full old-vs-new diff.
+
+  Quest-obtain details (gating item · radar · prerequisite) and **Raid Den boss** flags aren't in
+  `spawn_pool_world`, so they're carried over by dex from the prior data (shown as a 🧩 *Quest summon* note).
+  `scripts/build-spawns-wiki.js` (the older community-wiki parser) and `scripts/build-spawns.js` (raw
+  `spawn_pool_world` parser) are kept for reference.
 - `js/data/forms.json` is the Mega/Primal/GMax list from the **Mega Showdown** mod (hand-authored; verify
   against your installed version).
 - Sprites are loaded on demand from the public PokeAPI sprite repo and cached by the service worker.

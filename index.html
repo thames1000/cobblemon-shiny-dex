@@ -60,9 +60,17 @@
       <p class="hint">Tap a card to cycle: <span class="legend l-seen">Seen</span> →
         <span class="legend l-caught">Caught</span> →
         <span class="legend l-shiny">✨ Shiny</span> →
-        <span class="legend l-boxed">📦 Boxed</span> → blank. Right-click / long-press steps back.</p>
+        <span class="legend l-boxed">📦 Boxed</span> → blank. Right-click / long-press steps back.
+        Tap 🎯 to start a hunt for that Pokémon.</p>
 
       <div class="grid" id="dex-grid"></div>
+
+      <div class="modal" id="hunt-start-modal" hidden>
+        <div class="modal-box hunt-start-box">
+          <button class="modal-close" data-close title="Close">✕</button>
+          <div id="hunt-start-body"></div>
+        </div>
+      </div>
     </section>
 
     <!-- ============ BOXES TAB ============ -->
@@ -155,7 +163,8 @@
           <button id="hunt-dec" class="ctrl-btn" title="Subtract one">−1</button>
           <button id="hunt-set" class="ctrl-btn">Set</button>
           <button id="hunt-reset" class="ctrl-btn">Reset</button>
-          <button id="hunt-found" class="ctrl-btn good">✨ Found!</button>
+          <button id="hunt-found" class="ctrl-btn shiny" title="Log the shiny &amp; mark it ✨ Shiny in the dex">✨ Found!</button>
+          <button id="hunt-boxed" class="ctrl-btn good" title="Log the shiny &amp; mark it 📦 Boxed in the dex">📦 Boxed!</button>
         </div>
 
         <div id="hunt-odds" class="odds-readout"></div>

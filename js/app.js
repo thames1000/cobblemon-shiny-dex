@@ -375,6 +375,7 @@ function monCard(sp) {
   el.dataset.dex = sp.dex;
   el.innerHTML =
     `${STATE_BADGE[st] ? `<span class="badge">${STATE_BADGE[st]}</span>` : ""}` +
+    `<button class="mon-hunt" title="Start a hunt for ${sp.name.replace(/-/g, " ")}" aria-label="Start a hunt for ${sp.name.replace(/-/g, " ")}">🎯</button>` +
     `<img loading="lazy" src="${spriteUrl(sp.dex, shiny)}" alt="${sp.name}" />` +
     `<div class="dexno">#${String(sp.dex).padStart(4, "0")}</div>` +
     `<div class="nm">${sp.name.replace(/-/g, " ")}</div>`;
@@ -1523,18 +1524,53 @@ function randomHuntTarget() {
   const card = els.huntInput.closest(".card");
   if (card) { card.classList.remove("flash"); void card.offsetWidth; card.classList.add("flash"); }
 }
-function foundShiny() {
+// Log the active hunt's shiny. `boxed` = caught AND already deposited, so the
+// dex jumps straight to Boxed (closing the find → box loop in one tap); otherwise
+// it's promoted to at least Shiny without downgrading an already-Boxed entry.
+function foundShiny(boxed) {
   const h = state.hunt;
-  if (h.activeDex == null) return;
+  if (h.activeDex == null) { alert("Load a target first."); return; }
   const sp = DEX_BY_NUM[h.activeDex];
   const s = ensureSession(h.mode, h.activeDex);
   state.hunt.finds.push({ dex: h.activeDex, name: sp ? sp.name : String(h.activeDex), mode: h.mode, count: s.count, foundAt: Date.now() });
-  // Promote dex entry to at least Shiny (don't downgrade a Boxed one).
-  const cur = dexState(h.activeDex);
-  if (cur !== "boxed") state.dex[String(h.activeDex)] = "shiny";
+  if (boxed) state.dex[String(h.activeDex)] = "boxed";
+  else if (dexState(h.activeDex) !== "boxed") state.dex[String(h.activeDex)] = "shiny";
   // Reset this session's count for a fresh hunt.
   s.count = 0;
-  save(); renderHunt(); renderDex();
+  save(); renderHunt(); renderDex(); renderBoxes();
+}
+
+/* ---------- start a hunt from a Dex card ---------- */
+let huntStartDex = null;
+function openHuntStart(dex) {
+  const sp = DEX_BY_NUM[dex];
+  if (!sp) return;
+  huntStartDex = dex;
+  document.getElementById("hunt-start-body").innerHTML =
+    `<h2>Start a hunt</h2>` +
+    `<figure class="hs-target">` +
+      `<img src="${spriteUrl(dex, true)}" alt="${sp.name}" />` +
+      `<figcaption>${sp.name.replace(/-/g, " ")} · #${String(dex).padStart(4, "0")}</figcaption>` +
+    `</figure>` +
+    `<p class="hint" style="margin:0 0 10px">How are you hunting this one?</p>` +
+    `<div class="controls hs-modes">` +
+      `<button class="ctrl-btn good" data-hsmode="encounter">⚔ Encounter</button>` +
+      `<button class="ctrl-btn good" data-hsmode="breeding">🥚 Breeding</button>` +
+    `</div>`;
+  document.getElementById("hunt-start-modal").hidden = false;
+}
+function closeHuntStart() {
+  document.getElementById("hunt-start-modal").hidden = true;
+  huntStartDex = null;
+}
+function startHuntFromDex(mode) {
+  if (huntStartDex == null) return;
+  state.hunt.mode = mode;
+  state.hunt.activeDex = huntStartDex;
+  ensureSession(mode, huntStartDex);
+  closeHuntStart();
+  save(); renderHunt();
+  showTab("hunt");
 }
 
 function applyConfigInputs() {
@@ -2200,14 +2236,17 @@ function wire() {
     if (t) showTab(t.dataset.tab);
   });
 
-  // Dex grid: click cycles forward, right-click steps back.
+  // Dex grid: 🎯 starts a hunt; otherwise click cycles forward, right-click back.
   els.dexGrid.addEventListener("click", (e) => {
+    const huntBtn = e.target.closest(".mon-hunt");
+    if (huntBtn) { e.stopPropagation(); openHuntStart(Number(huntBtn.closest(".mon").dataset.dex)); return; }
     const card = e.target.closest(".mon");
     if (!card) return;
     cycleDex(Number(card.dataset.dex), false);
     refreshCard(card, Number(card.dataset.dex));
   });
   els.dexGrid.addEventListener("contextmenu", (e) => {
+    if (e.target.closest(".mon-hunt")) { e.preventDefault(); return; }
     const card = e.target.closest(".mon");
     if (!card) return;
     e.preventDefault();
@@ -2266,12 +2305,23 @@ function wire() {
     if (e.target === berryModal || e.target.closest("[data-close]")) berryModal.hidden = true;
   });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && berryModal && !berryModal.hidden) berryModal.hidden = true;
+    if (e.key !== "Escape") return;
+    if (berryModal && !berryModal.hidden) berryModal.hidden = true;
+    const hsm = document.getElementById("hunt-start-modal");
+    if (hsm && !hsm.hidden) closeHuntStart();
   });
 
   els.dexSearch.addEventListener("input", renderDex);
   els.dexGen.addEventListener("change", renderDex);
   els.dexFilter.addEventListener("change", renderDex);
+
+  // Start-a-hunt chooser (opened from a Dex card's 🎯 button).
+  const huntStartModal = document.getElementById("hunt-start-modal");
+  if (huntStartModal) huntStartModal.addEventListener("click", (e) => {
+    if (e.target === huntStartModal || e.target.closest("[data-close]")) { closeHuntStart(); return; }
+    const mb = e.target.closest("[data-hsmode]");
+    if (mb) startHuntFromDex(mb.dataset.hsmode);
+  });
 
   // Boxes tab
   document.getElementById("box-prev").addEventListener("click", () => gotoBox(curBox - 1));
@@ -2307,7 +2357,8 @@ function wire() {
   document.getElementById("hunt-reset").addEventListener("click", () => {
     const s = activeSession(); if (s) { s.count = 0; save(); renderHunt(); }
   });
-  document.getElementById("hunt-found").addEventListener("click", foundShiny);
+  document.getElementById("hunt-found").addEventListener("click", () => foundShiny(false));
+  document.getElementById("hunt-boxed").addEventListener("click", () => foundShiny(true));
   document.getElementById("hunt-load").addEventListener("click", () => loadTarget(els.huntInput.value));
   document.getElementById("hunt-random").addEventListener("click", randomHuntTarget);
   els.huntActive.addEventListener("click", (e) => {

@@ -113,6 +113,19 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
   position: absolute; top: 4px; right: 4px; font-size: .62rem; font-weight: 800;
   padding: 1px 5px; border-radius: 6px;
 }
+/* 🎯 start-a-hunt button — sits opposite the state badge. Hidden until hover on
+   pointer devices to keep the grid clean; always shown on touch (no hover). */
+.mon-hunt {
+  position: absolute; top: 3px; left: 3px; z-index: 2; width: 22px; height: 22px;
+  padding: 0; line-height: 20px; font-size: .72rem; text-align: center; cursor: pointer;
+  background: rgba(11, 19, 34, .72); color: var(--text);
+  border: 1px solid var(--line); border-radius: 6px;
+  opacity: 0; transition: opacity .12s, border-color .12s;
+}
+.mon:hover .mon-hunt, .mon:focus-within .mon-hunt { opacity: 1; }
+.mon-hunt:hover { border-color: var(--accent); }
+.mon-hunt:focus-visible { opacity: 1; outline: 2px solid var(--accent); outline-offset: 1px; }
+@media (hover: none) { .mon-hunt { opacity: .85; } }
 
 /* state styling */
 .mon.s-none { opacity: .5; }
@@ -276,6 +289,7 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 }
 .ctrl-btn:hover { border-color: var(--accent); }
 .ctrl-btn.good { background: var(--boxed); color: #043024; border-color: transparent; }
+.ctrl-btn.shiny { background: var(--shiny); color: #3a2c00; border-color: transparent; }
 .ctrl-btn.danger { background: var(--danger); color: #fff; border-color: transparent; }
 .ctrl-btn.ghost { background: transparent; border-color: transparent; color: var(--muted); font-weight: 500; }
 .ctrl-btn.ghost:hover { color: var(--accent); }
@@ -356,6 +370,14 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
   position: absolute; top: 10px; right: 10px; background: var(--panel-2); color: var(--text);
   border: 1px solid var(--line); border-radius: 8px; width: 30px; height: 30px; cursor: pointer; font-size: .9rem;
 }
+/* Start-a-hunt chooser (from a Dex card) */
+.hunt-start-box { max-width: 340px; text-align: center; }
+.hs-target { margin: 4px 0 6px; }
+.hs-target img { width: 80px; height: 80px; image-rendering: pixelated; }
+.hs-target figcaption { color: var(--muted); font-size: .9rem; text-transform: capitalize; margin-top: 2px; }
+.hs-modes { justify-content: center; }
+.hs-modes .ctrl-btn { flex: 1 1 0; }
+
 .berry-tree, .berry-tree ul { list-style: none; margin: 0; padding: 0; }
 .berry-tree ul { margin-left: 10px; padding-left: 14px; border-left: 2px solid var(--line); }
 .berry-tree li { margin: 5px 0; line-height: 1.5; }

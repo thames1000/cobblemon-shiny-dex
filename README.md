@@ -100,13 +100,15 @@ and retire Pages.
   legal-move pickers, the per-Pokémon **Coach** (suggested nature / ability / EVs / moves + type matchups) and the
   whole-party **Team Coach** (rating, shared-weakness risks with teammate suggestions, role gaps, per-mon upgrades).
   Move pools are standard, not Cobblemon-exact.
-- `scripts/build-spawns.js` regenerates `js/data/spawns.json` from a `spawn_pool_world` directory.
-  This pack uses **Cobbleverse** spawn rules (its bundled `COBBLEVERSE-DP-*.zip` datapack), which cover
-  **1017 species** — including legendaries, mythicals and paradox mons that have *no* spawn in base Cobblemon.
-  Those legendaries are found at named structures / custom sites (e.g. Articuno Tower, Whirl Island, Sky Pillar),
-  surfaced in the Spawns tab as 🏛 site chips alongside any weather/moon weight boosts. See the script header for
-  how to point it at the datapack. Only 8 craft/fossil mons (Type: Null, Silvally, Melmetal, the fossil duos,
-  Gholdengo) have no wild spawn.
+- `scripts/build-spawns-wiki.js` regenerates `js/data/spawns.json` from the **Cobbleverse community wiki's**
+  per-species pages (`cazuike/cobbleverse-wiki`, `docs/pokemon/*.md`), which are generated from the **current
+  datapack (COBBLEVERSE-DP-v29)** — newer than the raw datapack `build-spawns.js` parsed. It covers **1023
+  species** with readable biome categories, **Raid Den boss** flags, and — importantly — the real way
+  legendaries/mythicals are obtained: not wild spawns but **quest-gated summons** (craft a radar → use a gating
+  item at a named structure, after a trainer prerequisite). The Spawns tab shows these as a 🧩 *Quest summon*
+  note (item · radar · prerequisite, plus the structure's host biome for the lake trio / weather duo / Heatran /
+  Deoxys from the Fandom wiki). Only **Type: Null / Silvally** have no spawn, raid, or quest entry.
+  `scripts/build-spawns.js` (the older datapack parser) is kept for regenerating from a raw `spawn_pool_world`.
 - `js/data/forms.json` is the Mega/Primal/GMax list from the **Mega Showdown** mod (hand-authored; verify
   against your installed version).
 - Sprites are loaded on demand from the public PokeAPI sprite repo and cached by the service worker.

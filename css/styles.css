@@ -320,6 +320,11 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
   border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); border-radius: 6px;
   padding: 2px 8px; font-size: .78rem; text-transform: capitalize; }
 .spawn-meta { font-size: .82rem; }
+/* Quest-summon (legendary) / raid-boss obtain note under a spawn row. */
+.spawn-quest { margin-top: 4px; font-size: .8rem; line-height: 1.35;
+  padding: 5px 8px; border-radius: 6px;
+  background: color-mix(in srgb, var(--gold) 12%, var(--panel-2));
+  border: 1px solid color-mix(in srgb, var(--gold) 38%, var(--line)); }
 .r-chip { padding: 1px 7px; border-radius: 6px; font-size: .72rem; font-weight: 800; text-transform: capitalize; }
 .r-common { background: #5b6b7e; color: #fff; }
 .r-uncommon { background: #3b82f6; color: #fff; }

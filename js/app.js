@@ -2032,11 +2032,16 @@ function sanitizeSpawns() {
   }
 }
 
+// "any overworld" / "any biome" are catch-all categories (a mon spawns
+// everywhere), not real places to AFK at — keep them as display chips but out
+// of the reverse biome lookup so they don't drown the dropdown.
+const PSEUDO_BIOMES = new Set(["any overworld", "any biome"]);
 function buildBiomeIndex() {
   BIOME_INDEX = {};
   for (const dex in SPAWNS) {
     for (const e of SPAWNS[dex]) {
       for (const b of e.b) {
+        if (PSEUDO_BIOMES.has(b)) continue;
         (BIOME_INDEX[b] = BIOME_INDEX[b] || []).push({ dex: Number(dex), entry: e });
       }
     }
@@ -2044,6 +2049,25 @@ function buildBiomeIndex() {
 }
 
 function rarityChip(r) { return `<span class="r-chip r-${r}">${r}</span>`; }
+
+// Quest-gated legendaries/mythicals: how you actually obtain them in Cobbleverse
+// (gating item + radar to find the structure + trainer prerequisite).
+function questHtml(q) {
+  const bits = [];
+  if (q.item) bits.push(`use <b>${q.item}</b>`);
+  if (q.radar) bits.push(`radar: ${q.radar}`);
+  if (q.prereq) bits.push(`after <b>${q.prereq}</b>`);
+  let s = `<div class="spawn-quest">🧩 Quest summon${bits.length ? " — " + bits.join(" · ") : ""}`;
+  if (q.biome) s += `<br>🗺 Structure biome: <b>${q.biome}</b>`;
+  if (q.where) s += `<br><span class="muted">${q.where}</span>`;
+  return s + `</div>`;
+}
+function biomeChip(b) {
+  // Pseudo-biomes aren't clickable (they aren't in the reverse lookup).
+  return PSEUDO_BIOMES.has(b)
+    ? `<span class="struct-chip">🌍 ${b}</span>`
+    : `<span class="biome-chip" data-biome="${b}">${b}</span>`;
+}
 
 function entryDetail(e) {
   const bits = [];
@@ -2067,8 +2091,8 @@ function renderSpawnByMon(dex) {
   if (!rows) {
     return `<div class="card"><div class="find-row"><img src="${spriteUrl(dex)}" alt=""/>
       <span class="find-name">${sp ? sp.name.replace(/-/g, " ") : "#" + dex}</span></div>
-      <p class="hint">No wild spawn in Cobbleverse. Obtained via evolution, breeding, a fossil/craft
-      (e.g. Type: Null, Melmetal, Gholdengo), trade, or a special event.</p></div>`;
+      <p class="hint">No wild spawn, raid, or quest in the Cobbleverse data. Obtained via evolution,
+      breeding, or a craft (e.g. Type: Null → Silvally), trade, or a special event.</p></div>`;
   }
   // "Best spot" = entry with the highest weight (biome name, or structure/site
   // for legendaries that only appear at a fixed location).
@@ -2080,13 +2104,18 @@ function renderSpawnByMon(dex) {
     .sort((a, b) => RARITY_ORDER[a.r] - RARITY_ORDER[b.r] || (b.w || 0) - (a.w || 0))
     .map((e) => {
       const loc = e.b.length
-        ? e.b.map((b) => `<span class="biome-chip" data-biome="${b}">${b}</span>`).join("")
+        ? e.b.map(biomeChip).join("")
         : e.st ? e.st.map((s) => `<span class="struct-chip">🏛 ${s}</span>`).join("")
         : e.px ? e.px.map((p) => `<span class="struct-chip">📍 ${p}</span>`).join("")
+        : e.raid ? `<span class="struct-chip">⚔ Raid Den boss</span>`
+        : e.q ? `<span class="struct-chip">🧩 Quest summon</span>`
         : `<span class="muted">special / event</span>`;
+      const meta = entryDetail(e);
       return `<div class="spawn-row">
       <div class="spawn-biomes">${loc}</div>
-      <div class="spawn-meta">${rarityChip(e.r)} <span class="muted">${entryDetail(e)}</span></div>
+      ${meta || e.r ? `<div class="spawn-meta">${rarityChip(e.r)} <span class="muted">${meta}</span></div>` : ""}
+      ${e.raid && e.b.length ? `<div class="spawn-quest">⚔ Also a Cobblemon <b>Raid Den boss</b></div>` : ""}
+      ${e.q ? questHtml(e.q) : ""}
     </div>`;
     }).join("");
   return `<div class="card">

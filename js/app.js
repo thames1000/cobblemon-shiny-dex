@@ -1497,7 +1497,7 @@ function bumpCount(delta) {
   if (h.activeDex == null) return;
   const s = ensureSession(h.mode, h.activeDex);
   s.count = Math.max(0, s.count + delta);
-  save(); renderHunt();
+  save(); renderHunt(); refreshDashboard();
 }
 function loadTarget(raw) {
   const q = String(raw || "").trim().toLowerCase().replace(/^#/, "");
@@ -1537,7 +1537,7 @@ function foundShiny(boxed) {
   else if (dexState(h.activeDex) !== "boxed") state.dex[String(h.activeDex)] = "shiny";
   // Reset this session's count for a fresh hunt.
   s.count = 0;
-  save(); renderHunt(); renderDex(); renderBoxes();
+  save(); renderHunt(); renderDex(); renderBoxes(); refreshDashboard();
 }
 
 /* ---------- start a hunt from a Dex card ---------- */
@@ -1571,6 +1571,145 @@ function startHuntFromDex(mode) {
   closeHuntStart();
   save(); renderHunt();
   showTab("hunt");
+}
+
+/* ---------- home / dashboard ---------- */
+const MODE_NAME = { chain: "KO-Chain", breeding: "Breeding", encounter: "Encounter" };
+
+// Only rebuild the dashboard when it's the visible panel — its live controls
+// (the +1 counter, Found/Boxed) can only be used while Home is on screen, so
+// the handful of mutators that call this never waste work on a hidden panel.
+function refreshDashboard() {
+  const home = document.getElementById("panel-home");
+  if (home && home.classList.contains("active")) renderDashboard();
+}
+function renderDashboard() {
+  renderDashHunt();
+  renderDashProgress();
+  renderDashGaps();
+  renderDashFinds();
+}
+
+function renderDashHunt() {
+  const el = document.getElementById("dash-hunt");
+  if (!el) return;
+  const h = state.hunt;
+  const s = activeSession();
+  if (!s || h.activeDex == null) {
+    el.innerHTML =
+      `<h2>Active hunt</h2>` +
+      `<p class="hint">No hunt in progress. Pick a target from the Dex (tap 🎯) — or roll one:</p>` +
+      `<div class="controls">` +
+        `<button class="ctrl-btn good" id="dash-surprise">🎲 Surprise me</button>` +
+        `<button class="ctrl-btn" data-gotab="hunt">Open Hunt →</button>` +
+      `</div>`;
+    return;
+  }
+  const sp = DEX_BY_NUM[h.activeDex];
+  el.innerHTML =
+    `<h2>Active hunt</h2>` +
+    `<div class="dash-hunt-row">` +
+      `<img class="dash-hunt-sprite" src="${spriteUrl(h.activeDex, true)}" alt="" />` +
+      `<div class="dash-hunt-meta">` +
+        `<div class="dash-hunt-name">${sp ? sp.name.replace(/-/g, " ") : ""} ` +
+          `<span class="muted">#${String(h.activeDex).padStart(4, "0")} · ${MODE_NAME[h.mode]}</span></div>` +
+        `<div class="dash-hunt-count">${s.count}</div>` +
+        `<div class="odds-readout">${huntOddsLine(s)}</div>` +
+      `</div>` +
+    `</div>` +
+    `<button class="increment-btn" id="dash-inc">+1</button>` +
+    `<div class="controls" style="justify-content:center">` +
+      `<button class="ctrl-btn" id="dash-dec" title="Subtract one">−1</button>` +
+      `<button class="ctrl-btn shiny" id="dash-found" title="Log the shiny &amp; mark ✨ Shiny">✨ Found!</button>` +
+      `<button class="ctrl-btn good" id="dash-boxed" title="Log the shiny &amp; mark 📦 Boxed">📦 Boxed!</button>` +
+      `<button class="ctrl-btn" data-gotab="hunt">Open Hunt →</button>` +
+    `</div>`;
+}
+
+function renderDashProgress() {
+  const el = document.getElementById("dash-progress");
+  if (!el) return;
+  let caught = 0, shiny = 0, boxed = 0;
+  const genTot = {}, genBox = {};
+  for (const sp of SPECIES) {
+    const st = dexState(sp.dex);
+    if (st === "caught" || st === "shiny" || st === "boxed") caught++;
+    if (st === "shiny" || st === "boxed") shiny++;
+    if (st === "boxed") boxed++;
+    genTot[sp.gen] = (genTot[sp.gen] || 0) + 1;
+    if (st === "boxed") genBox[sp.gen] = (genBox[sp.gen] || 0) + 1;
+  }
+  const total = SPECIES.length || 1;
+  const shinyPct = ((shiny / total) * 100).toFixed(1);
+  const boxPct = ((boxed / total) * 100).toFixed(1);
+  const genRows = Object.keys(genTot).sort((a, b) => a - b).map((g) => {
+    const b = genBox[g] || 0, t = genTot[g], p = ((b / t) * 100).toFixed(0);
+    return `<div class="gen-row"><span class="gen-lbl">Gen ${g}</span>` +
+      `<div class="bar"><i style="width:${p}%"></i></div><span class="gen-num">${b}/${t}</span></div>`;
+  }).join("");
+  el.innerHTML =
+    `<h2>Living dex progress</h2>` +
+    `<div class="dash-stat-line"><span class="stat"><b>${shiny}</b>/${total} shiny <span class="muted">(${shinyPct}%)</span></span></div>` +
+    `<div class="bar big"><i style="width:${shinyPct}%"></i></div>` +
+    `<div class="dash-stat-line">` +
+      `<span class="stat">📦 boxed <b>${boxed}</b> <span class="muted">(${boxPct}%)</span></span>` +
+      `<span class="stat">caught <b>${caught}</b></span>` +
+      `<span class="stat">✨ logged <b>${state.hunt.finds.length}</b></span>` +
+    `</div>` +
+    `<details class="dash-gens"><summary class="summary-h">Per-generation boxed</summary>${genRows}</details>`;
+}
+
+function renderDashGaps() {
+  const el = document.getElementById("dash-gaps");
+  if (!el) return;
+  const gaps = [];
+  for (const sp of SPECIES) {
+    if (dexState(sp.dex) !== "boxed") { gaps.push(sp); if (gaps.length >= 8) break; }
+  }
+  if (!gaps.length) {
+    el.innerHTML = `<h2>Next to box</h2><p class="hint">Living dex complete — every species boxed! ✨</p>`;
+    return;
+  }
+  el.innerHTML =
+    `<h2>Next to box <span class="muted">— your next ${gaps.length} gaps</span></h2>` +
+    `<div class="dash-gaps-row">` + gaps.map((sp) => {
+      const shinyHave = dexState(sp.dex) === "shiny";
+      const nm = sp.name.replace(/-/g, " ");
+      return `<div class="dash-gap" data-dex="${sp.dex}" role="button" tabindex="0" title="Jump to ${nm} in Boxes">` +
+        `<button class="dash-gap-hunt" data-dex="${sp.dex}" title="Start a hunt for ${nm}">🎯</button>` +
+        `<button class="dash-gap-box" data-dex="${sp.dex}" title="Mark ${nm} boxed">📦</button>` +
+        `<img loading="lazy" src="${spriteUrl(sp.dex, shinyHave)}" alt="${sp.name}" />` +
+        `<span class="dash-gap-no">#${String(sp.dex).padStart(4, "0")}</span>` +
+        `<span class="dash-gap-nm">${nm}</span>` +
+      `</div>`;
+    }).join("") + `</div>`;
+}
+
+function renderDashFinds() {
+  const el = document.getElementById("dash-finds");
+  if (!el) return;
+  const finds = state.hunt.finds;
+  if (!finds.length) {
+    el.innerHTML = `<h2>Recent finds</h2><p class="hint">No shinies logged yet — go get one. ✨</p>`;
+    return;
+  }
+  const recent = finds.slice(-5).reverse();
+  el.innerHTML =
+    `<h2>Recent finds <span class="muted">— ${finds.length} total</span></h2>` +
+    recent.map((f) => {
+      const d = new Date(f.foundAt);
+      const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const unit = f.mode === "breeding" ? " eggs" : f.mode === "chain" ? " KOs" : "";
+      return `<div class="find-row"><img src="${spriteUrl(f.dex, true)}" alt="" />` +
+        `<span class="find-name">${(f.name || "").replace(/-/g, " ")}</span>` +
+        `<span class="muted">${f.mode} · ${f.count}${unit} · ${date}</span></div>`;
+    }).join("");
+}
+
+// Mark a species boxed straight from the dashboard's "next gaps" list.
+function markBoxed(dex) {
+  state.dex[String(dex)] = "boxed";
+  save(); renderDex(); renderBoxes(); refreshDashboard();
 }
 
 function applyConfigInputs() {
@@ -2116,6 +2255,7 @@ function showTab(name) {
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
   document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("active", p.id === `panel-${name}`));
   if (name === "boxes") renderBoxes(); // refresh in case dex changed on another tab
+  if (name === "home") renderDashboard();
   location.hash = name;
 }
 
@@ -2235,6 +2375,31 @@ function wire() {
     const t = e.target.closest(".tab");
     if (t) showTab(t.dataset.tab);
   });
+
+  // Dashboard: delegated so the buttons survive each renderDashboard() rebuild.
+  const homePanel = document.getElementById("panel-home");
+  if (homePanel) {
+    homePanel.addEventListener("click", (e) => {
+      const go = e.target.closest("[data-gotab]");
+      if (go) { showTab(go.dataset.gotab); return; }
+      if (e.target.closest("#dash-inc")) { bumpCount(1); return; }
+      if (e.target.closest("#dash-dec")) { bumpCount(-1); return; }
+      if (e.target.closest("#dash-found")) { foundShiny(false); return; }
+      if (e.target.closest("#dash-boxed")) { foundShiny(true); return; }
+      if (e.target.closest("#dash-surprise")) { randomHuntTarget(); refreshDashboard(); return; }
+      const gapHunt = e.target.closest(".dash-gap-hunt");
+      if (gapHunt) { e.stopPropagation(); openHuntStart(Number(gapHunt.dataset.dex)); return; }
+      const gapBox = e.target.closest(".dash-gap-box");
+      if (gapBox) { e.stopPropagation(); markBoxed(Number(gapBox.dataset.dex)); return; }
+      const gap = e.target.closest(".dash-gap[data-dex]");
+      if (gap) { showTab("boxes"); jumpToSpecies(DEX_BY_NUM[Number(gap.dataset.dex)]); return; }
+    });
+    homePanel.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const gap = e.target.closest(".dash-gap[data-dex]");
+      if (gap) { e.preventDefault(); showTab("boxes"); jumpToSpecies(DEX_BY_NUM[Number(gap.dataset.dex)]); }
+    });
+  }
 
   // Dex grid: 🎯 starts a hunt; otherwise click cycles forward, right-click back.
   els.dexGrid.addEventListener("click", (e) => {
@@ -2630,6 +2795,7 @@ async function boot() {
   renderSnack();
   renderBerries();
   renderParty();
+  renderDashboard();
   const hash = location.hash.replace("#", "");
   if (hash) showTab(hash);
 }

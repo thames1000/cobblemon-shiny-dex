@@ -20,7 +20,8 @@
   </header>
 
   <nav class="tabs" id="tabs">
-    <button class="tab active" data-tab="dex">Dex</button>
+    <button class="tab active" data-tab="home">Home</button>
+    <button class="tab" data-tab="dex">Dex</button>
     <button class="tab" data-tab="boxes">Boxes</button>
     <button class="tab" data-tab="party">Party</button>
     <button class="tab" data-tab="forms">Mega/GMax</button>
@@ -34,8 +35,18 @@
   </nav>
 
   <main class="app-main">
+    <!-- ============ HOME / DASHBOARD ============ -->
+    <section class="panel active" id="panel-home">
+      <div class="dash-grid">
+        <div class="card dash-hunt" id="dash-hunt"></div>
+        <div class="card" id="dash-progress"></div>
+      </div>
+      <div class="card" id="dash-gaps"></div>
+      <div class="card" id="dash-finds"></div>
+    </section>
+
     <!-- ============ DEX TAB ============ -->
-    <section class="panel active" id="panel-dex">
+    <section class="panel" id="panel-dex">
       <div class="stats-bar" id="dex-stats"></div>
 
       <div class="toolbar">

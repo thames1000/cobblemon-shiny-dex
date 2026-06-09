@@ -10,7 +10,8 @@ deploys straight to GitHub Pages. All progress is **manual** and stored in your 
 
 | Tab | Status | What it does |
 |-----|--------|--------------|
-| **Dex** | ✅ Phase 1 | Grid of all 1025 National Dex species. Tap to cycle `Seen → Caught → ✨Shiny → 📦Boxed`. Filter by gen / state, search, live shiny %. |
+| **Home** | ✅ | Glanceable dashboard: active hunt with live +1 / ✨ Found / 📦 Boxed, living-dex shiny & boxed % (per-gen breakdown), your next gaps to box, and recent finds. |
+| **Dex** | ✅ Phase 1 | Grid of all 1025 National Dex species. Tap to cycle `Seen → Caught → ✨Shiny → 📦Boxed`. Tap 🎯 to start a hunt. Filter by gen / state, search, live shiny %. |
 | **Boxes** | ✅ | Living-dex PC view — 30-slot boxes in National-Dex order showing boxed mons and gaps. "First gap" jumps to the next slot to fill. Tap a slot to edit state (syncs with Dex). |
 | **Mega/GMax** | ✅ Phase 1 | Separate "wing" tracking Mega Stone / GMax-Factor **capability** (Mega/GMax are temporary battle states, not boxable forms). Doesn't dilute the main dex %. |
 | **Hunt** | ✅ Phase 2 | Chain (Unchained), Breeding (Cobbreeding Masuda), and raw-encounter logger with editable mod odds. |

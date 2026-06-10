@@ -2087,6 +2087,46 @@ function entryDetail(e) {
   return bits.join(" · ");
 }
 
+// Split one spawn entry's environmental requirements (things you must arrange to
+// force the spawn) from weight-multiplier boosts (×N notes that only re-weight,
+// not gate). Used by the best-place planner so you know how to set the scene.
+function entryConditions(e) {
+  const need = [], boost = [];
+  if (e.t) need.push(`🕘 ${e.t}`);
+  if (e.wx) need.push(`🌧 ${e.wx.join("/")}`);
+  if (e.sky === true) need.push("☀️ open sky");
+  if (e.sky === false) need.push("⛰️ no sky (underground)");
+  if (e.pos && e.pos !== "grounded") need.push(`📐 ${e.pos}`);
+  for (const n of e.bo || []) {
+    if (/^×/.test(n)) { boost.push(n); continue; }
+    if (/light [\d≤]|block light/.test(n)) need.push(`💡 ${n}`);
+    else if (/^near /.test(n)) need.push(`🧱 ${n}`);
+    else if (/^Y[ ≤≥]/.test(n)) need.push(`📏 ${n}`);
+    else if (/^moon /.test(n)) need.push(`🌙 ${n}`);
+    else need.push(n); // 🎣 fishing, slime chunk, …
+  }
+  return { need, boost };
+}
+
+// HTML block listing the conditions to force-spawn `dex` in `biome` (matches the
+// entries the planner actually counted — those explicitly listing the biome).
+function spawnConditionsHtml(dex, biome) {
+  const entries = (SPAWNS[dex] || []).filter((e) => (e.b || []).includes(biome));
+  if (!entries.length) return "";
+  const seen = new Set(), lines = [];
+  for (const e of entries) {
+    const { need, boost } = entryConditions(e);
+    const body = need.length ? need.join(" · ") : "no special conditions — any time / light";
+    const extra = boost.length ? ` <span class="muted">(boost: ${boost.join(", ")})</span>` : "";
+    const line = `<li><span class="muted">Lv ${e.lv || "?"}, ${e.r}:</span> ${body}${extra}</li>`;
+    if (seen.has(line)) continue;
+    seen.add(line);
+    lines.push(line);
+  }
+  return `<div class="plan-cond"><div class="plan-cond-h">To force this spawn here:</div>
+    <ul class="plan-cond-list">${lines.join("")}</ul></div>`;
+}
+
 function renderSpawnByMon(dex) {
   const sp = DEX_BY_NUM[dex];
   const rows = SPAWNS[dex];
@@ -2285,6 +2325,26 @@ function passesEvGate(sp, evReqs) {
   return !!(sp && sp.ev && evReqs.some((ev) => sp.ev.includes(ev)));
 }
 
+// Aquatic spawns only roll where there's water at the placement spot, so a snack
+// dropped on dry land can't draw them — only one placed at the water's edge can.
+// Detected from the spawn position (submerged / seafloor / rod-fishing) or a
+// "near <aquatic block>" nearby-block requirement carried in the `bo` notes.
+// NOTE: position "surface" is deliberately excluded — land mobs (Grimer, Muk,
+// Dratini…) use it too, so it doesn't reliably mean "on water".
+const WATER_POS = new Set(["submerged", "seafloor", "fishing"]);
+const WATER_BLOCK_RE = /water|kelp|seagrass|sea grass|coral|lily ?pad/i;
+function needsWater(e) {
+  if (e.pos && WATER_POS.has(e.pos)) return true;
+  return !!(e.bo && e.bo.some((n) => /^near /i.test(n) && WATER_BLOCK_RE.test(n)));
+}
+// Fraction of a biome's spawns that require water — used to default the "near
+// water" toggle ON for inherently aquatic biomes (ocean, river…).
+function biomeWaterShare(biome) {
+  const pool = BIOME_INDEX[biome] || [];
+  if (!pool.length) return 0;
+  return pool.filter(({ entry }) => needsWater(entry)).length / pool.length;
+}
+
 function snackTotals(seasonings) {
   // Shiny modifiers stack ADDITIVELY: a "Nx" seasoning is a +(N-1) bonus, and the
   // bonuses sum. Starf (5x = +400%) + Enchanted Golden Apple (10x = +900%) = 14x,
@@ -2340,17 +2400,19 @@ function renderSnackSummary(seasonings) {
 
 // Per-species attraction probability for a biome + seasonings. Returns a ranked
 // array [{dex, p, boosted}] where p sums to 1 across the pool (empty if no pool).
-function computeAttraction(biome, seasonings) {
+function computeAttraction(biome, seasonings, nearWater = true) {
   const pool = BIOME_INDEX[biome] || [];
   if (!pool.length) return [];
   const odds = bucketOdds(seasonings.reduce((a, s) => a + (s.rarityTier || 0), 0));
 
   // Bucket each spawn entry, weighted by spawn weight × type/egg multiplier.
   // EV-yield seasonings gate the pool: non-matching species are removed entirely.
+  // Water-only spawns are gated on placement: dropped if the snack isn't near water.
   const evReqs = evRequirements(seasonings);
   const buckets = { common: [], uncommon: [], rare: [], "ultra-rare": [] };
   for (const { dex, entry } of pool) {
     if (!buckets[entry.r]) continue;
+    if (!nearWater && needsWater(entry)) continue;      // dry land — aquatic spawns can't roll
     const sp = DEX_BY_NUM[dex];
     if (!passesEvGate(sp, evReqs)) continue;            // forced out — can't be lured
     const mult = snackMult(sp, seasonings);
@@ -2378,9 +2440,10 @@ function computeAttraction(biome, seasonings) {
     .sort((a, b) => b.p - a.p);
 }
 
-function renderSnackResults(ranked) {
+function renderSnackResults(ranked, note = "") {
   if (!ranked.length) {
-    els.snackResults.innerHTML = `<div class="card"><p class="hint">No spawn data indexed for this biome.</p></div>`;
+    els.snackResults.innerHTML = `<div class="card"><p class="hint">${note ||
+      "No spawn data indexed for this biome."}</p></div>`;
     return;
   }
   const max = ranked[0].p || 1;
@@ -2401,7 +2464,7 @@ function renderSnackResults(ranked) {
   }).join("");
 
   const more = ranked.length > top.length ? `<p class="hint">…and ${ranked.length - top.length} more rarer visitors.</p>` : "";
-  els.snackResults.innerHTML = `<div class="card snack-list">${rows}</div>${more}`;
+  els.snackResults.innerHTML = `${note}<div class="card snack-list">${rows}</div>${more}`;
 }
 
 const SNACK_BITES = 9; // a Poké Snack is eaten in 9 bites = 9 attracted Pokémon.
@@ -2454,13 +2517,25 @@ function renderSnackShiny(seasonings) {
     ).join("") + `</table>`;
 }
 
+// Note explaining how the "near water" placement is reshaping the pool.
+function waterNote(biome, nearWater) {
+  const pool = BIOME_INDEX[biome] || [];
+  const wet = pool.filter(({ entry }) => needsWater(entry)).length;
+  if (!wet) return "";
+  const s = wet > 1 ? "s" : "";
+  return nearWater
+    ? `<p class="hint">💧 Placed <b>near water</b>: ${wet} aquatic spawn${s} (submerged / fishing / near-water) are in the pool. Untick if you're on dry land.</p>`
+    : `<p class="hint">🏜️ Placed on <b>dry land</b>: ${wet} water-only spawn${s} excluded and the odds renormalised. Tick “near water” to include them.</p>`;
+}
+
 function renderSnack() {
   if (!els.snackBiome) return;
   const biome = els.snackBiome.value;
   const seasonings = selectedSeasonings();
-  snackRanked = computeAttraction(biome, seasonings);
+  const nearWater = !els.snackNearWater || els.snackNearWater.checked;
+  snackRanked = computeAttraction(biome, seasonings, nearWater);
   renderSnackSummary(seasonings);
-  renderSnackResults(snackRanked);
+  renderSnackResults(snackRanked, waterNote(biome, nearWater));
   populateSnackTargets(snackRanked);
   renderSnackShiny(seasonings);
 }
@@ -2543,6 +2618,7 @@ function planCard(title, plan, sp, baseRate) {
     <div class="plan-row"><span>Spawn rate</span><b>${(plan.p * 100).toFixed(1)}%</b></div>
     <div class="plan-row"><span>Shiny odds</span><b>1/${Math.round(eff).toLocaleString()}</b> (✨×${plan.shiny})</div>
     <div class="plan-row"><span>Snacks to shiny</span><b>~${snacks.toLocaleString()}</b> <span class="muted">expected</span></div>
+    ${spawnConditionsHtml(sp.dex, plan.biome)}
     <button class="ctrl-btn plan-apply" data-biome="${plan.biome}" data-combo="${plan.combo.map((b) => b.id).join(",")}" data-dex="${sp.dex}">Load into builder</button>
   </div>`;
 }
@@ -2576,12 +2652,162 @@ function renderBestSnack(raw) {
 // Apply a recommended plan to the manual builder so the full visitor list + estimate show.
 function applySnackPlan(biome, ids, dex) {
   els.snackBiome.value = biome;
+  // The optimiser assumes ideal placement (water included), so reflect that here.
+  if (els.snackNearWater) els.snackNearWater.checked = true;
   ["snack-s0", "snack-s1", "snack-s2"].forEach((s, i) => { document.getElementById(s).value = ids[i] || ""; });
   snackTarget = String(dex);
   renderSnack();
   els.snackTarget.value = String(dex);
   renderSnackShiny(selectedSeasonings());
   els.snackBiome.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+/* ---------- spawn simulator tab ---------- */
+/* Gate the structured Cobbleverse spawn pool by everything you can control at a
+ * spot — biome, Y, vertical clearance (vs the mon's hitbox), placed/underfoot
+ * blocks, time, weather and PokéSnack seasonings — then rank what survives by the
+ * same bucket-odds × weight math the PokéSnack tab uses. */
+let SIM = { spawns: {}, items: [], baseBlocks: [], hitbox: {} };
+let SIM_LABEL = {};   // block key -> readable label (for condition annotations)
+
+const TIME_ALIAS = { dawn: "dusk", dusk: "dusk", twilight: "dusk" };
+const normTime = (t) => { t = String(t || "").toLowerCase(); return TIME_ALIAS[t] || t; };
+const blockShort = (k) => SIM_LABEL[k] || k.replace(/^#/, "").replace(/^[a-z0-9_.-]+:/, "").replace(/_/g, " ");
+
+function simSeasonings() {
+  return ["sim-s0", "sim-s1", "sim-s2"].map((id) => document.getElementById(id).value)
+    .filter(Boolean).map((id) => BERRY_BY_ID[id]).filter(Boolean);
+}
+function simPlacedItems() {
+  const set = new Set();
+  document.querySelectorAll("#sim-items input:checked").forEach((c) => set.add(c.value));
+  return set;
+}
+
+// Which species can spawn at the described spot, ranked. Also returns a tally of
+// why entries were rejected, so the UI can nudge ("3 too tall — dig higher").
+function computeSpawns(o) {
+  const odds = bucketOdds(o.seasonings.reduce((a, s) => a + (s.rarityTier || 0), 0));
+  const evReqs = evRequirements(o.seasonings);
+  const buckets = { common: [], uncommon: [], rare: [], "ultra-rare": [] };
+  const excl = { tall: 0, near: 0, base: 0, y: 0, time: 0, weather: 0 };
+  for (const dex in SIM.spawns) {
+    const sp = DEX_BY_NUM[dex];
+    const hb = SIM.hitbox[dex];
+    for (const e of SIM.spawns[dex]) {
+      if (!buckets[e.r] || !e.w) continue;
+      if (!(e.b || []).includes(o.biome)) continue;
+      if (e.y && ((e.y[0] != null && o.y < e.y[0]) || (e.y[1] != null && o.y > e.y[1]))) { excl.y++; continue; }
+      if (hb && Math.ceil(hb[1]) > o.height) { excl.tall++; continue; }
+      if (e.near && !e.near.some((k) => o.items.has(k))) { excl.near++; continue; }
+      if (e.base && !(o.baseBlock && e.base.includes(o.baseBlock))) { excl.base++; continue; }
+      if (e.t && o.time !== "any" && normTime(e.t) !== o.time) { excl.time++; continue; }
+      if (e.wx && o.weather !== "any" && !e.wx.includes(o.weather)) { excl.weather++; continue; }
+      if (!passesEvGate(sp, evReqs)) continue;
+      const mult = snackMult(sp, o.seasonings);
+      const w = e.w * mult;
+      if (w <= 0) continue;
+      buckets[e.r].push({ dex: Number(dex), w, boosted: mult > 1 || evReqs.length > 0, e });
+    }
+  }
+  const present = BUCKETS.filter((b) => buckets[b].length);
+  const oddsSum = present.reduce((a, b) => a + odds[b], 0) || 1;
+  const at = {};
+  for (const b of present) {
+    const tot = buckets[b].reduce((a, x) => a + x.w, 0) || 1;
+    const bp = odds[b] / oddsSum;
+    for (const x of buckets[b]) {
+      const cur = at[x.dex] || (at[x.dex] = { p: 0, boosted: false, e: x.e });
+      cur.p += bp * (x.w / tot);
+      if (x.boosted) cur.boosted = true;
+    }
+  }
+  const ranked = Object.entries(at).map(([dex, v]) => ({ dex: Number(dex), ...v })).sort((a, b) => b.p - a.p);
+  return { ranked, excl };
+}
+
+// Conditions still attached to a surviving spawn — shown so you know what else to
+// arrange (light/time/sky aren't gated by the controls, so they're informational).
+function simCondNote(e, hb) {
+  const bits = [];
+  if (e.t) bits.push(`🕘 ${e.t}`);
+  if (e.wx) bits.push(`🌧 ${e.wx.join("/")}`);
+  if (e.sky === true) bits.push("☀️ open sky");
+  if (e.sky === false) bits.push("⛰️ no sky");
+  if (e.lt && (e.lt[0] > 0 || e.lt[1] < 15)) bits.push(`💡 light ${e.lt[0]}–${e.lt[1]}`);
+  if (e.ml != null && e.ml < 15) bits.push(`💡 block light ≤${e.ml}`);
+  if (e.pos) bits.push(`📐 ${e.pos}`);
+  if (e.moon != null) bits.push(`🌙 moon ${e.moon}`);
+  if (e.near) bits.push(`🧱 near ${e.near.map(blockShort).join("/")}`);
+  if (e.base) bits.push(`▦ on ${e.base.map(blockShort).join("/")}`);
+  if (hb) bits.push(`↥ ${hb[0]}×${hb[1]} hitbox`);
+  return bits.join(" · ");
+}
+
+function renderSim() {
+  if (!els.simBiome) return;
+  const o = {
+    biome: els.simBiome.value,
+    y: Number(els.simY.value),
+    height: Number(els.simHeight.value) || 1,
+    time: els.simTime.value,
+    weather: els.simWeather.value,
+    baseBlock: els.simBase.value,
+    items: simPlacedItems(),
+    seasonings: simSeasonings(),
+  };
+  const { ranked, excl } = computeSpawns(o);
+
+  const blocked = [];
+  if (excl.tall) blocked.push(`${excl.tall} too tall for ${o.height} block${o.height > 1 ? "s" : ""}`);
+  if (excl.near) blocked.push(`${excl.near} need a block you haven't placed`);
+  if (excl.y) blocked.push(`${excl.y} out of Y range`);
+  if (excl.base) blocked.push(`${excl.base} need a specific spawn-area block`);
+  if (excl.time) blocked.push(`${excl.time} wrong time`);
+  if (excl.weather) blocked.push(`${excl.weather} wrong weather`);
+  els.simSummary.innerHTML = `<div class="card"><p class="hint" style="margin:0">
+    <b>${ranked.length}</b> species can spawn at Y ${o.y} in <b style="text-transform:capitalize">${o.biome}</b>
+    with <b>${o.height}</b> blocks of headroom${o.items.size ? ` and ${o.items.size} placed block${o.items.size > 1 ? "s" : ""}` : ""}.
+    ${blocked.length ? `<br><span class="muted">Filtered out: ${blocked.join(" · ")}.</span>` : ""}</p></div>`;
+
+  if (!ranked.length) {
+    els.simResults.innerHTML = `<div class="card"><p class="hint">Nothing can spawn with these settings. Try more
+      headroom, a different biome/Y, or placing the required block.</p></div>`;
+    return;
+  }
+  const max = ranked[0].p || 1;
+  const rows = ranked.slice(0, 40).map((r) => {
+    const sp = DEX_BY_NUM[r.dex];
+    const types = sp ? sp.types.map(typeChip).join(" ") : "";
+    const note = simCondNote(r.e, SIM.hitbox[r.dex]);
+    return `<div class="snack-row sim-row" data-dex="${r.dex}">
+      <img loading="lazy" src="${spriteUrl(r.dex)}" alt="${sp ? sp.name : r.dex}" />
+      <div class="snack-row-main">
+        <div class="snack-row-name">${sp ? sp.name.replace(/-/g, " ") : "#" + r.dex} ${types}
+          ${r.boosted ? '<span class="snack-boost">▲ lured</span>' : ""}</div>
+        <div class="bar"><i style="width:${(r.p / max) * 100}%"></i></div>
+        ${note ? `<div class="sim-cond">${note}</div>` : ""}
+      </div>
+      <div class="snack-pct">${(r.p * 100).toFixed(1)}%</div>
+    </div>`;
+  }).join("");
+  const more = ranked.length > 40 ? `<p class="hint">…and ${ranked.length - 40} more rarer options.</p>` : "";
+  els.simResults.innerHTML = `<div class="card snack-list">${rows}</div>${more}`;
+}
+
+function populateSimControls(biomeOpts, seasoningOpts) {
+  els.simBiome.innerHTML = biomeOpts;
+  els.simBase.innerHTML = `<option value="">— any / natural —</option>` +
+    SIM.baseBlocks.map((b) => `<option value="${b.key}">${b.label}</option>`).join("");
+  ["sim-s0", "sim-s1", "sim-s2"].forEach((id) => { document.getElementById(id).innerHTML = seasoningOpts; });
+  SIM_LABEL = {};
+  SIM.items.concat(SIM.baseBlocks).forEach((it) => (SIM_LABEL[it.key] = it.label));
+  const groups = {};
+  SIM.items.forEach((it) => (groups[it.group] = groups[it.group] || []).push(it));
+  els.simItems.innerHTML = Object.keys(groups).sort().map((g) =>
+    `<div class="sim-item-group"><div class="sim-item-group-h">${g}</div><div class="sim-item-row">` +
+    groups[g].map((it) => `<label class="sim-item"><input type="checkbox" value="${it.key}"/> ${it.label}</label>`).join("") +
+    `</div></div>`).join("");
 }
 
 /* ---------- tabs ---------- */
@@ -2591,6 +2817,7 @@ function showTab(name) {
   if (name === "boxes") renderBoxes(); // refresh in case dex changed on another tab
   if (name === "home") renderDashboard();
   if (name === "stats") renderStats();
+  if (name === "sim") renderSim();
   location.hash = name;
 }
 
@@ -2664,6 +2891,7 @@ function grabEls() {
     spawnBiomeSelect: document.getElementById("spawn-biome-select"),
     spawnResults: document.getElementById("spawn-results"),
     snackBiome: document.getElementById("snack-biome"),
+    snackNearWater: document.getElementById("snack-near-water"),
     snackSummary: document.getElementById("snack-summary"),
     snackBaseRate: document.getElementById("snack-base-rate"),
     snackTarget: document.getElementById("snack-target"),
@@ -2671,6 +2899,15 @@ function grabEls() {
     snackBestInput: document.getElementById("snack-best-input"),
     snackBestOut: document.getElementById("snack-best-out"),
     snackResults: document.getElementById("snack-results"),
+    simBiome: document.getElementById("sim-biome"),
+    simY: document.getElementById("sim-y"),
+    simHeight: document.getElementById("sim-height"),
+    simTime: document.getElementById("sim-time"),
+    simWeather: document.getElementById("sim-weather"),
+    simBase: document.getElementById("sim-base"),
+    simItems: document.getElementById("sim-items"),
+    simSummary: document.getElementById("sim-summary"),
+    simResults: document.getElementById("sim-results"),
     farmTrees: document.getElementById("farm-trees"),
     farmGrowth: document.getElementById("farm-growth"),
     farmYield: document.getElementById("farm-yield"),
@@ -2910,7 +3147,12 @@ function wire() {
   });
 
   // PokéSnack tab
-  els.snackBiome.addEventListener("change", renderSnack);
+  els.snackBiome.addEventListener("change", () => {
+    // Default the placement to match the biome: aquatic biomes start "near water".
+    if (els.snackNearWater) els.snackNearWater.checked = biomeWaterShare(els.snackBiome.value) >= 0.5;
+    renderSnack();
+  });
+  if (els.snackNearWater) els.snackNearWater.addEventListener("change", renderSnack);
   ["snack-s0", "snack-s1", "snack-s2"].forEach((id) =>
     document.getElementById(id).addEventListener("change", renderSnack));
   // Target / base-rate only affect the shiny estimate — no need to recompute attraction.
@@ -2931,6 +3173,24 @@ function wire() {
     findSpawnByInput(els.spawnInput.value);
     showTab("spawns");
   });
+
+  // Spawn Sim tab: any control change re-runs the simulation.
+  if (els.simBiome) {
+    [els.simBiome, els.simY, els.simHeight, els.simTime, els.simWeather, els.simBase,
+      ...["sim-s0", "sim-s1", "sim-s2"].map((id) => document.getElementById(id))]
+      .forEach((el) => el && el.addEventListener("change", renderSim));
+    els.simY.addEventListener("input", renderSim);
+    els.simHeight.addEventListener("input", renderSim);
+    els.simItems.addEventListener("change", renderSim);
+    els.simResults.addEventListener("click", (e) => {
+      const row = e.target.closest(".sim-row[data-dex]");
+      if (!row) return;
+      setSpawnMode("mon");
+      els.spawnInput.value = DEX_BY_NUM[Number(row.dataset.dex)].name;
+      findSpawnByInput(els.spawnInput.value);
+      showTab("spawns");
+    });
+  }
 
   // Party tab: management buttons + delegated member edits.
   const partySelect = document.getElementById("party-select");
@@ -3128,6 +3388,8 @@ async function boot() {
   SPECIES.forEach((s) => (DEX_BY_NUM[s.dex] = s));
   sanitizeSpawns();
   buildBiomeIndex();
+  SIM = await fetch("js/data/sim-spawns.json").then((r) => r.json())
+    .catch(() => ({ spawns: {}, items: [], baseBlocks: [], hitbox: {} }));
 
   // Populate the target datalist once. Put the name in the label too, so browsers
   // that filter suggestions by the label (not the value) still match name typing.
@@ -3144,6 +3406,8 @@ async function boot() {
     .map((b) => `<option value="${b}">${b} (${BIOME_INDEX[b].length})</option>`).join("");
   els.spawnBiomeSelect.innerHTML = biomeOpts;
   els.snackBiome.innerHTML = biomeOpts;
+  // Default the "near water" toggle to match the initially-selected biome.
+  if (els.snackNearWater) els.snackNearWater.checked = biomeWaterShare(els.snackBiome.value) >= 0.5;
 
   // Populate the 3 PokéSnack seasoning slots: "none" + grouped berries/items.
   // Each option shows the berry's target (type / EV stat / egg group / nature …)
@@ -3159,6 +3423,7 @@ async function boot() {
     }).join("") +
     `</optgroup>`).join("");
   ["snack-s0", "snack-s1", "snack-s2"].forEach((id) => { document.getElementById(id).innerHTML = seasoningOpts; });
+  populateSimControls(biomeOpts, seasoningOpts);
 
   wire();
   fillConfigInputs();

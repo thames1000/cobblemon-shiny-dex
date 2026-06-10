@@ -2285,6 +2285,26 @@ function passesEvGate(sp, evReqs) {
   return !!(sp && sp.ev && evReqs.some((ev) => sp.ev.includes(ev)));
 }
 
+// Aquatic spawns only roll where there's water at the placement spot, so a snack
+// dropped on dry land can't draw them — only one placed at the water's edge can.
+// Detected from the spawn position (submerged / seafloor / rod-fishing) or a
+// "near <aquatic block>" nearby-block requirement carried in the `bo` notes.
+// NOTE: position "surface" is deliberately excluded — land mobs (Grimer, Muk,
+// Dratini…) use it too, so it doesn't reliably mean "on water".
+const WATER_POS = new Set(["submerged", "seafloor", "fishing"]);
+const WATER_BLOCK_RE = /water|kelp|seagrass|sea grass|coral|lily ?pad/i;
+function needsWater(e) {
+  if (e.pos && WATER_POS.has(e.pos)) return true;
+  return !!(e.bo && e.bo.some((n) => /^near /i.test(n) && WATER_BLOCK_RE.test(n)));
+}
+// Fraction of a biome's spawns that require water — used to default the "near
+// water" toggle ON for inherently aquatic biomes (ocean, river…).
+function biomeWaterShare(biome) {
+  const pool = BIOME_INDEX[biome] || [];
+  if (!pool.length) return 0;
+  return pool.filter(({ entry }) => needsWater(entry)).length / pool.length;
+}
+
 function snackTotals(seasonings) {
   // Shiny modifiers stack ADDITIVELY: a "Nx" seasoning is a +(N-1) bonus, and the
   // bonuses sum. Starf (5x = +400%) + Enchanted Golden Apple (10x = +900%) = 14x,
@@ -2340,17 +2360,19 @@ function renderSnackSummary(seasonings) {
 
 // Per-species attraction probability for a biome + seasonings. Returns a ranked
 // array [{dex, p, boosted}] where p sums to 1 across the pool (empty if no pool).
-function computeAttraction(biome, seasonings) {
+function computeAttraction(biome, seasonings, nearWater = true) {
   const pool = BIOME_INDEX[biome] || [];
   if (!pool.length) return [];
   const odds = bucketOdds(seasonings.reduce((a, s) => a + (s.rarityTier || 0), 0));
 
   // Bucket each spawn entry, weighted by spawn weight × type/egg multiplier.
   // EV-yield seasonings gate the pool: non-matching species are removed entirely.
+  // Water-only spawns are gated on placement: dropped if the snack isn't near water.
   const evReqs = evRequirements(seasonings);
   const buckets = { common: [], uncommon: [], rare: [], "ultra-rare": [] };
   for (const { dex, entry } of pool) {
     if (!buckets[entry.r]) continue;
+    if (!nearWater && needsWater(entry)) continue;      // dry land — aquatic spawns can't roll
     const sp = DEX_BY_NUM[dex];
     if (!passesEvGate(sp, evReqs)) continue;            // forced out — can't be lured
     const mult = snackMult(sp, seasonings);
@@ -2378,9 +2400,10 @@ function computeAttraction(biome, seasonings) {
     .sort((a, b) => b.p - a.p);
 }
 
-function renderSnackResults(ranked) {
+function renderSnackResults(ranked, note = "") {
   if (!ranked.length) {
-    els.snackResults.innerHTML = `<div class="card"><p class="hint">No spawn data indexed for this biome.</p></div>`;
+    els.snackResults.innerHTML = `<div class="card"><p class="hint">${note ||
+      "No spawn data indexed for this biome."}</p></div>`;
     return;
   }
   const max = ranked[0].p || 1;
@@ -2401,7 +2424,7 @@ function renderSnackResults(ranked) {
   }).join("");
 
   const more = ranked.length > top.length ? `<p class="hint">…and ${ranked.length - top.length} more rarer visitors.</p>` : "";
-  els.snackResults.innerHTML = `<div class="card snack-list">${rows}</div>${more}`;
+  els.snackResults.innerHTML = `${note}<div class="card snack-list">${rows}</div>${more}`;
 }
 
 const SNACK_BITES = 9; // a Poké Snack is eaten in 9 bites = 9 attracted Pokémon.
@@ -2454,13 +2477,25 @@ function renderSnackShiny(seasonings) {
     ).join("") + `</table>`;
 }
 
+// Note explaining how the "near water" placement is reshaping the pool.
+function waterNote(biome, nearWater) {
+  const pool = BIOME_INDEX[biome] || [];
+  const wet = pool.filter(({ entry }) => needsWater(entry)).length;
+  if (!wet) return "";
+  const s = wet > 1 ? "s" : "";
+  return nearWater
+    ? `<p class="hint">💧 Placed <b>near water</b>: ${wet} aquatic spawn${s} (submerged / fishing / near-water) are in the pool. Untick if you're on dry land.</p>`
+    : `<p class="hint">🏜️ Placed on <b>dry land</b>: ${wet} water-only spawn${s} excluded and the odds renormalised. Tick “near water” to include them.</p>`;
+}
+
 function renderSnack() {
   if (!els.snackBiome) return;
   const biome = els.snackBiome.value;
   const seasonings = selectedSeasonings();
-  snackRanked = computeAttraction(biome, seasonings);
+  const nearWater = !els.snackNearWater || els.snackNearWater.checked;
+  snackRanked = computeAttraction(biome, seasonings, nearWater);
   renderSnackSummary(seasonings);
-  renderSnackResults(snackRanked);
+  renderSnackResults(snackRanked, waterNote(biome, nearWater));
   populateSnackTargets(snackRanked);
   renderSnackShiny(seasonings);
 }
@@ -2576,6 +2611,8 @@ function renderBestSnack(raw) {
 // Apply a recommended plan to the manual builder so the full visitor list + estimate show.
 function applySnackPlan(biome, ids, dex) {
   els.snackBiome.value = biome;
+  // The optimiser assumes ideal placement (water included), so reflect that here.
+  if (els.snackNearWater) els.snackNearWater.checked = true;
   ["snack-s0", "snack-s1", "snack-s2"].forEach((s, i) => { document.getElementById(s).value = ids[i] || ""; });
   snackTarget = String(dex);
   renderSnack();
@@ -2664,6 +2701,7 @@ function grabEls() {
     spawnBiomeSelect: document.getElementById("spawn-biome-select"),
     spawnResults: document.getElementById("spawn-results"),
     snackBiome: document.getElementById("snack-biome"),
+    snackNearWater: document.getElementById("snack-near-water"),
     snackSummary: document.getElementById("snack-summary"),
     snackBaseRate: document.getElementById("snack-base-rate"),
     snackTarget: document.getElementById("snack-target"),
@@ -2910,7 +2948,12 @@ function wire() {
   });
 
   // PokéSnack tab
-  els.snackBiome.addEventListener("change", renderSnack);
+  els.snackBiome.addEventListener("change", () => {
+    // Default the placement to match the biome: aquatic biomes start "near water".
+    if (els.snackNearWater) els.snackNearWater.checked = biomeWaterShare(els.snackBiome.value) >= 0.5;
+    renderSnack();
+  });
+  if (els.snackNearWater) els.snackNearWater.addEventListener("change", renderSnack);
   ["snack-s0", "snack-s1", "snack-s2"].forEach((id) =>
     document.getElementById(id).addEventListener("change", renderSnack));
   // Target / base-rate only affect the shiny estimate — no need to recompute attraction.
@@ -3144,6 +3187,8 @@ async function boot() {
     .map((b) => `<option value="${b}">${b} (${BIOME_INDEX[b].length})</option>`).join("");
   els.spawnBiomeSelect.innerHTML = biomeOpts;
   els.snackBiome.innerHTML = biomeOpts;
+  // Default the "near water" toggle to match the initially-selected biome.
+  if (els.snackNearWater) els.snackNearWater.checked = biomeWaterShare(els.snackBiome.value) >= 0.5;
 
   // Populate the 3 PokéSnack seasoning slots: "none" + grouped berries/items.
   // Each option shows the berry's target (type / EV stat / egg group / nature …)

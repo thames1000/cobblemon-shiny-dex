@@ -298,6 +298,8 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .summary-h { cursor: pointer; font-weight: 700; }
 .field { display: block; margin: 12px 0; font-size: .85rem; color: var(--muted); }
 .field input { margin-top: 6px; width: 100%; }
+.check-row { display: flex; align-items: flex-start; gap: 8px; margin: -4px 0 12px; font-size: .85rem; cursor: pointer; }
+.check-row input { width: 16px; height: 16px; margin: 1px 0 0; accent-color: var(--accent); cursor: pointer; flex: none; }
 .muted { color: var(--muted); }
 .find-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); }
 .find-row img { width: 40px; height: 40px; image-rendering: pixelated; }

@@ -2899,7 +2899,7 @@ function populateSimControls(biomeOpts, seasoningOpts) {
 }
 
 /* ---------- spawn optimizer (pick the best spot + snack for a target) ---------- */
-let simBestPlan = null;
+let simBestPlans = { budget: null, premium: null };
 
 // Candidate (entry, concrete-biome) pairs the target can spawn in — wildcards expand.
 function simEntriesFor(dex) {
@@ -2950,7 +2950,7 @@ function simSpotP(dex, spot, seasonings) {
 
 // Search spot conditions (phase 1) then seasonings on the best spots (phase 2) for
 // the lowest snacks-to-shiny = max spawn-share × shiny multiplier.
-function optimizeSpawn(dex) {
+function optimizeSpawn(dex, allowEGA) {
   const sp = DEX_BY_NUM[dex];
   if (!sp || !SIM.spawns[dex]) return null;
   const hb = SIM.hitbox[dex];
@@ -2961,7 +2961,7 @@ function optimizeSpawn(dex) {
   spots.forEach((s) => (s.p0 = simSpotP(dex, s, [])));
   const top = spots.filter((s) => s.p0 > 0).sort((a, b) => b.p0 - a.p0).slice(0, 8);
   if (!top.length) return null;
-  const combos = multisetCombos(relevantSeasonings(sp, true), 3);
+  const combos = multisetCombos(relevantSeasonings(sp, allowEGA), 3);
   let best = null;
   for (const s of top) for (const combo of combos) {
     const p = simSpotP(dex, s, combo);
@@ -2988,34 +2988,49 @@ function describeSimSpot(s) {
   return bits.join("");
 }
 
+function simPlanCard(title, plan, key, baseRate) {
+  if (!plan) return "";
+  const eff = baseRate / plan.shiny;
+  const snacks = Math.max(1, Math.ceil((eff / plan.p) / SNACK_BITES));
+  return `<div class="snack-plan">
+    <h3>${title}</h3>
+    ${describeSimSpot(plan.spot)}
+    <div class="plan-row"><span>Snack</span><b>${fmtCombo(plan.combo)}</b></div>
+    <div class="plan-row"><span>Spawn share</span><b>${(plan.p * 100).toFixed(1)}%</b></div>
+    <div class="plan-row"><span>Shiny odds</span><b>1/${Math.round(eff).toLocaleString()}</b> (✨×${plan.shiny})</div>
+    <div class="plan-row"><span>Snacks to shiny</span><b>~${snacks.toLocaleString()}</b> <span class="muted">expected</span></div>
+    <button class="ctrl-btn good sim-plan-apply" data-plan="${key}">Load into simulator below</button>
+  </div>`;
+}
+
 function renderSimBest(raw) {
   const sp = findSpecies(raw);
   if (!sp) { els.simBestOut.innerHTML = `<p class="hint">No species matching "${raw}".</p>`; return; }
-  const plan = optimizeSpawn(sp.dex);
-  if (!plan) {
+  const budget = optimizeSpawn(sp.dex, false);   // no Enchanted Golden Apple
+  if (!budget) {
     els.simBestOut.innerHTML = `<p class="hint">${sp.name.replace(/-/g, " ")} has no simulatable wild spawn in the
       Cobbleverse data (event / evolution / trade only), so there's no spot to optimize.</p>`;
     return;
   }
-  plan.targetDex = sp.dex;
-  simBestPlan = plan;
+  const premium = optimizeSpawn(sp.dex, true);    // EGA allowed
+  budget.targetDex = sp.dex;
+  if (premium) premium.targetDex = sp.dex;
+  simBestPlans = { budget, premium };
   if (!els.simBaseRate.value) els.simBaseRate.value = state.config.baseShinyRate;
   const baseRate = Number(els.simBaseRate.value) || state.config.baseShinyRate;
-  const eff = baseRate / plan.shiny;
-  const odds = eff / plan.p;
-  const snacks = Math.max(1, Math.ceil(odds / SNACK_BITES));
+  const usesEGA = premium && premium.combo.some((b) => b.id === "enchanted-golden-apple");
+  const egaNote = !usesEGA
+    ? `<p class="hint">An Enchanted Golden Apple doesn't beat the budget plan for ${sp.name.replace(/-/g, " ")} — the
+       rarity-tier shift costs more spawn share than the shiny boost gains, so both plans match.</p>` : "";
   els.simBestOut.innerHTML =
-    `<div class="snack-plan">
-      <h3>Best spot · ${sp.name.replace(/-/g, " ")}</h3>
-      ${describeSimSpot(plan.spot)}
-      <div class="plan-row"><span>Snack</span><b>${fmtCombo(plan.combo)}</b></div>
-      <div class="plan-row"><span>Spawn share</span><b>${(plan.p * 100).toFixed(1)}%</b></div>
-      <div class="plan-row"><span>Shiny odds</span><b>1/${Math.round(eff).toLocaleString()}</b> (✨×${plan.shiny})</div>
-      <div class="plan-row"><span>Snacks to shiny</span><b>~${snacks.toLocaleString()}</b> <span class="muted">expected</span></div>
-      <button class="ctrl-btn good" id="sim-best-apply">Load into simulator below</button>
-    </div>
-    <p class="hint">Spawn share = this mon's cut of everything that can spawn at that spot, after conditions + snack.
-      Loading fills the controls so you can see the full visitor list.</p>`;
+    `<div class="find-row" style="border:0;padding:0 0 8px"><img src="${spriteUrl(sp.dex, true)}" alt=""/>
+       <span class="find-name">Best spot · ${sp.name.replace(/-/g, " ")}</span></div>` +
+    `<div class="snack-best-grid">` +
+      simPlanCard("Budget · no EGA", budget, "budget", baseRate) +
+      simPlanCard("Premium · with EGA", premium, "premium", baseRate) +
+    `</div>${egaNote}` +
+    `<p class="hint">Spawn share = this mon's cut of everything that can spawn at that spot, after conditions + snack.
+      "Load into simulator" fills the controls so you can see the full visitor list.</p>`;
 }
 
 function applySimPlan(plan) {
@@ -3427,7 +3442,10 @@ function wire() {
     // Optimizer: find best spot for a target, then load it into the controls.
     document.getElementById("sim-best-go").addEventListener("click", () => renderSimBest(els.simBestInput.value));
     els.simBestInput.addEventListener("keydown", (e) => { if (e.key === "Enter") renderSimBest(els.simBestInput.value); });
-    els.simBestOut.addEventListener("click", (e) => { if (e.target.id === "sim-best-apply" && simBestPlan) applySimPlan(simBestPlan); });
+    els.simBestOut.addEventListener("click", (e) => {
+      const btn = e.target.closest(".sim-plan-apply");
+      if (btn && simBestPlans[btn.dataset.plan]) applySimPlan(simBestPlans[btn.dataset.plan]);
+    });
     els.simResults.addEventListener("click", (e) => {
       const row = e.target.closest(".sim-row[data-dex]");
       if (!row) return;

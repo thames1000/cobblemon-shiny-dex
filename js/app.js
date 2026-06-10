@@ -2226,8 +2226,9 @@ function renderFarm() { renderFarmApricorn(); renderFarmShiny(); }
 /* ---------- pokésnack tab ---------- */
 /* Cobblemon 1.7: a Poké Snack draws Pokémon from the biome's spawn pool; the Bait
  * Seasonings cooked in bias which ones bite. We model the effects that decide
- * *which species* shows up — type, egg-group and EV-yield berries (each ×10 to a
- * matching species) plus rarity-tier boosts (shift the common→ultra-rare bucket
+ * *which species* shows up — type and egg-group berries (×10 to a matching
+ * species), EV-yield berries (force the pool to ONLY species yielding that EV),
+ * plus rarity-tier boosts (shift the common→ultra-rare bucket
  * odds). The remaining seasonings (shiny, level, IV, nature, gender, ability) tune
  * the *traits* of who's attracted, not which species, so they're surfaced in the
  * summary but don't re-rank the list. */
@@ -2260,17 +2261,28 @@ function selectedSeasonings() {
     .filter(Boolean);
 }
 
-// ×10 per selected seasoning the species matches (type / egg group / EV yield).
-// Multipliers stack across seasonings, mirroring Cobblemon's bait math.
+// ×10 per selected type / egg-group seasoning the species matches. Multipliers
+// stack across seasonings, mirroring Cobblemon's bait math. EV-yield berries are
+// NOT a multiplier — they hard-filter the pool (see evMatch / computeAttraction).
 function snackMult(sp, seasonings) {
   if (!sp) return 1;
   let m = 1;
   for (const s of seasonings) {
     if (s.type && sp.types.includes(s.type)) m *= 10;
     if (s.eggGroups && sp.eggGroups && s.eggGroups.some((g) => sp.eggGroups.includes(g))) m *= 10;
-    if (s.ev && sp.ev && sp.ev.includes(s.ev)) m *= 10;
   }
   return m;
+}
+
+// EV-yield seasonings FORCE the spawn pool: Cobblemon only rolls species that
+// yield a selected EV, dropping every other species' weight to 0. So this is a
+// gate, not a ×10 bias. Returns the list of required EVs (empty = no EV gate).
+function evRequirements(seasonings) {
+  return [...new Set(seasonings.filter((s) => s.ev).map((s) => s.ev))];
+}
+function passesEvGate(sp, evReqs) {
+  if (!evReqs.length) return true;                     // no EV seasoning → no gate
+  return !!(sp && sp.ev && evReqs.some((ev) => sp.ev.includes(ev)));
 }
 
 function snackTotals(seasonings) {
@@ -2306,7 +2318,7 @@ function renderSnackSummary(seasonings) {
   if (t.shiny > 1) head.push(`<span class="snack-stat">✨ shiny <b>×${t.shiny}</b> (+${(t.shiny - 1) * 100}%)</span>`);
   if (types.length) head.push(`<span class="snack-stat">Type bias ${types.map(typeChip).join(" ")}</span>`);
   if (eggs.length) head.push(`<span class="snack-stat">Egg group ${eggs.map(typeChip).join(" ")}</span>`);
-  if (evs.length) head.push(`<span class="snack-stat">EV yield ${evs.map(typeChip).join(" ")}</span>`);
+  if (evs.length) head.push(`<span class="snack-stat">Only EV yield ${evs.map(typeChip).join(" ")}</span>`);
   if (t.level > 0) head.push(`<span class="snack-stat">Level <b>+${t.level}</b></span>`);
   if (t.biteReduction > 0) head.push(`<span class="snack-stat">Bite time <b>−${t.biteReduction}%</b></span>`);
 
@@ -2333,14 +2345,19 @@ function computeAttraction(biome, seasonings) {
   if (!pool.length) return [];
   const odds = bucketOdds(seasonings.reduce((a, s) => a + (s.rarityTier || 0), 0));
 
-  // Bucket each spawn entry, weighted by spawn weight × type/egg/EV multiplier.
+  // Bucket each spawn entry, weighted by spawn weight × type/egg multiplier.
+  // EV-yield seasonings gate the pool: non-matching species are removed entirely.
+  const evReqs = evRequirements(seasonings);
   const buckets = { common: [], uncommon: [], rare: [], "ultra-rare": [] };
   for (const { dex, entry } of pool) {
     if (!buckets[entry.r]) continue;
-    const mult = snackMult(DEX_BY_NUM[dex], seasonings);
+    const sp = DEX_BY_NUM[dex];
+    if (!passesEvGate(sp, evReqs)) continue;            // forced out — can't be lured
+    const mult = snackMult(sp, seasonings);
     const w = (entry.w || 0) * mult;   // weight-0 spawns don't roll, so they can't be lured
     if (w <= 0) continue;
-    buckets[entry.r].push({ dex, w, boosted: mult > 1 });
+    // A type/egg ×10 OR surviving an EV gate both mean the snack deliberately favours this species.
+    buckets[entry.r].push({ dex, w, boosted: mult > 1 || evReqs.length > 0 });
   }
   // Only buckets with entries carry probability mass; renormalise across those present.
   const present = BUCKETS.filter((b) => buckets[b].length);

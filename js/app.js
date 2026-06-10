@@ -2036,16 +2036,32 @@ function sanitizeSpawns() {
 // everywhere), not real places to AFK at — keep them as display chips but out
 // of the reverse biome lookup so they don't drown the dropdown.
 const PSEUDO_BIOMES = new Set(["any overworld", "any biome"]);
+// Non-overworld biome labels. "any overworld" spawns occur in every biome EXCEPT
+// these (Nether + End); "any biome" spawns occur everywhere.
+const NON_OVERWORLD = new Set(["end", "basalt deltas", "crimson forest", "soul sand valley"]);
+function isOverworldBiome(b) { return !/^nether\b/.test(b) && !NON_OVERWORLD.has(b) && !PSEUDO_BIOMES.has(b); }
+
+// Overworld-wide ("any overworld") and all-biome ("any biome") spawns kept aside
+// so the calculators can fold them into each concrete biome (see computeAttraction
+// / computeSpawns). Keeps the per-biome browse view (renderSpawnByBiome) focused.
+let PSEUDO_INDEX = { "any overworld": [], "any biome": [] };
 function buildBiomeIndex() {
   BIOME_INDEX = {};
+  PSEUDO_INDEX = { "any overworld": [], "any biome": [] };
   for (const dex in SPAWNS) {
     for (const e of SPAWNS[dex]) {
       for (const b of e.b) {
-        if (PSEUDO_BIOMES.has(b)) continue;
+        if (PSEUDO_BIOMES.has(b)) { (PSEUDO_INDEX[b] = PSEUDO_INDEX[b] || []).push({ dex: Number(dex), entry: e }); continue; }
         (BIOME_INDEX[b] = BIOME_INDEX[b] || []).push({ dex: Number(dex), entry: e });
       }
     }
   }
+}
+// The spawn pool for a concrete biome, including overworld-/all-biome wildcards.
+function biomePool(biome) {
+  let pool = (BIOME_INDEX[biome] || []).concat(PSEUDO_INDEX["any biome"] || []);
+  if (isOverworldBiome(biome)) pool = pool.concat(PSEUDO_INDEX["any overworld"] || []);
+  return pool;
 }
 
 function rarityChip(r) { return `<span class="r-chip r-${r}">${r}</span>`; }
@@ -2401,7 +2417,7 @@ function renderSnackSummary(seasonings) {
 // Per-species attraction probability for a biome + seasonings. Returns a ranked
 // array [{dex, p, boosted}] where p sums to 1 across the pool (empty if no pool).
 function computeAttraction(biome, seasonings, nearWater = true) {
-  const pool = BIOME_INDEX[biome] || [];
+  const pool = biomePool(biome);
   if (!pool.length) return [];
   const odds = bucketOdds(seasonings.reduce((a, s) => a + (s.rarityTier || 0), 0));
 
@@ -2583,7 +2599,14 @@ function multisetCombos(items, maxK) {
 function bestSnackFor(dex, allowEGA) {
   const sp = DEX_BY_NUM[dex];
   if (!sp) return null;
-  const biomes = [...new Set((SPAWNS[dex] || []).flatMap((e) => e.b))].filter((b) => BIOME_INDEX[b]);
+  let biomes = [...new Set((SPAWNS[dex] || []).flatMap((e) => e.b))];
+  // Wildcard spawns ("any overworld"/"any biome") can be lured in every concrete
+  // biome they cover, so search those as candidates too.
+  if (biomes.includes("any biome") || biomes.includes("any overworld")) {
+    const anyB = biomes.includes("any biome");
+    biomes = biomes.concat(Object.keys(BIOME_INDEX).filter((b) => anyB || isOverworldBiome(b)));
+  }
+  biomes = [...new Set(biomes)].filter((b) => BIOME_INDEX[b]); // drop pseudo + nonexistent
   if (!biomes.length) return null;
   const combos = multisetCombos(relevantSeasonings(sp, allowEGA), 3);
   let best = null;
@@ -2695,12 +2718,14 @@ function computeSpawns(o) {
   const evReqs = evRequirements(o.seasonings);
   const buckets = { common: [], uncommon: [], rare: [], "ultra-rare": [] };
   const excl = { tall: 0, near: 0, base: 0, y: 0, time: 0, weather: 0, sky: 0, water: 0, light: 0 };
+  const ow = isOverworldBiome(o.biome); // "any overworld" spawns count here too
   for (const dex in SIM.spawns) {
     const sp = DEX_BY_NUM[dex];
     const hb = SIM.hitbox[dex];
     for (const e of SIM.spawns[dex]) {
       if (!buckets[e.r] || !e.w) continue;
-      if (!(e.b || []).includes(o.biome)) continue;
+      const b = e.b || [];
+      if (!b.includes(o.biome) && !b.includes("any biome") && !(ow && b.includes("any overworld"))) continue;
       if (!o.byWater && e.pos && SIM_WATER_POS.has(e.pos)) { excl.water++; continue; } // submerged/fishing need water
       if (o.openSky ? e.sky === false : e.sky === true) { excl.sky++; continue; }       // sky requirement vs the spot
       if (e.y && ((e.y[0] != null && o.y < e.y[0]) || (e.y[1] != null && o.y > e.y[1]))) { excl.y++; continue; }

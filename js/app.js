@@ -2753,7 +2753,7 @@ function computeSpawns(o) {
       if (o.openSky ? e.sky === false : e.sky === true) { excl.sky++; continue; }       // sky requirement vs the spot
       if (e.y && ((e.y[0] != null && o.y < e.y[0]) || (e.y[1] != null && o.y > e.y[1]))) { excl.y++; continue; }
       if (o.light != null && ((e.lt && (o.light < e.lt[0] || o.light > e.lt[1])) || (e.ml != null && o.light > e.ml))) { excl.light++; continue; }
-      if (!o.openSky && hb && Math.ceil(hb[1]) > o.height) { excl.tall++; continue; }    // open sky = unlimited headroom
+      if (!o.openSky && hb && Math.ceil(hb[1]) > o.height) { excl.tall++; continue; } // Cobblemon needs ceil(hitbox) whole air blocks; open sky = unlimited
       if (e.near && !e.near.some((k) => o.items.has(k))) { excl.near++; continue; }
       if (e.base && !(o.baseBlock && e.base.includes(o.baseBlock))) { excl.base++; continue; }
       if (e.t && o.time !== "any" && normTime(e.t) !== o.time) { excl.time++; continue; }
@@ -2852,7 +2852,7 @@ function renderSim() {
   const o = {
     biome: els.simBiome.value,
     y: Number(els.simY.value),
-    height: Number(els.simHeight.value) || 1,
+    height: Math.floor(Number(els.simHeight.value)) || 1,   // whole air blocks
     light: els.simLight.value === "" ? null : Number(els.simLight.value),
     time: els.simTime.value,
     weather: els.simWeather.value,

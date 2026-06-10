@@ -2598,6 +2598,12 @@ function multisetCombos(items, maxK) {
 
 const EGA_ID = "enchanted-golden-apple";
 const egaCount = (combo) => combo.filter((b) => b.id === EGA_ID).length;
+// The target's pool-shaping seasonings — type (×10), egg-group (×10) and EV-yield
+// (hard gate) berries it matches. These change WHO competes (and so the target's
+// share); pure shiny/rarity boosters don't, so they're left to phase 2.
+function gateSeasonings(sp) {
+  return relevantSeasonings(sp, false).filter((b) => b.type || b.eggGroups || b.ev).slice(0, 3);
+}
 // Seasoning combos for a species capped at `egaCap` Enchanted Golden Apples
 // (0 = budget, 1 = one EGA, 3 = unlimited across the 3 slots).
 function combosFor(sp, egaCap) {
@@ -2975,8 +2981,12 @@ function optimizeSpawn(dex, egaCap) {
   for (const { e, biome } of simEntriesFor(dex)) spots = spots.concat(buildSpots(e, biome, hb));
   const seen = new Set();
   spots = spots.filter((s) => { const k = JSON.stringify(s); if (seen.has(k)) return false; seen.add(k); return true; });
-  spots.forEach((s) => (s.p0 = simSpotP(dex, s, [])));
-  const top = spots.filter((s) => s.p0 > 0).sort((a, b) => b.p0 - a.p0).slice(0, 8);
+  // Rank spots WITH the target's pool-shaping seasonings (type/egg/EV gate) so a
+  // spot that's only good once competitors are gated out (e.g. an EV berry leaving
+  // just the target) isn't pruned before phase 2 picks the snack.
+  const gate = gateSeasonings(sp);
+  spots.forEach((s) => (s.p0 = simSpotP(dex, s, gate)));
+  const top = spots.filter((s) => s.p0 > 0).sort((a, b) => b.p0 - a.p0).slice(0, 12);
   if (!top.length) return null;
   const combos = combosFor(sp, egaCap);
   let best = null;

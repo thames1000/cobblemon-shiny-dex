@@ -2317,16 +2317,17 @@ function selectedSeasonings() {
     .filter(Boolean);
 }
 
-// ×10 per selected type / egg-group seasoning the species matches. Multipliers
-// stack across seasonings, mirroring Cobblemon's bait math. EV-yield berries are
-// NOT a multiplier — they hard-filter the pool (see evMatch / computeAttraction).
+// Cobblemon's SpawnBaitInfluence.affectWeight applies the type/egg-group multiplier
+// ONCE, not per seasoning: it takes the FIRST type seasoning (×10 if the species
+// matches that type) and the FIRST egg seasoning whose group the species matches.
+// EV-yield berries aren't a multiplier — they hard-filter the pool (see EV gate).
 function snackMult(sp, seasonings) {
   if (!sp) return 1;
   let m = 1;
-  for (const s of seasonings) {
-    if (s.type && sp.types.includes(s.type)) m *= 10;
-    if (s.eggGroups && sp.eggGroups && s.eggGroups.some((g) => sp.eggGroups.includes(g))) m *= 10;
-  }
+  const typeS = seasonings.find((s) => s.type);                       // first type seasoning
+  if (typeS && sp.types.includes(typeS.type)) m *= 10;
+  const eggS = seasonings.find((s) => s.eggGroups && sp.eggGroups && s.eggGroups.some((g) => sp.eggGroups.includes(g)));
+  if (eggS) m *= 10;
   return m;
 }
 

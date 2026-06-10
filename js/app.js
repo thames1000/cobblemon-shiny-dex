@@ -2292,20 +2292,23 @@ let BERRIES = [];        // [{id,name,group,effect,type?,rarityTier?,shiny?,...}
 let BERRY_BY_ID = {};
 let BERRY_GUIDE = [];    // [{id,name,kind,biomes,mulch,source,effect,img}] — Berries tab
 
-// Official Poké Snack rarity-bucket odds at seasoning tiers 0, 3 and 10 (Cobblemon Wiki).
-// Intermediate tiers are interpolated; this is an approximation of the in-game roll.
-const TIER_TABLE = {
-  0:  { common: 0.862,  uncommon: 0.1028, rare: 0.0251, "ultra-rare": 0.0101 },
-  3:  { common: 0.5937, uncommon: 0.2131, rare: 0.1235, "ultra-rare": 0.0697 },
-  10: { common: 0.2848, uncommon: 0.2408, rare: 0.2732, "ultra-rare": 0.2013 },
-};
+// Cobblemon's actual rarity-bucket weights (BestSpawnerConfig). Natural world
+// spawns use worldBuckets; a placed Poké Snack uses pokeSnackBuckets.
+const WORLD_BUCKETS = { common: 94, uncommon: 5, rare: 0.5, "ultra-rare": 0.2 };
+const SNACK_BUCKETS = { common: 83.25, uncommon: 11.25, rare: 4.125, "ultra-rare": 1.375 };
 const BUCKETS = ["common", "uncommon", "rare", "ultra-rare"];
-function bucketOdds(tier) {
-  const t = Math.max(0, Math.min(10, tier));
-  const [lo, hi] = t <= 3 ? [0, 3] : [3, 10];
-  const f = (t - lo) / (hi - lo);
+// Bucket probabilities matching Cobblemon's BucketNormalizingInfluence: at tier 0
+// the raw weights are used; each higher tier raises every weight to 1/(1.29 +
+// 0.2·(tier−1)) before renormalising, pulling the buckets closer together (this
+// is how lure level / rarity boosters work). Returns probs summing to 1.
+function bucketOdds(tier, base = SNACK_BUCKETS) {
+  const t = Math.max(0, Math.round(tier));
+  const w = {};
+  if (t === 0) for (const b of BUCKETS) w[b] = base[b];
+  else { const f = 1.29 + 0.2 * (t - 1); for (const b of BUCKETS) w[b] = Math.pow(base[b], 1 / f); }
+  const sum = BUCKETS.reduce((a, b) => a + w[b], 0) || 1;
   const out = {};
-  for (const b of BUCKETS) out[b] = TIER_TABLE[lo][b] + (TIER_TABLE[hi][b] - TIER_TABLE[lo][b]) * f;
+  for (const b of BUCKETS) out[b] = w[b] / sum;
   return out;
 }
 
@@ -2416,11 +2419,12 @@ function renderSnackSummary(seasonings) {
 }
 
 // Per-species attraction probability for a biome + seasonings. Returns a ranked
-// array [{dex, p, boosted}] where p sums to 1 across the pool (empty if no pool).
+// array [{dex, p, boosted}]. p is the per-roll spawn chance (matches PokéNav:
+// bucket odds × within-bucket weight share), so it can sum to <1 across the pool.
 function computeAttraction(biome, seasonings, nearWater = true) {
   const pool = biomePool(biome);
   if (!pool.length) return [];
-  const odds = bucketOdds(seasonings.reduce((a, s) => a + (s.rarityTier || 0), 0));
+  const odds = bucketOdds(seasonings.reduce((a, s) => a + (s.rarityTier || 0), 0), SNACK_BUCKETS);
 
   // Bucket each spawn entry, weighted by spawn weight × type/egg multiplier.
   // EV-yield seasonings gate the pool: non-matching species are removed entirely.
@@ -2438,14 +2442,15 @@ function computeAttraction(biome, seasonings, nearWater = true) {
     // A type/egg ×10 OR surviving an EV gate both mean the snack deliberately favours this species.
     buckets[entry.r].push({ dex, w, boosted: mult > 1 || evReqs.length > 0 });
   }
-  // Only buckets with entries carry probability mass; renormalise across those present.
+  // Cobblemon rolls a bucket by weight then a species within it; an empty bucket
+  // just yields no spawn, so we use the raw bucket odds (no renormalising over
+  // present buckets) — p is the true per-roll chance, matching PokéNav.
   const present = BUCKETS.filter((b) => buckets[b].length);
-  const oddsSum = present.reduce((a, b) => a + odds[b], 0) || 1;
 
   const attraction = {}; // dex -> { p, boosted }
   for (const b of present) {
     const tot = buckets[b].reduce((a, x) => a + x.w, 0) || 1;
-    const bucketProb = odds[b] / oddsSum;
+    const bucketProb = odds[b];
     for (const x of buckets[b]) {
       const cur = attraction[x.dex] || (attraction[x.dex] = { p: 0, boosted: false });
       cur.p += bucketProb * (x.w / tot);
@@ -2738,7 +2743,9 @@ function simPlacedItems() {
 // Which species can spawn at the described spot, ranked. Also returns a tally of
 // why entries were rejected, so the UI can nudge ("3 too tall — dig higher").
 function computeSpawns(o) {
-  const odds = bucketOdds(o.seasonings.reduce((a, s) => a + (s.rarityTier || 0), 0));
+  // No seasonings = natural world spawn (world buckets); a snack uses snack buckets.
+  const base = o.seasonings.length ? SNACK_BUCKETS : WORLD_BUCKETS;
+  const odds = bucketOdds(o.seasonings.reduce((a, s) => a + (s.rarityTier || 0), 0), base);
   const evReqs = evRequirements(o.seasonings);
   const buckets = { common: [], uncommon: [], rare: [], "ultra-rare": [] };
   const excl = { tall: 0, near: 0, base: 0, y: 0, time: 0, weather: 0, sky: 0, water: 0, light: 0 };
@@ -2766,12 +2773,13 @@ function computeSpawns(o) {
       buckets[e.r].push({ dex: Number(dex), w, boosted: mult > 1 || evReqs.length > 0, e });
     }
   }
+  // Raw bucket odds (no renormalising over present buckets) = true per-roll chance,
+  // matching PokéNav; an empty bucket simply contributes a "nothing spawns" share.
   const present = BUCKETS.filter((b) => buckets[b].length);
-  const oddsSum = present.reduce((a, b) => a + odds[b], 0) || 1;
   const at = {};
   for (const b of present) {
     const tot = buckets[b].reduce((a, x) => a + x.w, 0) || 1;
-    const bp = odds[b] / oddsSum;
+    const bp = odds[b];
     for (const x of buckets[b]) {
       const cur = at[x.dex] || (at[x.dex] = { p: 0, boosted: false, e: x.e });
       cur.p += bp * (x.w / tot);
@@ -3032,7 +3040,7 @@ function simPlanCard(title, plan, idx, baseRate) {
     <h3>${title}</h3>
     ${describeSimSpot(plan.spot)}
     <div class="plan-row"><span>Snack</span><b>${fmtCombo(plan.combo)}</b></div>
-    <div class="plan-row"><span>Spawn share</span><b>${(plan.p * 100).toFixed(1)}%</b></div>
+    <div class="plan-row"><span>Spawn chance</span><b>${(plan.p * 100).toFixed(1)}%</b></div>
     <div class="plan-row"><span>Shiny odds</span><b>1/${Math.round(eff).toLocaleString()}</b> (✨×${plan.shiny})</div>
     <div class="plan-row"><span>Snacks to shiny</span><b>~${snacks.toLocaleString()}</b> <span class="muted">expected</span></div>
     <button class="ctrl-btn good sim-plan-apply" data-plan="${idx}">Load into simulator below</button>
@@ -3059,7 +3067,7 @@ function renderSimBest(raw) {
     `<div class="snack-best-grid">` +
       tiers.map(([title, plan], i) => simPlanCard(title, plan, i, baseRate)).join("") +
     `</div>${egaNoteText(note, sp.name.replace(/-/g, " "))}` +
-    `<p class="hint">Spawn share = this mon's cut of everything that can spawn at that spot, after conditions + snack.
+    `<p class="hint">Spawn chance = this mon's per-roll chance at that spot (bucket odds × in-bucket weight), matching PokéNav.
       "Load into simulator" fills the controls so you can see the full visitor list.</p>`;
 }
 

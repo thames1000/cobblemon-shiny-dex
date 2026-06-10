@@ -2662,6 +2662,154 @@ function applySnackPlan(biome, ids, dex) {
   els.snackBiome.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
+/* ---------- spawn simulator tab ---------- */
+/* Gate the structured Cobbleverse spawn pool by everything you can control at a
+ * spot — biome, Y, vertical clearance (vs the mon's hitbox), placed/underfoot
+ * blocks, time, weather and PokéSnack seasonings — then rank what survives by the
+ * same bucket-odds × weight math the PokéSnack tab uses. */
+let SIM = { spawns: {}, items: [], baseBlocks: [], hitbox: {} };
+let SIM_LABEL = {};   // block key -> readable label (for condition annotations)
+
+const TIME_ALIAS = { dawn: "dusk", dusk: "dusk", twilight: "dusk" };
+const normTime = (t) => { t = String(t || "").toLowerCase(); return TIME_ALIAS[t] || t; };
+const blockShort = (k) => SIM_LABEL[k] || k.replace(/^#/, "").replace(/^[a-z0-9_.-]+:/, "").replace(/_/g, " ");
+
+function simSeasonings() {
+  return ["sim-s0", "sim-s1", "sim-s2"].map((id) => document.getElementById(id).value)
+    .filter(Boolean).map((id) => BERRY_BY_ID[id]).filter(Boolean);
+}
+function simPlacedItems() {
+  const set = new Set();
+  document.querySelectorAll("#sim-items input:checked").forEach((c) => set.add(c.value));
+  return set;
+}
+
+// Which species can spawn at the described spot, ranked. Also returns a tally of
+// why entries were rejected, so the UI can nudge ("3 too tall — dig higher").
+function computeSpawns(o) {
+  const odds = bucketOdds(o.seasonings.reduce((a, s) => a + (s.rarityTier || 0), 0));
+  const evReqs = evRequirements(o.seasonings);
+  const buckets = { common: [], uncommon: [], rare: [], "ultra-rare": [] };
+  const excl = { tall: 0, near: 0, base: 0, y: 0, time: 0, weather: 0 };
+  for (const dex in SIM.spawns) {
+    const sp = DEX_BY_NUM[dex];
+    const hb = SIM.hitbox[dex];
+    for (const e of SIM.spawns[dex]) {
+      if (!buckets[e.r] || !e.w) continue;
+      if (!(e.b || []).includes(o.biome)) continue;
+      if (e.y && ((e.y[0] != null && o.y < e.y[0]) || (e.y[1] != null && o.y > e.y[1]))) { excl.y++; continue; }
+      if (hb && Math.ceil(hb[1]) > o.height) { excl.tall++; continue; }
+      if (e.near && !e.near.some((k) => o.items.has(k))) { excl.near++; continue; }
+      if (e.base && !(o.baseBlock && e.base.includes(o.baseBlock))) { excl.base++; continue; }
+      if (e.t && o.time !== "any" && normTime(e.t) !== o.time) { excl.time++; continue; }
+      if (e.wx && o.weather !== "any" && !e.wx.includes(o.weather)) { excl.weather++; continue; }
+      if (!passesEvGate(sp, evReqs)) continue;
+      const mult = snackMult(sp, o.seasonings);
+      const w = e.w * mult;
+      if (w <= 0) continue;
+      buckets[e.r].push({ dex: Number(dex), w, boosted: mult > 1 || evReqs.length > 0, e });
+    }
+  }
+  const present = BUCKETS.filter((b) => buckets[b].length);
+  const oddsSum = present.reduce((a, b) => a + odds[b], 0) || 1;
+  const at = {};
+  for (const b of present) {
+    const tot = buckets[b].reduce((a, x) => a + x.w, 0) || 1;
+    const bp = odds[b] / oddsSum;
+    for (const x of buckets[b]) {
+      const cur = at[x.dex] || (at[x.dex] = { p: 0, boosted: false, e: x.e });
+      cur.p += bp * (x.w / tot);
+      if (x.boosted) cur.boosted = true;
+    }
+  }
+  const ranked = Object.entries(at).map(([dex, v]) => ({ dex: Number(dex), ...v })).sort((a, b) => b.p - a.p);
+  return { ranked, excl };
+}
+
+// Conditions still attached to a surviving spawn — shown so you know what else to
+// arrange (light/time/sky aren't gated by the controls, so they're informational).
+function simCondNote(e, hb) {
+  const bits = [];
+  if (e.t) bits.push(`🕘 ${e.t}`);
+  if (e.wx) bits.push(`🌧 ${e.wx.join("/")}`);
+  if (e.sky === true) bits.push("☀️ open sky");
+  if (e.sky === false) bits.push("⛰️ no sky");
+  if (e.lt && (e.lt[0] > 0 || e.lt[1] < 15)) bits.push(`💡 light ${e.lt[0]}–${e.lt[1]}`);
+  if (e.ml != null && e.ml < 15) bits.push(`💡 block light ≤${e.ml}`);
+  if (e.pos) bits.push(`📐 ${e.pos}`);
+  if (e.moon != null) bits.push(`🌙 moon ${e.moon}`);
+  if (e.near) bits.push(`🧱 near ${e.near.map(blockShort).join("/")}`);
+  if (e.base) bits.push(`▦ on ${e.base.map(blockShort).join("/")}`);
+  if (hb) bits.push(`↥ ${hb[0]}×${hb[1]} hitbox`);
+  return bits.join(" · ");
+}
+
+function renderSim() {
+  if (!els.simBiome) return;
+  const o = {
+    biome: els.simBiome.value,
+    y: Number(els.simY.value),
+    height: Number(els.simHeight.value) || 1,
+    time: els.simTime.value,
+    weather: els.simWeather.value,
+    baseBlock: els.simBase.value,
+    items: simPlacedItems(),
+    seasonings: simSeasonings(),
+  };
+  const { ranked, excl } = computeSpawns(o);
+
+  const blocked = [];
+  if (excl.tall) blocked.push(`${excl.tall} too tall for ${o.height} block${o.height > 1 ? "s" : ""}`);
+  if (excl.near) blocked.push(`${excl.near} need a block you haven't placed`);
+  if (excl.y) blocked.push(`${excl.y} out of Y range`);
+  if (excl.base) blocked.push(`${excl.base} need a specific spawn-area block`);
+  if (excl.time) blocked.push(`${excl.time} wrong time`);
+  if (excl.weather) blocked.push(`${excl.weather} wrong weather`);
+  els.simSummary.innerHTML = `<div class="card"><p class="hint" style="margin:0">
+    <b>${ranked.length}</b> species can spawn at Y ${o.y} in <b style="text-transform:capitalize">${o.biome}</b>
+    with <b>${o.height}</b> blocks of headroom${o.items.size ? ` and ${o.items.size} placed block${o.items.size > 1 ? "s" : ""}` : ""}.
+    ${blocked.length ? `<br><span class="muted">Filtered out: ${blocked.join(" · ")}.</span>` : ""}</p></div>`;
+
+  if (!ranked.length) {
+    els.simResults.innerHTML = `<div class="card"><p class="hint">Nothing can spawn with these settings. Try more
+      headroom, a different biome/Y, or placing the required block.</p></div>`;
+    return;
+  }
+  const max = ranked[0].p || 1;
+  const rows = ranked.slice(0, 40).map((r) => {
+    const sp = DEX_BY_NUM[r.dex];
+    const types = sp ? sp.types.map(typeChip).join(" ") : "";
+    const note = simCondNote(r.e, SIM.hitbox[r.dex]);
+    return `<div class="snack-row sim-row" data-dex="${r.dex}">
+      <img loading="lazy" src="${spriteUrl(r.dex)}" alt="${sp ? sp.name : r.dex}" />
+      <div class="snack-row-main">
+        <div class="snack-row-name">${sp ? sp.name.replace(/-/g, " ") : "#" + r.dex} ${types}
+          ${r.boosted ? '<span class="snack-boost">▲ lured</span>' : ""}</div>
+        <div class="bar"><i style="width:${(r.p / max) * 100}%"></i></div>
+        ${note ? `<div class="sim-cond">${note}</div>` : ""}
+      </div>
+      <div class="snack-pct">${(r.p * 100).toFixed(1)}%</div>
+    </div>`;
+  }).join("");
+  const more = ranked.length > 40 ? `<p class="hint">…and ${ranked.length - 40} more rarer options.</p>` : "";
+  els.simResults.innerHTML = `<div class="card snack-list">${rows}</div>${more}`;
+}
+
+function populateSimControls(biomeOpts, seasoningOpts) {
+  els.simBiome.innerHTML = biomeOpts;
+  els.simBase.innerHTML = `<option value="">— any / natural —</option>` +
+    SIM.baseBlocks.map((b) => `<option value="${b.key}">${b.label}</option>`).join("");
+  ["sim-s0", "sim-s1", "sim-s2"].forEach((id) => { document.getElementById(id).innerHTML = seasoningOpts; });
+  SIM_LABEL = {};
+  SIM.items.concat(SIM.baseBlocks).forEach((it) => (SIM_LABEL[it.key] = it.label));
+  const groups = {};
+  SIM.items.forEach((it) => (groups[it.group] = groups[it.group] || []).push(it));
+  els.simItems.innerHTML = Object.keys(groups).sort().map((g) =>
+    `<div class="sim-item-group"><div class="sim-item-group-h">${g}</div><div class="sim-item-row">` +
+    groups[g].map((it) => `<label class="sim-item"><input type="checkbox" value="${it.key}"/> ${it.label}</label>`).join("") +
+    `</div></div>`).join("");
+}
+
 /* ---------- tabs ---------- */
 function showTab(name) {
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
@@ -2669,6 +2817,7 @@ function showTab(name) {
   if (name === "boxes") renderBoxes(); // refresh in case dex changed on another tab
   if (name === "home") renderDashboard();
   if (name === "stats") renderStats();
+  if (name === "sim") renderSim();
   location.hash = name;
 }
 
@@ -2750,6 +2899,15 @@ function grabEls() {
     snackBestInput: document.getElementById("snack-best-input"),
     snackBestOut: document.getElementById("snack-best-out"),
     snackResults: document.getElementById("snack-results"),
+    simBiome: document.getElementById("sim-biome"),
+    simY: document.getElementById("sim-y"),
+    simHeight: document.getElementById("sim-height"),
+    simTime: document.getElementById("sim-time"),
+    simWeather: document.getElementById("sim-weather"),
+    simBase: document.getElementById("sim-base"),
+    simItems: document.getElementById("sim-items"),
+    simSummary: document.getElementById("sim-summary"),
+    simResults: document.getElementById("sim-results"),
     farmTrees: document.getElementById("farm-trees"),
     farmGrowth: document.getElementById("farm-growth"),
     farmYield: document.getElementById("farm-yield"),
@@ -3016,6 +3174,24 @@ function wire() {
     showTab("spawns");
   });
 
+  // Spawn Sim tab: any control change re-runs the simulation.
+  if (els.simBiome) {
+    [els.simBiome, els.simY, els.simHeight, els.simTime, els.simWeather, els.simBase,
+      ...["sim-s0", "sim-s1", "sim-s2"].map((id) => document.getElementById(id))]
+      .forEach((el) => el && el.addEventListener("change", renderSim));
+    els.simY.addEventListener("input", renderSim);
+    els.simHeight.addEventListener("input", renderSim);
+    els.simItems.addEventListener("change", renderSim);
+    els.simResults.addEventListener("click", (e) => {
+      const row = e.target.closest(".sim-row[data-dex]");
+      if (!row) return;
+      setSpawnMode("mon");
+      els.spawnInput.value = DEX_BY_NUM[Number(row.dataset.dex)].name;
+      findSpawnByInput(els.spawnInput.value);
+      showTab("spawns");
+    });
+  }
+
   // Party tab: management buttons + delegated member edits.
   const partySelect = document.getElementById("party-select");
   if (partySelect) partySelect.addEventListener("change", (e) => selectParty(e.target.value));
@@ -3212,6 +3388,8 @@ async function boot() {
   SPECIES.forEach((s) => (DEX_BY_NUM[s.dex] = s));
   sanitizeSpawns();
   buildBiomeIndex();
+  SIM = await fetch("js/data/sim-spawns.json").then((r) => r.json())
+    .catch(() => ({ spawns: {}, items: [], baseBlocks: [], hitbox: {} }));
 
   // Populate the target datalist once. Put the name in the label too, so browsers
   // that filter suggestions by the label (not the value) still match name typing.
@@ -3245,6 +3423,7 @@ async function boot() {
     }).join("") +
     `</optgroup>`).join("");
   ["snack-s0", "snack-s1", "snack-s2"].forEach((id) => { document.getElementById(id).innerHTML = seasoningOpts; });
+  populateSimControls(biomeOpts, seasoningOpts);
 
   wire();
   fillConfigInputs();

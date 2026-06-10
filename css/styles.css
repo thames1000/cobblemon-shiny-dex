@@ -379,6 +379,17 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .plan-cond-list { margin: 0; padding-left: 16px; font-size: .8rem; line-height: 1.5; }
 .plan-cond-list li { margin: 2px 0; }
 
+/* spawn simulator */
+.sim-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.sim-item-group { margin: 8px 0; }
+.sim-item-group-h { font-size: .78rem; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+.sim-item-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.sim-item { display: inline-flex; align-items: center; gap: 5px; font-size: .8rem; cursor: pointer;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 4px 9px; }
+.sim-item:hover { border-color: var(--accent); }
+.sim-item input { width: 14px; height: 14px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.sim-cond { font-size: .72rem; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+
 /* Farm tab */
 .farm-tbl { width: 100%; border-collapse: collapse; font-size: .9rem; }
 .farm-tbl th { text-align: left; color: var(--muted); font-weight: 600; font-size: .8rem; padding: 4px 6px; }

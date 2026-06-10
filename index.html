@@ -30,6 +30,7 @@
     <button class="tab" data-tab="stats">Stats</button>
     <button class="tab" data-tab="spawns">Spawns</button>
     <button class="tab" data-tab="snack">PokéSnack</button>
+    <button class="tab" data-tab="sim">Spawn Sim</button>
     <button class="tab" data-tab="berries">Berries</button>
     <button class="tab" data-tab="farm">Farm</button>
     <button class="tab" data-tab="data">Data</button>
@@ -313,6 +314,63 @@
 
       <h2 class="section-h">Most likely visitors</h2>
       <div id="snack-results"></div>
+    </section>
+
+    <!-- ============ SPAWN SIM TAB ============ -->
+    <section class="panel" id="panel-sim">
+      <p class="hint">Spawn simulator. Describe a spot — biome, Y level, how much open vertical space, what blocks are
+        nearby and underfoot, plus any PokéSnack seasonings — and see which Pokémon can actually spawn there, ranked by
+        odds. A mon only appears if every one of its conditions is met (its hitbox must fit the open height).</p>
+
+      <div class="card">
+        <h2>📍 The spot</h2>
+        <div class="sim-grid">
+          <label class="field" style="margin:0">Biome
+            <select id="sim-biome" class="select" style="width:100%"></select>
+          </label>
+          <label class="field" style="margin:0">Y level
+            <input type="number" id="sim-y" class="search" value="64" min="-64" max="320" />
+          </label>
+          <label class="field" style="margin:0">Open height (blocks)
+            <input type="number" id="sim-height" class="search" value="3" min="1" max="20" />
+          </label>
+          <label class="field" style="margin:0">Time
+            <select id="sim-time" class="select" style="width:100%">
+              <option value="any">any</option><option value="day">day</option>
+              <option value="night">night</option><option value="dusk">dusk / dawn</option>
+            </select>
+          </label>
+          <label class="field" style="margin:0">Weather
+            <select id="sim-weather" class="select" style="width:100%">
+              <option value="any">any</option><option value="clear">clear</option>
+              <option value="rain">rain</option><option value="thunder">thunder</option>
+            </select>
+          </label>
+          <label class="field" style="margin:0">Spawn-area block (underfoot)
+            <select id="sim-base" class="select" style="width:100%"></select>
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>🧱 Blocks placed nearby</h2>
+        <p class="hint" style="margin-top:0">Tick what's within range of the spot (water, a PC, flowers…). Some Pokémon
+          <em>require</em> a specific block nearby to spawn at all.</p>
+        <div id="sim-items"></div>
+      </div>
+
+      <div class="card">
+        <h2>🍪 PokéSnack seasonings <span class="muted">(optional, up to 3)</span></h2>
+        <div class="seasoning-slots">
+          <select id="sim-s0" class="select snack-slot"></select>
+          <select id="sim-s1" class="select snack-slot"></select>
+          <select id="sim-s2" class="select snack-slot"></select>
+        </div>
+      </div>
+
+      <div id="sim-summary"></div>
+      <h2 class="section-h">Can spawn here</h2>
+      <div id="sim-results"></div>
     </section>
 
     <!-- ============ PARTY TAB ============ -->

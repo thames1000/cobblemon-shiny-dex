@@ -2596,7 +2596,29 @@ function multisetCombos(items, maxK) {
   return out;
 }
 
-function bestSnackFor(dex, allowEGA) {
+const EGA_ID = "enchanted-golden-apple";
+const egaCount = (combo) => combo.filter((b) => b.id === EGA_ID).length;
+// Seasoning combos for a species capped at `egaCap` Enchanted Golden Apples
+// (0 = budget, 1 = one EGA, 3 = unlimited across the 3 slots).
+function combosFor(sp, egaCap) {
+  const combos = multisetCombos(relevantSeasonings(sp, egaCap > 0), 3);
+  return egaCap >= 3 ? combos : combos.filter((c) => egaCount(c) <= egaCap);
+}
+// Choose which EGA tiers to show, collapsing ones where extra EGAs don't help.
+// `plans` = { b0, b1, bMax } from egaCap 0 / 1 / 3. Returns labelled, de-duped tiers.
+function egaTiers(b0, b1, bMax) {
+  const max = bMax ? egaCount(bMax.combo) : 0;
+  if (max === 0) return { tiers: [["Budget · no EGA", b0]], note: "egaNone" };
+  if (max <= 1) return { tiers: [["Budget · no EGA", b0], ["With 1 EGA", b1]], note: "ega1" };
+  return { tiers: [["Budget · no EGA", b0], ["Max 1 EGA", b1], [`Premium · ${max}× EGA`, bMax]], note: "" };
+}
+function egaNoteText(note, name) {
+  if (note === "egaNone") return `<p class="hint">An Enchanted Golden Apple doesn't improve ${name}'s odds here — the rarity-tier shift costs more spawn share than the shiny boost gains — so there's just one plan.</p>`;
+  if (note === "ega1") return `<p class="hint">One Enchanted Golden Apple is optimal for ${name}; stacking more doesn't help.</p>`;
+  return "";
+}
+
+function bestSnackFor(dex, egaCap) {
   const sp = DEX_BY_NUM[dex];
   if (!sp) return null;
   let biomes = [...new Set((SPAWNS[dex] || []).flatMap((e) => e.b))];
@@ -2608,7 +2630,7 @@ function bestSnackFor(dex, allowEGA) {
   }
   biomes = [...new Set(biomes)].filter((b) => BIOME_INDEX[b]); // drop pseudo + nonexistent
   if (!biomes.length) return null;
-  const combos = multisetCombos(relevantSeasonings(sp, allowEGA), 3);
+  const combos = combosFor(sp, egaCap);
   let best = null;
   for (const biome of biomes) {
     for (const combo of combos) {
@@ -2649,25 +2671,20 @@ function planCard(title, plan, sp, baseRate) {
 function renderBestSnack(raw) {
   const sp = findSpecies(raw);
   if (!sp) { els.snackBestOut.innerHTML = `<p class="hint">No species matching "${raw}".</p>`; return; }
-  const without = bestSnackFor(sp.dex, false);
-  if (!without) {
+  const b0 = bestSnackFor(sp.dex, 0);
+  if (!b0) {
     els.snackBestOut.innerHTML = `<p class="hint">${sp.name.replace(/-/g, " ")} has no natural Poké Snack spawn in base
       Cobblemon, so a snack can't lure it.</p>`;
     return;
   }
   const baseRate = Number(els.snackBaseRate.value) || state.config.baseShinyRate;
-  const withEGA = bestSnackFor(sp.dex, true);
-  const usesEGA = withEGA && withEGA.combo.some((b) => b.id === "enchanted-golden-apple");
-  const egaNote = !usesEGA
-    ? `<p class="hint">An Enchanted Golden Apple doesn't beat the budget plan for ${sp.name.replace(/-/g, " ")} — it's
-       common enough that the rarity shift costs more than the shiny boost gains, so both plans match.</p>` : "";
+  const { tiers, note } = egaTiers(b0, bestSnackFor(sp.dex, 1), bestSnackFor(sp.dex, 3));
   els.snackBestOut.innerHTML =
     `<div class="find-row" style="border:0;padding:0 0 8px"><img src="${spriteUrl(sp.dex, true)}" alt=""/>
        <span class="find-name">Best plan · ${sp.name.replace(/-/g, " ")}</span></div>` +
     `<div class="snack-best-grid">` +
-      planCard("Budget · no EGA", without, sp, baseRate) +
-      planCard("Premium · with EGA", withEGA, sp, baseRate) +
-    `</div>${egaNote}` +
+      tiers.map(([title, plan]) => planCard(title, plan, sp, baseRate)).join("") +
+    `</div>${egaNoteText(note, sp.name.replace(/-/g, " "))}` +
     `<p class="hint">Optimised for the fewest snacks to a <em>shiny of this species</em> (spawn rate × shiny boost).
       Base shiny rate ${baseRate} (edit it in "Snacks to a shiny"). "Load into builder" fills the controls above.</p>`;
 }
@@ -2899,7 +2916,7 @@ function populateSimControls(biomeOpts, seasoningOpts) {
 }
 
 /* ---------- spawn optimizer (pick the best spot + snack for a target) ---------- */
-let simBestPlans = { budget: null, premium: null };
+let simBestPlans = [];   // one entry per shown EGA tier, indexed by the card's data-plan
 
 // Candidate (entry, concrete-biome) pairs the target can spawn in — wildcards expand.
 function simEntriesFor(dex) {
@@ -2950,7 +2967,7 @@ function simSpotP(dex, spot, seasonings) {
 
 // Search spot conditions (phase 1) then seasonings on the best spots (phase 2) for
 // the lowest snacks-to-shiny = max spawn-share × shiny multiplier.
-function optimizeSpawn(dex, allowEGA) {
+function optimizeSpawn(dex, egaCap) {
   const sp = DEX_BY_NUM[dex];
   if (!sp || !SIM.spawns[dex]) return null;
   const hb = SIM.hitbox[dex];
@@ -2961,7 +2978,7 @@ function optimizeSpawn(dex, allowEGA) {
   spots.forEach((s) => (s.p0 = simSpotP(dex, s, [])));
   const top = spots.filter((s) => s.p0 > 0).sort((a, b) => b.p0 - a.p0).slice(0, 8);
   if (!top.length) return null;
-  const combos = multisetCombos(relevantSeasonings(sp, allowEGA), 3);
+  const combos = combosFor(sp, egaCap);
   let best = null;
   for (const s of top) for (const combo of combos) {
     const p = simSpotP(dex, s, combo);
@@ -2988,7 +3005,7 @@ function describeSimSpot(s) {
   return bits.join("");
 }
 
-function simPlanCard(title, plan, key, baseRate) {
+function simPlanCard(title, plan, idx, baseRate) {
   if (!plan) return "";
   const eff = baseRate / plan.shiny;
   const snacks = Math.max(1, Math.ceil((eff / plan.p) / SNACK_BITES));
@@ -2999,36 +3016,30 @@ function simPlanCard(title, plan, key, baseRate) {
     <div class="plan-row"><span>Spawn share</span><b>${(plan.p * 100).toFixed(1)}%</b></div>
     <div class="plan-row"><span>Shiny odds</span><b>1/${Math.round(eff).toLocaleString()}</b> (✨×${plan.shiny})</div>
     <div class="plan-row"><span>Snacks to shiny</span><b>~${snacks.toLocaleString()}</b> <span class="muted">expected</span></div>
-    <button class="ctrl-btn good sim-plan-apply" data-plan="${key}">Load into simulator below</button>
+    <button class="ctrl-btn good sim-plan-apply" data-plan="${idx}">Load into simulator below</button>
   </div>`;
 }
 
 function renderSimBest(raw) {
   const sp = findSpecies(raw);
   if (!sp) { els.simBestOut.innerHTML = `<p class="hint">No species matching "${raw}".</p>`; return; }
-  const budget = optimizeSpawn(sp.dex, false);   // no Enchanted Golden Apple
-  if (!budget) {
+  const b0 = optimizeSpawn(sp.dex, 0);   // no EGA
+  if (!b0) {
     els.simBestOut.innerHTML = `<p class="hint">${sp.name.replace(/-/g, " ")} has no simulatable wild spawn in the
       Cobbleverse data (event / evolution / trade only), so there's no spot to optimize.</p>`;
     return;
   }
-  const premium = optimizeSpawn(sp.dex, true);    // EGA allowed
-  budget.targetDex = sp.dex;
-  if (premium) premium.targetDex = sp.dex;
-  simBestPlans = { budget, premium };
+  const { tiers, note } = egaTiers(b0, optimizeSpawn(sp.dex, 1), optimizeSpawn(sp.dex, 3));
+  tiers.forEach(([, plan]) => { if (plan) plan.targetDex = sp.dex; });
+  simBestPlans = tiers.map(([, plan]) => plan);
   if (!els.simBaseRate.value) els.simBaseRate.value = state.config.baseShinyRate;
   const baseRate = Number(els.simBaseRate.value) || state.config.baseShinyRate;
-  const usesEGA = premium && premium.combo.some((b) => b.id === "enchanted-golden-apple");
-  const egaNote = !usesEGA
-    ? `<p class="hint">An Enchanted Golden Apple doesn't beat the budget plan for ${sp.name.replace(/-/g, " ")} — the
-       rarity-tier shift costs more spawn share than the shiny boost gains, so both plans match.</p>` : "";
   els.simBestOut.innerHTML =
     `<div class="find-row" style="border:0;padding:0 0 8px"><img src="${spriteUrl(sp.dex, true)}" alt=""/>
        <span class="find-name">Best spot · ${sp.name.replace(/-/g, " ")}</span></div>` +
     `<div class="snack-best-grid">` +
-      simPlanCard("Budget · no EGA", budget, "budget", baseRate) +
-      simPlanCard("Premium · with EGA", premium, "premium", baseRate) +
-    `</div>${egaNote}` +
+      tiers.map(([title, plan], i) => simPlanCard(title, plan, i, baseRate)).join("") +
+    `</div>${egaNoteText(note, sp.name.replace(/-/g, " "))}` +
     `<p class="hint">Spawn share = this mon's cut of everything that can spawn at that spot, after conditions + snack.
       "Load into simulator" fills the controls so you can see the full visitor list.</p>`;
 }
@@ -3444,7 +3455,7 @@ function wire() {
     els.simBestInput.addEventListener("keydown", (e) => { if (e.key === "Enter") renderSimBest(els.simBestInput.value); });
     els.simBestOut.addEventListener("click", (e) => {
       const btn = e.target.closest(".sim-plan-apply");
-      if (btn && simBestPlans[btn.dataset.plan]) applySimPlan(simBestPlans[btn.dataset.plan]);
+      if (btn && simBestPlans[+btn.dataset.plan]) applySimPlan(simBestPlans[+btn.dataset.plan]);
     });
     els.simResults.addEventListener("click", (e) => {
       const row = e.target.closest(".sim-row[data-dex]");

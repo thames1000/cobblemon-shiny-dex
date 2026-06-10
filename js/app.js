@@ -2952,15 +2952,19 @@ function buildSpots(e, biome, hb) {
   // sky:true -> must be open; sky:false -> must be covered; unconstrained -> try
   // both, since a tight covered ceiling can exclude all taller competitors.
   const skyOpts = e.sky === true ? [true] : e.sky === false ? [false] : [true, false];
+  // Restricting time only removes competitors, so for a time-unconstrained mon
+  // "any" is always dominated — try day/night to dodge time-locked competitors.
+  const times = e.t ? [normTime(e.t)] : ["day", "night"];
   const byWater = !!(e.pos && SIM_WATER_POS.has(e.pos));
   const place = e.near ? [e.near[0]] : [];
   const baseBlock = e.base ? e.base[0] : "";
-  const time = e.t ? normTime(e.t) : "any";
   const weather = e.wx ? e.wx[0] : "any";
   const spots = [];
   for (const openSky of skyOpts) {
     const height = openSky ? 20 : Math.max(1, Math.ceil(hb ? hb[1] : 1)); // tight ceiling dodges taller mons
-    for (const y of ys) for (const light of lights) spots.push({ biome, y, light, height, openSky, byWater, place, baseBlock, time, weather });
+    for (const time of times) for (const y of ys) for (const light of lights) {
+      spots.push({ biome, y, light, height, openSky, byWater, place, baseBlock, time, weather });
+    }
   }
   return spots;
 }

@@ -2949,15 +2949,19 @@ function buildSpots(e, biome, hb) {
   const lLo = e.lt ? e.lt[0] : 0;
   const lHi = Math.min(e.lt ? e.lt[1] : 15, e.ml != null ? e.ml : 15);
   const lights = [...new Set([lLo, lHi])];
-  const openSky = e.sky === false ? false : true;             // covered only if the mon needs no sky
-  const height = openSky ? 20 : Math.max(1, Math.ceil(hb ? hb[1] : 1)); // tight ceiling dodges taller mons
+  // sky:true -> must be open; sky:false -> must be covered; unconstrained -> try
+  // both, since a tight covered ceiling can exclude all taller competitors.
+  const skyOpts = e.sky === true ? [true] : e.sky === false ? [false] : [true, false];
   const byWater = !!(e.pos && SIM_WATER_POS.has(e.pos));
   const place = e.near ? [e.near[0]] : [];
   const baseBlock = e.base ? e.base[0] : "";
   const time = e.t ? normTime(e.t) : "any";
   const weather = e.wx ? e.wx[0] : "any";
   const spots = [];
-  for (const y of ys) for (const light of lights) spots.push({ biome, y, light, height, openSky, byWater, place, baseBlock, time, weather });
+  for (const openSky of skyOpts) {
+    const height = openSky ? 20 : Math.max(1, Math.ceil(hb ? hb[1] : 1)); // tight ceiling dodges taller mons
+    for (const y of ys) for (const light of lights) spots.push({ biome, y, light, height, openSky, byWater, place, baseBlock, time, weather });
+  }
   return spots;
 }
 

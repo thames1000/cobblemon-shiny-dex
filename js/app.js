@@ -2670,6 +2670,8 @@ function applySnackPlan(biome, ids, dex) {
 let SIM = { spawns: {}, items: [], baseBlocks: [], hitbox: {} };
 let SIM_LABEL = {};   // block key -> readable label (for condition annotations)
 
+const SIM_WATER_POS = new Set(["submerged", "seafloor", "fishing"]); // need water/fishing
+const SIM_WATER_NEARBY = ["minecraft:water", "#minecraft:water", "minecraft:flowing_water"];
 const TIME_ALIAS = { dawn: "dusk", dusk: "dusk", twilight: "dusk" };
 const normTime = (t) => { t = String(t || "").toLowerCase(); return TIME_ALIAS[t] || t; };
 const blockShort = (k) => SIM_LABEL[k] || k.replace(/^#/, "").replace(/^[a-z0-9_.-]+:/, "").replace(/_/g, " ");
@@ -2690,15 +2692,17 @@ function computeSpawns(o) {
   const odds = bucketOdds(o.seasonings.reduce((a, s) => a + (s.rarityTier || 0), 0));
   const evReqs = evRequirements(o.seasonings);
   const buckets = { common: [], uncommon: [], rare: [], "ultra-rare": [] };
-  const excl = { tall: 0, near: 0, base: 0, y: 0, time: 0, weather: 0 };
+  const excl = { tall: 0, near: 0, base: 0, y: 0, time: 0, weather: 0, sky: 0, water: 0 };
   for (const dex in SIM.spawns) {
     const sp = DEX_BY_NUM[dex];
     const hb = SIM.hitbox[dex];
     for (const e of SIM.spawns[dex]) {
       if (!buckets[e.r] || !e.w) continue;
       if (!(e.b || []).includes(o.biome)) continue;
+      if (!o.byWater && e.pos && SIM_WATER_POS.has(e.pos)) { excl.water++; continue; } // submerged/fishing need water
+      if (o.openSky ? e.sky === false : e.sky === true) { excl.sky++; continue; }       // sky requirement vs the spot
       if (e.y && ((e.y[0] != null && o.y < e.y[0]) || (e.y[1] != null && o.y > e.y[1]))) { excl.y++; continue; }
-      if (hb && Math.ceil(hb[1]) > o.height) { excl.tall++; continue; }
+      if (!o.openSky && hb && Math.ceil(hb[1]) > o.height) { excl.tall++; continue; }    // open sky = unlimited headroom
       if (e.near && !e.near.some((k) => o.items.has(k))) { excl.near++; continue; }
       if (e.base && !(o.baseBlock && e.base.includes(o.baseBlock))) { excl.base++; continue; }
       if (e.t && o.time !== "any" && normTime(e.t) !== o.time) { excl.time++; continue; }
@@ -2746,6 +2750,11 @@ function simCondNote(e, hb) {
 
 function renderSim() {
   if (!els.simBiome) return;
+  const openSky = els.simOpenSky.checked;
+  const byWater = els.simWater.checked;
+  els.simHeight.disabled = openSky;   // open sky = unlimited headroom, height has no effect
+  const items = simPlacedItems();
+  if (byWater) SIM_WATER_NEARBY.forEach((k) => items.add(k)); // by water => water counts as nearby
   const o = {
     biome: els.simBiome.value,
     y: Number(els.simY.value),
@@ -2753,21 +2762,24 @@ function renderSim() {
     time: els.simTime.value,
     weather: els.simWeather.value,
     baseBlock: els.simBase.value,
-    items: simPlacedItems(),
+    openSky, byWater, items,
     seasonings: simSeasonings(),
   };
   const { ranked, excl } = computeSpawns(o);
 
   const blocked = [];
+  if (excl.water) blocked.push(`${excl.water} need water / fishing`);
+  if (excl.sky) blocked.push(`${excl.sky} need ${openSky ? "cover (no sky)" : "open sky"}`);
   if (excl.tall) blocked.push(`${excl.tall} too tall for ${o.height} block${o.height > 1 ? "s" : ""}`);
   if (excl.near) blocked.push(`${excl.near} need a block you haven't placed`);
   if (excl.y) blocked.push(`${excl.y} out of Y range`);
   if (excl.base) blocked.push(`${excl.base} need a specific spawn-area block`);
   if (excl.time) blocked.push(`${excl.time} wrong time`);
   if (excl.weather) blocked.push(`${excl.weather} wrong weather`);
+  const space = openSky ? "open sky" : `<b>${o.height}</b> blocks of headroom`;
   els.simSummary.innerHTML = `<div class="card"><p class="hint" style="margin:0">
     <b>${ranked.length}</b> species can spawn at Y ${o.y} in <b style="text-transform:capitalize">${o.biome}</b>
-    with <b>${o.height}</b> blocks of headroom${o.items.size ? ` and ${o.items.size} placed block${o.items.size > 1 ? "s" : ""}` : ""}.
+    with ${space}${byWater ? ", by water" : ""}${o.items.size && !byWater ? ` and ${o.items.size} placed block${o.items.size > 1 ? "s" : ""}` : ""}.
     ${blocked.length ? `<br><span class="muted">Filtered out: ${blocked.join(" · ")}.</span>` : ""}</p></div>`;
 
   if (!ranked.length) {
@@ -2905,6 +2917,8 @@ function grabEls() {
     simTime: document.getElementById("sim-time"),
     simWeather: document.getElementById("sim-weather"),
     simBase: document.getElementById("sim-base"),
+    simOpenSky: document.getElementById("sim-open-sky"),
+    simWater: document.getElementById("sim-water"),
     simItems: document.getElementById("sim-items"),
     simSummary: document.getElementById("sim-summary"),
     simResults: document.getElementById("sim-results"),
@@ -3177,6 +3191,7 @@ function wire() {
   // Spawn Sim tab: any control change re-runs the simulation.
   if (els.simBiome) {
     [els.simBiome, els.simY, els.simHeight, els.simTime, els.simWeather, els.simBase,
+      els.simOpenSky, els.simWater,
       ...["sim-s0", "sim-s1", "sim-s2"].map((id) => document.getElementById(id))]
       .forEach((el) => el && el.addEventListener("change", renderSim));
     els.simY.addEventListener("input", renderSim);

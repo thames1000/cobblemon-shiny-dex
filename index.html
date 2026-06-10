@@ -334,6 +334,9 @@
           <label class="field" style="margin:0">Open height (blocks)
             <input type="number" id="sim-height" class="search" value="3" min="1" max="20" />
           </label>
+          <label class="field" style="margin:0">Light level (0–15)
+            <input type="number" id="sim-light" class="search" value="15" min="0" max="15" />
+          </label>
           <label class="field" style="margin:0">Time
             <select id="sim-time" class="select" style="width:100%">
               <option value="any">any</option><option value="day">day</option>
@@ -377,6 +380,22 @@
           <select id="sim-s2" class="select snack-slot"></select>
         </div>
       </div>
+
+      <details class="card">
+        <summary class="summary-h">🍪 Snacks / spawns to a shiny</summary>
+        <div class="seasoning-slots" style="margin-top:12px">
+          <label class="field" style="margin:0">Base shiny rate (1 / N)
+            <input type="number" id="sim-base-rate" class="search" min="1" />
+          </label>
+          <label class="field" style="margin:0">Target
+            <select id="sim-target" class="select" style="width:100%"></select>
+          </label>
+        </div>
+        <div id="sim-shiny-out" class="odds-readout"></div>
+        <p class="hint">Folds the chosen target's spawn share (above) into your shiny odds. A Poké Snack ≈ 9 spawns,
+          so "Snacks" = spawns ÷ 9 (only meaningful if you're snacking). Shiny boosters (Starf, Enchanted Golden
+          Apple…) cut the count.</p>
+      </details>
 
       <div id="sim-summary"></div>
       <h2 class="section-h">Can spawn here</h2>

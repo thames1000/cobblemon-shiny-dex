@@ -2669,6 +2669,8 @@ function applySnackPlan(biome, ids, dex) {
  * same bucket-odds × weight math the PokéSnack tab uses. */
 let SIM = { spawns: {}, items: [], baseBlocks: [], hitbox: {} };
 let SIM_LABEL = {};   // block key -> readable label (for condition annotations)
+let simRanked = [];   // last simulated ranking (cached so target/rate tweaks are cheap)
+let simTarget = "any";
 
 const SIM_WATER_POS = new Set(["submerged", "seafloor", "fishing"]); // need water/fishing
 const SIM_WATER_NEARBY = ["minecraft:water", "#minecraft:water", "minecraft:flowing_water"];
@@ -2692,7 +2694,7 @@ function computeSpawns(o) {
   const odds = bucketOdds(o.seasonings.reduce((a, s) => a + (s.rarityTier || 0), 0));
   const evReqs = evRequirements(o.seasonings);
   const buckets = { common: [], uncommon: [], rare: [], "ultra-rare": [] };
-  const excl = { tall: 0, near: 0, base: 0, y: 0, time: 0, weather: 0, sky: 0, water: 0 };
+  const excl = { tall: 0, near: 0, base: 0, y: 0, time: 0, weather: 0, sky: 0, water: 0, light: 0 };
   for (const dex in SIM.spawns) {
     const sp = DEX_BY_NUM[dex];
     const hb = SIM.hitbox[dex];
@@ -2702,6 +2704,7 @@ function computeSpawns(o) {
       if (!o.byWater && e.pos && SIM_WATER_POS.has(e.pos)) { excl.water++; continue; } // submerged/fishing need water
       if (o.openSky ? e.sky === false : e.sky === true) { excl.sky++; continue; }       // sky requirement vs the spot
       if (e.y && ((e.y[0] != null && o.y < e.y[0]) || (e.y[1] != null && o.y > e.y[1]))) { excl.y++; continue; }
+      if (o.light != null && ((e.lt && (o.light < e.lt[0] || o.light > e.lt[1])) || (e.ml != null && o.light > e.ml))) { excl.light++; continue; }
       if (!o.openSky && hb && Math.ceil(hb[1]) > o.height) { excl.tall++; continue; }    // open sky = unlimited headroom
       if (e.near && !e.near.some((k) => o.items.has(k))) { excl.near++; continue; }
       if (e.base && !(o.baseBlock && e.base.includes(o.baseBlock))) { excl.base++; continue; }
@@ -2748,6 +2751,49 @@ function simCondNote(e, hb) {
   return bits.join(" · ");
 }
 
+// Rebuild the shiny-target dropdown from the current ranking, keeping the pick.
+function populateSimTargets(ranked) {
+  if (!els.simTarget) return;
+  const prev = simTarget;
+  els.simTarget.innerHTML = `<option value="any">Any species (any shiny)</option>` +
+    ranked.slice(0, 40).map((r) => {
+      const sp = DEX_BY_NUM[r.dex];
+      return `<option value="${r.dex}">${sp ? sp.name.replace(/-/g, " ") : "#" + r.dex} — ${(r.p * 100).toFixed(1)}%</option>`;
+    }).join("");
+  if (prev !== "any" && ranked.some((r) => String(r.dex) === String(prev))) els.simTarget.value = prev;
+  else { simTarget = "any"; els.simTarget.value = "any"; }
+}
+
+// Snacks / spawns to a shiny, folding the target's spawn share into the odds.
+function renderSimShiny() {
+  if (!els.simShinyOut) return;
+  if (!els.simBaseRate.value) els.simBaseRate.value = state.config.baseShinyRate;
+  const baseRate = Number(els.simBaseRate.value) || state.config.baseShinyRate;
+  const shiny = snackTotals(simSeasonings()).shiny;   // additive booster multiplier
+  const effOdds = baseRate / shiny;                   // 1-in-N that any one spawn is shiny
+  if (!simRanked.length) { els.simShinyOut.innerHTML = `<span class="muted">No spawns match — adjust the spot above.</span>`; return; }
+  let p = 1, label = "Any shiny (whole spawn pool)";
+  if (simTarget !== "any") {
+    const r = simRanked.find((x) => String(x.dex) === String(simTarget));
+    if (r) { p = r.p; const sp = DEX_BY_NUM[r.dex]; label = `${sp ? sp.name.replace(/-/g, " ") : "#" + r.dex} · ${(p * 100).toFixed(1)}% of spawns`; }
+  }
+  const targetOdds = effOdds / p;
+  const snacks = (enc) => Math.max(1, Math.ceil(enc / SNACK_BITES));
+  const rows = [
+    ["Expected (avg)", Math.round(targetOdds)],
+    ["50% chance", encountersForProb(0.5, targetOdds)],
+    ["90% chance", encountersForProb(0.9, targetOdds)],
+    ["99% chance", encountersForProb(0.99, targetOdds)],
+  ];
+  const shinyNote = shiny > 1 ? ` (base 1/${baseRate} × ✨×${shiny})` : "";
+  els.simShinyOut.innerHTML =
+    `Effective shiny odds <b>1/${Math.round(effOdds).toLocaleString()}</b> per spawn${shinyNote}<br>` +
+    `<span class="muted">Target: ${label} → 1 shiny per <b>${Math.round(targetOdds).toLocaleString()}</b> spawns</span>` +
+    `<table class="farm-tbl" style="margin-top:10px"><tr><th></th><th>Spawns</th><th>Snacks</th></tr>` +
+    rows.map(([l, n]) => `<tr><td>${l}</td><td><b>${n.toLocaleString()}</b></td><td>${snacks(n).toLocaleString()}</td></tr>`).join("") +
+    `</table>`;
+}
+
 function renderSim() {
   if (!els.simBiome) return;
   const openSky = els.simOpenSky.checked;
@@ -2759,6 +2805,7 @@ function renderSim() {
     biome: els.simBiome.value,
     y: Number(els.simY.value),
     height: Number(els.simHeight.value) || 1,
+    light: els.simLight.value === "" ? null : Number(els.simLight.value),
     time: els.simTime.value,
     weather: els.simWeather.value,
     baseBlock: els.simBase.value,
@@ -2766,10 +2813,14 @@ function renderSim() {
     seasonings: simSeasonings(),
   };
   const { ranked, excl } = computeSpawns(o);
+  simRanked = ranked;
+  populateSimTargets(ranked);
+  renderSimShiny();
 
   const blocked = [];
   if (excl.water) blocked.push(`${excl.water} need water / fishing`);
   if (excl.sky) blocked.push(`${excl.sky} need ${openSky ? "cover (no sky)" : "open sky"}`);
+  if (excl.light) blocked.push(`${excl.light} wrong light level`);
   if (excl.tall) blocked.push(`${excl.tall} too tall for ${o.height} block${o.height > 1 ? "s" : ""}`);
   if (excl.near) blocked.push(`${excl.near} need a block you haven't placed`);
   if (excl.y) blocked.push(`${excl.y} out of Y range`);
@@ -2914,12 +2965,16 @@ function grabEls() {
     simBiome: document.getElementById("sim-biome"),
     simY: document.getElementById("sim-y"),
     simHeight: document.getElementById("sim-height"),
+    simLight: document.getElementById("sim-light"),
     simTime: document.getElementById("sim-time"),
     simWeather: document.getElementById("sim-weather"),
     simBase: document.getElementById("sim-base"),
     simOpenSky: document.getElementById("sim-open-sky"),
     simWater: document.getElementById("sim-water"),
     simItems: document.getElementById("sim-items"),
+    simBaseRate: document.getElementById("sim-base-rate"),
+    simTarget: document.getElementById("sim-target"),
+    simShinyOut: document.getElementById("sim-shiny-out"),
     simSummary: document.getElementById("sim-summary"),
     simResults: document.getElementById("sim-results"),
     farmTrees: document.getElementById("farm-trees"),
@@ -3190,13 +3245,17 @@ function wire() {
 
   // Spawn Sim tab: any control change re-runs the simulation.
   if (els.simBiome) {
-    [els.simBiome, els.simY, els.simHeight, els.simTime, els.simWeather, els.simBase,
+    [els.simBiome, els.simY, els.simHeight, els.simLight, els.simTime, els.simWeather, els.simBase,
       els.simOpenSky, els.simWater,
       ...["sim-s0", "sim-s1", "sim-s2"].map((id) => document.getElementById(id))]
       .forEach((el) => el && el.addEventListener("change", renderSim));
     els.simY.addEventListener("input", renderSim);
     els.simHeight.addEventListener("input", renderSim);
+    els.simLight.addEventListener("input", renderSim);
     els.simItems.addEventListener("change", renderSim);
+    // Target / base-rate only re-do the shiny estimate, not the whole simulation.
+    els.simTarget.addEventListener("change", () => { simTarget = els.simTarget.value; renderSimShiny(); });
+    els.simBaseRate.addEventListener("input", renderSimShiny);
     els.simResults.addEventListener("click", (e) => {
       const row = e.target.closest(".sim-row[data-dex]");
       if (!row) return;

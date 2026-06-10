@@ -2898,6 +2898,147 @@ function populateSimControls(biomeOpts, seasoningOpts) {
     `</div></div>`).join("");
 }
 
+/* ---------- spawn optimizer (pick the best spot + snack for a target) ---------- */
+let simBestPlan = null;
+
+// Candidate (entry, concrete-biome) pairs the target can spawn in — wildcards expand.
+function simEntriesFor(dex) {
+  const out = [];
+  for (const e of SIM.spawns[dex] || []) {
+    const bs = e.b || [];
+    let biomes;
+    if (bs.includes("any biome")) biomes = Object.keys(BIOME_INDEX);
+    else {
+      biomes = bs.filter((b) => BIOME_INDEX[b]);
+      if (bs.includes("any overworld")) biomes = biomes.concat(Object.keys(BIOME_INDEX).filter(isOverworldBiome));
+    }
+    [...new Set(biomes)].forEach((b) => out.push({ e, biome: b }));
+  }
+  return out;
+}
+
+// Concrete spot variants that satisfy an entry, trying the exclusionary edges of
+// its Y/light windows (a tight value dodges competitors that need other values).
+function buildSpots(e, biome, hb) {
+  const ys = e.y
+    ? [...new Set([e.y[0], e.y[1], Math.round(((e.y[0] != null ? e.y[0] : -64) + (e.y[1] != null ? e.y[1] : 320)) / 2)].filter((v) => v != null))]
+    : [63];
+  const lLo = e.lt ? e.lt[0] : 0;
+  const lHi = Math.min(e.lt ? e.lt[1] : 15, e.ml != null ? e.ml : 15);
+  const lights = [...new Set([lLo, lHi])];
+  const openSky = e.sky === false ? false : true;             // covered only if the mon needs no sky
+  const height = openSky ? 20 : Math.max(1, Math.ceil(hb ? hb[1] : 1)); // tight ceiling dodges taller mons
+  const byWater = !!(e.pos && SIM_WATER_POS.has(e.pos));
+  const place = e.near ? [e.near[0]] : [];
+  const baseBlock = e.base ? e.base[0] : "";
+  const time = e.t ? normTime(e.t) : "any";
+  const weather = e.wx ? e.wx[0] : "any";
+  const spots = [];
+  for (const y of ys) for (const light of lights) spots.push({ biome, y, light, height, openSky, byWater, place, baseBlock, time, weather });
+  return spots;
+}
+
+// Target's spawn share at a spot with the given seasonings.
+function simSpotP(dex, spot, seasonings) {
+  const items = new Set(spot.place);
+  if (spot.byWater) SIM_WATER_NEARBY.forEach((k) => items.add(k));
+  const o = { biome: spot.biome, y: spot.y, height: spot.height, light: spot.light, time: spot.time,
+    weather: spot.weather, baseBlock: spot.baseBlock, openSky: spot.openSky, byWater: spot.byWater, items, seasonings };
+  const r = computeSpawns(o).ranked.find((x) => x.dex === dex);
+  return r ? r.p : 0;
+}
+
+// Search spot conditions (phase 1) then seasonings on the best spots (phase 2) for
+// the lowest snacks-to-shiny = max spawn-share × shiny multiplier.
+function optimizeSpawn(dex) {
+  const sp = DEX_BY_NUM[dex];
+  if (!sp || !SIM.spawns[dex]) return null;
+  const hb = SIM.hitbox[dex];
+  let spots = [];
+  for (const { e, biome } of simEntriesFor(dex)) spots = spots.concat(buildSpots(e, biome, hb));
+  const seen = new Set();
+  spots = spots.filter((s) => { const k = JSON.stringify(s); if (seen.has(k)) return false; seen.add(k); return true; });
+  spots.forEach((s) => (s.p0 = simSpotP(dex, s, [])));
+  const top = spots.filter((s) => s.p0 > 0).sort((a, b) => b.p0 - a.p0).slice(0, 8);
+  if (!top.length) return null;
+  const combos = multisetCombos(relevantSeasonings(sp, true), 3);
+  let best = null;
+  for (const s of top) for (const combo of combos) {
+    const p = simSpotP(dex, s, combo);
+    if (!p) continue;
+    const shiny = snackTotals(combo).shiny;
+    const metric = 1 / (p * shiny);
+    if (!best || metric < best.metric) best = { spot: s, combo, p, shiny, metric };
+  }
+  return best;
+}
+
+function describeSimSpot(s) {
+  const bits = [
+    `<div class="plan-row"><span>Biome</span><b style="text-transform:capitalize">${s.biome}</b></div>`,
+    `<div class="plan-row"><span>Y level</span><b>${s.y}</b></div>`,
+    `<div class="plan-row"><span>Light level</span><b>${s.light}</b></div>`,
+    `<div class="plan-row"><span>Sky</span><b>${s.openSky ? "open sky" : `covered, ${s.height}-block ceiling`}</b></div>`,
+  ];
+  if (s.byWater) bits.push(`<div class="plan-row"><span>Water</span><b>by water / fishing</b></div>`);
+  if (s.place.length) bits.push(`<div class="plan-row"><span>Place nearby</span><b>${s.place.map(blockShort).join(", ")}</b></div>`);
+  if (s.baseBlock) bits.push(`<div class="plan-row"><span>Stand on</span><b>${blockShort(s.baseBlock)}</b></div>`);
+  if (s.time !== "any") bits.push(`<div class="plan-row"><span>Time</span><b>${s.time}</b></div>`);
+  if (s.weather !== "any") bits.push(`<div class="plan-row"><span>Weather</span><b>${s.weather}</b></div>`);
+  return bits.join("");
+}
+
+function renderSimBest(raw) {
+  const sp = findSpecies(raw);
+  if (!sp) { els.simBestOut.innerHTML = `<p class="hint">No species matching "${raw}".</p>`; return; }
+  const plan = optimizeSpawn(sp.dex);
+  if (!plan) {
+    els.simBestOut.innerHTML = `<p class="hint">${sp.name.replace(/-/g, " ")} has no simulatable wild spawn in the
+      Cobbleverse data (event / evolution / trade only), so there's no spot to optimize.</p>`;
+    return;
+  }
+  plan.targetDex = sp.dex;
+  simBestPlan = plan;
+  if (!els.simBaseRate.value) els.simBaseRate.value = state.config.baseShinyRate;
+  const baseRate = Number(els.simBaseRate.value) || state.config.baseShinyRate;
+  const eff = baseRate / plan.shiny;
+  const odds = eff / plan.p;
+  const snacks = Math.max(1, Math.ceil(odds / SNACK_BITES));
+  els.simBestOut.innerHTML =
+    `<div class="snack-plan">
+      <h3>Best spot · ${sp.name.replace(/-/g, " ")}</h3>
+      ${describeSimSpot(plan.spot)}
+      <div class="plan-row"><span>Snack</span><b>${fmtCombo(plan.combo)}</b></div>
+      <div class="plan-row"><span>Spawn share</span><b>${(plan.p * 100).toFixed(1)}%</b></div>
+      <div class="plan-row"><span>Shiny odds</span><b>1/${Math.round(eff).toLocaleString()}</b> (✨×${plan.shiny})</div>
+      <div class="plan-row"><span>Snacks to shiny</span><b>~${snacks.toLocaleString()}</b> <span class="muted">expected</span></div>
+      <button class="ctrl-btn good" id="sim-best-apply">Load into simulator below</button>
+    </div>
+    <p class="hint">Spawn share = this mon's cut of everything that can spawn at that spot, after conditions + snack.
+      Loading fills the controls so you can see the full visitor list.</p>`;
+}
+
+function applySimPlan(plan) {
+  const s = plan.spot;
+  els.simBiome.value = s.biome;
+  els.simY.value = s.y;
+  els.simLight.value = s.light;
+  els.simHeight.value = s.height;
+  els.simOpenSky.checked = s.openSky;
+  els.simWater.checked = s.byWater;
+  els.simBase.value = s.baseBlock;
+  els.simTime.value = s.time;
+  els.simWeather.value = s.weather;
+  // tick exactly the blocks the plan places (water is handled by the by-water box)
+  document.querySelectorAll("#sim-items input").forEach((c) => (c.checked = s.place.includes(c.value)));
+  const ids = plan.combo.map((b) => b.id);
+  ["sim-s0", "sim-s1", "sim-s2"].forEach((id, i) => { document.getElementById(id).value = ids[i] || ""; });
+  simTarget = String(plan.targetDex || "any");   // preserved by populateSimTargets if present
+  renderSim();
+  if (els.simTarget.querySelector(`option[value="${plan.targetDex}"]`)) { els.simTarget.value = String(plan.targetDex); renderSimShiny(); }
+  els.simBiome.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
 /* ---------- tabs ---------- */
 function showTab(name) {
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
@@ -3000,6 +3141,8 @@ function grabEls() {
     simBaseRate: document.getElementById("sim-base-rate"),
     simTarget: document.getElementById("sim-target"),
     simShinyOut: document.getElementById("sim-shiny-out"),
+    simBestInput: document.getElementById("sim-best-input"),
+    simBestOut: document.getElementById("sim-best-out"),
     simSummary: document.getElementById("sim-summary"),
     simResults: document.getElementById("sim-results"),
     farmTrees: document.getElementById("farm-trees"),
@@ -3281,6 +3424,10 @@ function wire() {
     // Target / base-rate only re-do the shiny estimate, not the whole simulation.
     els.simTarget.addEventListener("change", () => { simTarget = els.simTarget.value; renderSimShiny(); });
     els.simBaseRate.addEventListener("input", renderSimShiny);
+    // Optimizer: find best spot for a target, then load it into the controls.
+    document.getElementById("sim-best-go").addEventListener("click", () => renderSimBest(els.simBestInput.value));
+    els.simBestInput.addEventListener("keydown", (e) => { if (e.key === "Enter") renderSimBest(els.simBestInput.value); });
+    els.simBestOut.addEventListener("click", (e) => { if (e.target.id === "sim-best-apply" && simBestPlan) applySimPlan(simBestPlan); });
     els.simResults.addEventListener("click", (e) => {
       const row = e.target.closest(".sim-row[data-dex]");
       if (!row) return;

@@ -323,6 +323,15 @@
         odds. A mon only appears if every one of its conditions is met (its hitbox must fit the open height).</p>
 
       <div class="card">
+        <h2>🎯 Auto-optimize for a Pokémon</h2>
+        <p class="hint" style="margin-top:0">Pick a target — I'll search its spawn conditions and PokéSnack seasonings
+          for the spot that gives it the biggest spawn share (fewest snacks to a shiny), then you can load it below.</p>
+        <input list="species-list" id="sim-best-input" class="search" placeholder="Target Pokémon (name or #dex)…" style="width:100%" />
+        <div class="controls" style="margin-top:8px"><button id="sim-best-go" class="ctrl-btn good">Find best spot</button></div>
+        <div id="sim-best-out" style="margin-top:12px"></div>
+      </div>
+
+      <div class="card">
         <h2>📍 The spot</h2>
         <div class="sim-grid">
           <label class="field" style="margin:0">Biome

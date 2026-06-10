@@ -206,8 +206,21 @@ function whenLabel(when) {
   if (when.fishing) return "lure " + (when.fishing.minLureLevel != null ? when.fishing.minLureLevel : 0);
   return null;
 }
+// Sky / block light window as a force-spawn note. The default daylight window
+// (sky 8–15) is omitted to avoid tagging ~half of all entries; we only surface a
+// real constraint such as "light ≤7" (spawns in darkness, any time of day).
+function lightNote(sky) {
+  if (!sky) return null;
+  const lo = sky.minSkyLight, hi = sky.maxSkyLight, ml = sky.maxLight;
+  const out = [];
+  if (hi != null && hi < 15) out.push(lo != null && lo > 0 ? `light ${lo}-${hi}` : `light ≤${hi}`);
+  if (ml != null && ml < 15) out.push(`block light ≤${ml}`);
+  return out.length ? out.join(" ") : null;
+}
 function notesOf(r) {
   const bo = [];
+  const light = lightNote(r.sky);
+  if (light) bo.push(light);
   if (r.y) {
     if (r.y.min != null && r.y.max != null) bo.push("Y " + r.y.min + "–" + r.y.max);
     else if (r.y.max != null) bo.push("Y≤" + r.y.max);

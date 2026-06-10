@@ -2087,6 +2087,46 @@ function entryDetail(e) {
   return bits.join(" · ");
 }
 
+// Split one spawn entry's environmental requirements (things you must arrange to
+// force the spawn) from weight-multiplier boosts (×N notes that only re-weight,
+// not gate). Used by the best-place planner so you know how to set the scene.
+function entryConditions(e) {
+  const need = [], boost = [];
+  if (e.t) need.push(`🕘 ${e.t}`);
+  if (e.wx) need.push(`🌧 ${e.wx.join("/")}`);
+  if (e.sky === true) need.push("☀️ open sky");
+  if (e.sky === false) need.push("⛰️ no sky (underground)");
+  if (e.pos && e.pos !== "grounded") need.push(`📐 ${e.pos}`);
+  for (const n of e.bo || []) {
+    if (/^×/.test(n)) { boost.push(n); continue; }
+    if (/light [\d≤]|block light/.test(n)) need.push(`💡 ${n}`);
+    else if (/^near /.test(n)) need.push(`🧱 ${n}`);
+    else if (/^Y[ ≤≥]/.test(n)) need.push(`📏 ${n}`);
+    else if (/^moon /.test(n)) need.push(`🌙 ${n}`);
+    else need.push(n); // 🎣 fishing, slime chunk, …
+  }
+  return { need, boost };
+}
+
+// HTML block listing the conditions to force-spawn `dex` in `biome` (matches the
+// entries the planner actually counted — those explicitly listing the biome).
+function spawnConditionsHtml(dex, biome) {
+  const entries = (SPAWNS[dex] || []).filter((e) => (e.b || []).includes(biome));
+  if (!entries.length) return "";
+  const seen = new Set(), lines = [];
+  for (const e of entries) {
+    const { need, boost } = entryConditions(e);
+    const body = need.length ? need.join(" · ") : "no special conditions — any time / light";
+    const extra = boost.length ? ` <span class="muted">(boost: ${boost.join(", ")})</span>` : "";
+    const line = `<li><span class="muted">Lv ${e.lv || "?"}, ${e.r}:</span> ${body}${extra}</li>`;
+    if (seen.has(line)) continue;
+    seen.add(line);
+    lines.push(line);
+  }
+  return `<div class="plan-cond"><div class="plan-cond-h">To force this spawn here:</div>
+    <ul class="plan-cond-list">${lines.join("")}</ul></div>`;
+}
+
 function renderSpawnByMon(dex) {
   const sp = DEX_BY_NUM[dex];
   const rows = SPAWNS[dex];
@@ -2578,6 +2618,7 @@ function planCard(title, plan, sp, baseRate) {
     <div class="plan-row"><span>Spawn rate</span><b>${(plan.p * 100).toFixed(1)}%</b></div>
     <div class="plan-row"><span>Shiny odds</span><b>1/${Math.round(eff).toLocaleString()}</b> (✨×${plan.shiny})</div>
     <div class="plan-row"><span>Snacks to shiny</span><b>~${snacks.toLocaleString()}</b> <span class="muted">expected</span></div>
+    ${spawnConditionsHtml(sp.dex, plan.biome)}
     <button class="ctrl-btn plan-apply" data-biome="${plan.biome}" data-combo="${plan.combo.map((b) => b.id).join(",")}" data-dex="${sp.dex}">Load into builder</button>
   </div>`;
 }

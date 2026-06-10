@@ -374,6 +374,10 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .plan-row span { color: var(--muted); flex: 0 0 auto; }
 .plan-row b { text-align: right; }
 .plan-apply { width: 100%; margin-top: 10px; }
+.plan-cond { margin-top: 10px; }
+.plan-cond-h { font-size: .8rem; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+.plan-cond-list { margin: 0; padding-left: 16px; font-size: .8rem; line-height: 1.5; }
+.plan-cond-list li { margin: 2px 0; }
 
 /* Farm tab */
 .farm-tbl { width: 100%; border-collapse: collapse; font-size: .9rem; }

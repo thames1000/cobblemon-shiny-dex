@@ -2292,10 +2292,17 @@ let BERRIES = [];        // [{id,name,group,effect,type?,rarityTier?,shiny?,...}
 let BERRY_BY_ID = {};
 let BERRY_GUIDE = [];    // [{id,name,kind,biomes,mulch,source,effect,img}] — Berries tab
 
-// Cobblemon's actual rarity-bucket weights (BestSpawnerConfig). Natural world
-// spawns use worldBuckets; a placed Poké Snack uses pokeSnackBuckets.
-const WORLD_BUCKETS = { common: 94, uncommon: 5, rare: 0.5, "ultra-rare": 0.2 };
+// Rarity-bucket weights. World spawns use Cobbleverse's "Rarity Overhaul" global
+// rates (overrides base Cobblemon's 94/5/0.5/0.2 best-spawner-config). A placed
+// Poké Snack uses Cobblemon's pokeSnackBuckets (flatter, to lure rarer mons).
+const WORLD_BUCKETS = { common: 88.5, uncommon: 10, rare: 1.2, "ultra-rare": 0.3 };
 const SNACK_BUCKETS = { common: 83.25, uncommon: 11.25, rare: 4.125, "ultra-rare": 1.375 };
+
+// Cobbleverse server config (lumymon.json) blacklists these dex from Poké Snack
+// spawns — poke_snack_blacklist "custom" + "paradox" tags (legendaries, the
+// treasures of ruin, Type: Null, Zygarde, and all paradox mons). They still spawn
+// naturally; they just can't be lured by a snack, so we drop them from snack calcs.
+const SNACK_BLACKLIST = new Set([144, 145, 146, 150, 151, 243, 244, 245, 249, 250, 251, 377, 378, 379, 380, 381, 382, 383, 384, 385, 386, 480, 481, 482, 483, 484, 485, 486, 487, 488, 489, 490, 491, 492, 493, 718, 772, 890, 894, 895, 896, 897, 898, 984, 985, 986, 987, 988, 989, 990, 991, 992, 993, 994, 995, 1001, 1002, 1003, 1004, 1005, 1006, 1009, 1010, 1020, 1021, 1022, 1023]);
 const BUCKETS = ["common", "uncommon", "rare", "ultra-rare"];
 // Bucket probabilities matching Cobblemon's BucketNormalizingInfluence: at tier 0
 // the raw weights are used; each higher tier raises every weight to 1/(1.29 +
@@ -2433,6 +2440,7 @@ function computeAttraction(biome, seasonings, nearWater = true) {
   const buckets = { common: [], uncommon: [], rare: [], "ultra-rare": [] };
   for (const { dex, entry } of pool) {
     if (!buckets[entry.r]) continue;
+    if (SNACK_BLACKLIST.has(dex)) continue;             // lumymon: can't be lured by a snack
     if (!nearWater && needsWater(entry)) continue;      // dry land — aquatic spawns can't roll
     const sp = DEX_BY_NUM[dex];
     if (!passesEvGate(sp, evReqs)) continue;            // forced out — can't be lured
@@ -2750,7 +2758,9 @@ function computeSpawns(o) {
   const buckets = { common: [], uncommon: [], rare: [], "ultra-rare": [] };
   const excl = { tall: 0, near: 0, base: 0, y: 0, time: 0, weather: 0, sky: 0, water: 0, light: 0 };
   const ow = isOverworldBiome(o.biome); // "any overworld" spawns count here too
+  const snackCtx = o.seasonings.length > 0; // a snack is placed → lumymon blacklist applies
   for (const dex in SIM.spawns) {
+    if (snackCtx && SNACK_BLACKLIST.has(Number(dex))) continue; // can't be snack-lured
     const sp = DEX_BY_NUM[dex];
     const hb = SIM.hitbox[dex];
     for (const e of SIM.spawns[dex]) {
@@ -2998,14 +3008,15 @@ function optimizeSpawn(dex, egaCap) {
   for (const { e, biome } of simEntriesFor(dex)) spots = spots.concat(buildSpots(e, biome, hb));
   const seen = new Set();
   spots = spots.filter((s) => { const k = JSON.stringify(s); if (seen.has(k)) return false; seen.add(k); return true; });
-  // Rank spots WITH the target's pool-shaping seasonings (type/egg/EV gate) so a
-  // spot that's only good once competitors are gated out (e.g. an EV berry leaving
-  // just the target) isn't pruned before phase 2 picks the snack.
-  const gate = gateSeasonings(sp);
+  // Snack-blacklisted mons (lumymon) can't be lured, so optimise the natural spot
+  // with NO seasonings; otherwise rank spots WITH the pool-shaping gate so a spot
+  // that's only good once competitors are gated out isn't pruned before phase 2.
+  const blacklisted = SNACK_BLACKLIST.has(dex);
+  const gate = blacklisted ? [] : gateSeasonings(sp);
   spots.forEach((s) => (s.p0 = simSpotP(dex, s, gate)));
   const top = spots.filter((s) => s.p0 > 0).sort((a, b) => b.p0 - a.p0).slice(0, 12);
   if (!top.length) return null;
-  const combos = combosFor(sp, egaCap);
+  const combos = blacklisted ? [[]] : combosFor(sp, egaCap);
   let best = null;
   for (const s of top) for (const combo of combos) {
     const p = simSpotP(dex, s, combo);
@@ -3056,17 +3067,22 @@ function renderSimBest(raw) {
       Cobbleverse data (event / evolution / trade only), so there's no spot to optimize.</p>`;
     return;
   }
-  const { tiers, note } = egaTiers(b0, optimizeSpawn(sp.dex, 1), optimizeSpawn(sp.dex, 3));
+  const blacklisted = SNACK_BLACKLIST.has(sp.dex);
+  // Blacklisted mons can't be lured, so all EGA tiers are identical (no snack).
+  const { tiers, note } = blacklisted ? { tiers: [["Natural spot (no snack)", b0]], note: "" }
+    : egaTiers(b0, optimizeSpawn(sp.dex, 1), optimizeSpawn(sp.dex, 3));
   tiers.forEach(([, plan]) => { if (plan) plan.targetDex = sp.dex; });
   simBestPlans = tiers.map(([, plan]) => plan);
   if (!els.simBaseRate.value) els.simBaseRate.value = state.config.baseShinyRate;
   const baseRate = Number(els.simBaseRate.value) || state.config.baseShinyRate;
+  const blacklistNote = blacklisted
+    ? `<p class="hint">⛔ ${sp.name.replace(/-/g, " ")} is <b>blacklisted from Poké Snacks</b> (Cobbleverse lumymon config), so seasonings can't lure it — this is the best <em>natural</em> spot.</p>` : "";
   els.simBestOut.innerHTML =
     `<div class="find-row" style="border:0;padding:0 0 8px"><img src="${spriteUrl(sp.dex, true)}" alt=""/>
        <span class="find-name">Best spot · ${sp.name.replace(/-/g, " ")}</span></div>` +
     `<div class="snack-best-grid">` +
       tiers.map(([title, plan], i) => simPlanCard(title, plan, i, baseRate)).join("") +
-    `</div>${egaNoteText(note, sp.name.replace(/-/g, " "))}` +
+    `</div>${blacklistNote}${egaNoteText(note, sp.name.replace(/-/g, " "))}` +
     `<p class="hint">Spawn chance = this mon's per-roll chance at that spot (bucket odds × in-bucket weight), matching PokéNav.
       "Load into simulator" fills the controls so you can see the full visitor list.</p>`;
 }

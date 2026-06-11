@@ -200,6 +200,14 @@
         </div>
 
         <button id="hunt-inc" class="increment-btn">+1</button>
+        <label class="field hunt-origin-field">How you got it <span class="muted">— stamped on the find</span>
+          <select id="hunt-origin" class="select">
+            <option value="self">⚔ Caught (self)</option>
+            <option value="hatched">🥚 Hatched</option>
+            <option value="traded">🤝 Traded</option>
+            <option value="raid">🛡 Raid</option>
+          </select>
+        </label>
         <div class="controls">
           <button id="hunt-dec" class="ctrl-btn" title="Subtract one">−1</button>
           <button id="hunt-set" class="ctrl-btn">Set</button>
@@ -635,6 +643,31 @@
     <div class="modal-box hunt-start-box">
       <button class="modal-close" data-close title="Close">✕</button>
       <div id="hunt-start-body"></div>
+    </div>
+  </div>
+
+  <!-- Shiny showcase — a shareable card built from a logged find. Top-level so it
+       opens from find rows on any tab (Hunt / Home / Stats). -->
+  <div class="modal" id="showcase-modal" hidden>
+    <div class="modal-box showcase-box">
+      <button class="modal-close" data-close title="Close">✕</button>
+      <div class="showcase-canvas-wrap">
+        <canvas id="showcase-canvas" width="640" height="380"></canvas>
+      </div>
+      <label class="field" style="margin:12px 0 0">How you got it
+        <select id="showcase-origin" class="select">
+          <option value="self">⚔ Caught (self)</option>
+          <option value="hatched">🥚 Hatched</option>
+          <option value="traded">🤝 Traded</option>
+          <option value="raid">🛡 Raid</option>
+        </select>
+      </label>
+      <div class="controls" style="margin-top:10px">
+        <button id="showcase-download" class="ctrl-btn good">⬇ Download PNG</button>
+        <button id="showcase-share" class="ctrl-btn" hidden>📤 Share</button>
+        <button id="showcase-copy" class="ctrl-btn">📋 Copy text</button>
+      </div>
+      <p class="hint" style="margin:8px 0 0">Drop the PNG in your server chat or Discord to flex the catch. ✨</p>
     </div>
   </div>
 

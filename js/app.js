@@ -101,6 +101,14 @@ function normalize() {
   }
   state.hunt.sessions = cleanSessions;
   if (!Array.isArray(state.hunt.finds)) state.hunt.finds = [];
+  // Backfill fields added after a find was first logged, so old saves/imports show
+  // up cleanly in the showcase: a stable id and an obtainment origin.
+  state.hunt.finds.forEach((f, i) => {
+    if (f && typeof f === "object") {
+      if (!f.id) f.id = "f" + (f.foundAt || 0).toString(36) + i.toString(36);
+      if (!f.origin) f.origin = f.mode === "breeding" ? "hatched" : "self";
+    }
+  });
   if (state.hunt.activeDex != null && !Number.isFinite(Number(state.hunt.activeDex))) state.hunt.activeDex = null;
 }
 function normalizeParty() {
@@ -1572,6 +1580,11 @@ function renderHunt() {
     b.classList.toggle("active", b.dataset.mode === h.mode));
   els.huntModeDesc.textContent = MODE_DESC[h.mode];
   els.huntCountLabel.textContent = COUNT_LABEL[h.mode];
+  // Default the origin to match the mode (breeding → hatched), but only when the
+  // user hasn't deliberately picked something else for this mode session.
+  if (els.huntOrigin && !els.huntOrigin.dataset.touched) {
+    els.huntOrigin.value = h.mode === "breeding" ? "hatched" : "self";
+  }
 
   const s = activeSession();
   if (!s || h.activeDex == null) {
@@ -1641,7 +1654,11 @@ function renderFinds() {
   wrap.innerHTML = finds.slice().reverse().map(findRowHtml).join("");
 }
 
-function setMode(mode) { state.hunt.mode = mode; save(); renderHunt(); }
+function setMode(mode) {
+  state.hunt.mode = mode;
+  if (els.huntOrigin) delete els.huntOrigin.dataset.touched; // let origin re-default per mode
+  save(); renderHunt();
+}
 function bumpCount(delta) {
   const h = state.hunt;
   if (h.activeDex == null) return;
@@ -1702,11 +1719,18 @@ function foundShiny(boxed) {
   // Stamp the luck (vs the odds in effect right now) so it stays accurate even
   // if the pack's odds settings change later.
   const luck = computeLuck(h.mode, s.count).p;
-  state.hunt.finds.push({ dex: h.activeDex, name: sp ? sp.name : String(h.activeDex), mode: h.mode, count: s.count, foundAt: Date.now(), luck });
+  const now = Date.now();
+  const origin = (els.huntOrigin && els.huntOrigin.value) || (h.mode === "breeding" ? "hatched" : "self");
+  state.hunt.finds.push({
+    id: "f" + now.toString(36) + Math.floor(Math.random() * 1e4).toString(36),
+    dex: h.activeDex, name: sp ? sp.name : String(h.activeDex), mode: h.mode, count: s.count,
+    startedAt: s.startedAt || now, foundAt: now, luck, origin,
+  });
   if (boxed) state.dex[String(h.activeDex)] = "boxed";
   else if (dexState(h.activeDex) !== "boxed") state.dex[String(h.activeDex)] = "shiny";
-  // Reset this session's count for a fresh hunt.
+  // Reset this session's count AND clock for a fresh hunt.
   s.count = 0;
+  s.startedAt = now;
   save(); renderHunt(); renderDex(); renderBoxes(); refreshDashboard(); refreshStats();
 }
 
@@ -1770,17 +1794,172 @@ function luckBadge(p) {
   if (p >= 0.05) return { cls: "luck-rough", txt: "Rough" };
   return { cls: "luck-brutal", txt: "💀 Brutal" };
 }
-// Shared "recent finds" row (Home + Hunt + Stats), now with a luck chip.
+// Obtainment origin (#3) — how a shiny was acquired.
+const ORIGINS = {
+  self: { icon: "⚔", label: "Caught" },
+  hatched: { icon: "🥚", label: "Hatched" },
+  traded: { icon: "🤝", label: "Traded" },
+  raid: { icon: "🛡", label: "Raid" },
+};
+function findOrigin(f) { return ORIGINS[f.origin] ? f.origin : (f.mode === "breeding" ? "hatched" : "self"); }
+function fmtDate(ms) {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+// Human "2h 14m" / "45m" / "30s" from a duration in ms (null if unknown/zero).
+// (Distinct from the Farm tab's fmtDuration(hours) — keep the names separate.)
+function fmtElapsed(ms) {
+  if (!ms || ms < 1000) return null;
+  const s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  if (h) return `${h}h ${m}m`;
+  if (m) return `${m}m`;
+  return `${s}s`;
+}
+// Effective "1 in N" odds and cumulative % at the moment this find was logged.
+function findOdds(f) {
+  const count = Number(f.count) || 0;
+  if (f.mode === "chain") return { oneIn: Math.round(chainTier(count).odds), pct: cumulativeChain(count) * 100 };
+  const odds = f.mode === "breeding" ? state.config.baseShinyRate / state.config.masudaMultiplier : state.config.baseShinyRate;
+  return { oneIn: Math.round(odds), pct: cumulativeFlat(count, odds) * 100 };
+}
+const COUNT_UNIT = { breeding: "eggs", chain: "KOs", encounter: "enc." };
+// Shared "recent finds" row (Home + Hunt + Stats) — luck + origin chips, tap to showcase.
 function findRowHtml(f) {
-  const d = new Date(f.foundAt);
-  const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const date = fmtDate(f.foundAt);
   const unit = f.mode === "breeding" ? " eggs" : f.mode === "chain" ? " KOs" : "";
   const p = findLuckP(f);
   const b = luckBadge(p);
-  return `<div class="find-row"><img src="${spriteUrl(f.dex, true)}" alt="" />` +
+  const o = ORIGINS[findOrigin(f)];
+  return `<div class="find-row find-show" data-find="${f.id}" role="button" tabindex="0" title="Open shareable showcase card">` +
+    `<img src="${spriteUrl(f.dex, true)}" alt="" />` +
     `<span class="find-name">${(f.name || "").replace(/-/g, " ")}</span>` +
+    `<span class="origin-chip" title="How you got it">${o.icon} ${o.label}</span>` +
     `<span class="luck-chip ${b.cls}" title="Luckier than ${Math.round(p * 100)}% of equivalent hunts">${b.txt}</span>` +
     `<span class="muted">${f.mode} · ${f.count}${unit} · ${date}</span></div>`;
+}
+
+/* ---------- shiny showcase card (#3/#4) ---------- */
+let showcaseFind = null;
+function titleName(n) { return String(n || "").replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()); }
+function luckColor(cls) {
+  if (cls === "luck-amazing" || cls === "luck-great") return "#f6c544";
+  if (cls === "luck-good") return "#4fd1c5";
+  if (cls === "luck-avg") return "#93a4b8";
+  return "#ef4444";
+}
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function showcaseText(f) {
+  const od = findOdds(f);
+  const dur = fmtElapsed((f.foundAt || 0) - (f.startedAt || 0));
+  const o = ORIGINS[findOrigin(f)];
+  return [
+    `✨ Shiny ${titleName(f.name)} ✨  #${String(f.dex).padStart(4, "0")}`,
+    `${MODE_NAME[f.mode] || f.mode} · ${f.count} ${COUNT_UNIT[f.mode] || ""}`.trim(),
+    `Odds 1/${od.oneIn} · ${od.pct.toFixed(1)}% by then · ${luckBadge(findLuckP(f)).txt}`,
+    `${o.icon} ${o.label}${dur ? ` · ${dur}` : ""} · ${fmtDate(f.foundAt)}`,
+    `— tracked in ShinyDex HQ`,
+  ].join("\n");
+}
+// Draw the showcase card. `img` is the (optionally loaded) shiny sprite.
+function paintShowcase(f, img) {
+  const cv = els.showcaseCanvas, ctx = cv.getContext("2d");
+  const W = cv.width, H = cv.height;
+  const bg = ctx.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, "#1b2c40"); bg.addColorStop(1, "#0b1322");
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = "#f6c544"; ctx.lineWidth = 4; ctx.strokeRect(7, 7, W - 14, H - 14);
+
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillStyle = "#f6c544"; ctx.font = "bold 32px system-ui, -apple-system, sans-serif";
+  ctx.fillText(`✨ ${titleName(f.name)} ✨`, W / 2, 50);
+  ctx.fillStyle = "#93a4b8"; ctx.font = "16px system-ui, sans-serif";
+  ctx.fillText(`#${String(f.dex).padStart(4, "0")}`, W / 2, 80);
+
+  const sx = 56, sy = 104, ss = 184;
+  if (img) { ctx.imageSmoothingEnabled = false; ctx.drawImage(img, sx, sy, ss, ss); }
+
+  // Luck pill centred under the sprite.
+  const lb = luckBadge(findLuckP(f));
+  ctx.font = "bold 16px system-ui, sans-serif";
+  const pw = ctx.measureText(lb.txt).width + 28, ph = 30, px = sx + ss / 2 - pw / 2, py = sy + ss + 4;
+  roundRect(ctx, px, py, pw, ph, 15); ctx.fillStyle = luckColor(lb.cls); ctx.fill();
+  ctx.fillStyle = "#0b1322"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText(lb.txt, sx + ss / 2, py + ph / 2 + 1);
+
+  // Info column.
+  const od = findOdds(f), o = ORIGINS[findOrigin(f)], dur = fmtElapsed((f.foundAt || 0) - (f.startedAt || 0));
+  const rows = [
+    ["Method", MODE_NAME[f.mode] || f.mode],
+    ["Count", `${f.count} ${COUNT_UNIT[f.mode] || ""}`.trim()],
+    ["Odds at find", `1 / ${od.oneIn}  ·  ${od.pct.toFixed(1)}%`],
+    ["Obtained", `${o.icon} ${o.label}`],
+  ];
+  if (dur) rows.push(["Hunt time", dur]);
+  rows.push(["Date", fmtDate(f.foundAt)]);
+  ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+  const ix = 280, iy = 126, lh = 40;
+  rows.forEach((r, i) => {
+    const y = iy + i * lh;
+    ctx.fillStyle = "#93a4b8"; ctx.font = "14px system-ui, sans-serif";
+    ctx.fillText(r[0].toUpperCase(), ix, y);
+    ctx.fillStyle = "#e7eef7"; ctx.font = "bold 20px system-ui, sans-serif";
+    ctx.fillText(r[1], ix, y + 23);
+  });
+
+  ctx.fillStyle = "#4fd1c5"; ctx.textAlign = "right"; ctx.font = "15px system-ui, sans-serif";
+  ctx.fillText("ShinyDex HQ · Cobbleverse", W - 22, H - 22);
+}
+function renderShowcase() {
+  const f = showcaseFind; if (!f) return;
+  paintShowcase(f, null); // immediate paint; sprite drops in on load
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.onload = () => { if (showcaseFind === f) paintShowcase(f, img); };
+  img.src = spriteUrl(f.dex, true);
+}
+function openShowcase(id) {
+  const f = state.hunt.finds.find((x) => x.id === id);
+  if (!f) return;
+  showcaseFind = f;
+  els.showcaseOrigin.value = findOrigin(f);
+  els.showcaseShare.hidden = !(navigator.canShare && navigator.share);
+  els.showcaseModal.hidden = false;
+  renderShowcase();
+}
+function showcaseFilename(f) { return `shiny-${titleName(f.name).replace(/\s+/g, "-").toLowerCase()}.png`; }
+function showcaseBlob() { return new Promise((res) => els.showcaseCanvas.toBlob(res, "image/png")); }
+async function showcaseDownload() {
+  try {
+    const blob = await showcaseBlob();
+    if (!blob) throw new Error("no blob");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = showcaseFilename(showcaseFind); a.click();
+    URL.revokeObjectURL(a.href);
+  } catch (e) { alert("Couldn't export the image (the sprite host may block canvas export). Use Copy text instead."); }
+}
+async function showcaseShare() {
+  try {
+    const blob = await showcaseBlob();
+    const file = blob && new File([blob], showcaseFilename(showcaseFind), { type: "image/png" });
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], text: showcaseText(showcaseFind) });
+    } else {
+      await navigator.share({ text: showcaseText(showcaseFind) });
+    }
+  } catch (e) { /* user cancelled or share unavailable */ }
+}
+function showcaseCopy() {
+  const txt = showcaseText(showcaseFind);
+  const done = () => { const o = els.showcaseCopy.textContent; els.showcaseCopy.textContent = "✓ Copied"; setTimeout(() => (els.showcaseCopy.textContent = o), 1000); };
+  if (navigator.clipboard) navigator.clipboard.writeText(txt).then(done, done); else done();
 }
 
 /* ---------- wishlist (#8) ---------- */
@@ -3297,7 +3476,14 @@ function grabEls() {
     huntCountLabel: document.getElementById("hunt-count-label"),
     huntOdds: document.getElementById("hunt-odds"),
     huntInput: document.getElementById("hunt-input"),
+    huntOrigin: document.getElementById("hunt-origin"),
     huntRandomScope: document.getElementById("hunt-random-scope"),
+    showcaseModal: document.getElementById("showcase-modal"),
+    showcaseCanvas: document.getElementById("showcase-canvas"),
+    showcaseOrigin: document.getElementById("showcase-origin"),
+    showcaseDownload: document.getElementById("showcase-download"),
+    showcaseShare: document.getElementById("showcase-share"),
+    showcaseCopy: document.getElementById("showcase-copy"),
     speciesList: document.getElementById("species-list"),
     huntFinds: document.getElementById("hunt-finds"),
     huntActiveCard: document.getElementById("hunt-active-card"),
@@ -3524,6 +3710,7 @@ function wire() {
     if (berryModal && !berryModal.hidden) berryModal.hidden = true;
     const hsm = document.getElementById("hunt-start-modal");
     if (hsm && !hsm.hidden) closeHuntStart();
+    if (els.showcaseModal && !els.showcaseModal.hidden) els.showcaseModal.hidden = true;
   });
 
   els.dexSearch.addEventListener("input", renderDex);
@@ -3537,6 +3724,31 @@ function wire() {
     const mb = e.target.closest("[data-hsmode]");
     if (mb) startHuntFromDex(mb.dataset.hsmode);
   });
+
+  // Origin select: remember the user's deliberate choice for this mode session.
+  if (els.huntOrigin) els.huntOrigin.addEventListener("change", () => { els.huntOrigin.dataset.touched = "1"; });
+
+  // Tapping any logged find (Hunt / Home / Stats) opens its shareable showcase card.
+  document.addEventListener("click", (e) => {
+    const row = e.target.closest(".find-show[data-find]");
+    if (row) openShowcase(row.dataset.find);
+  });
+  // Showcase modal: close, edit origin, export.
+  if (els.showcaseModal) {
+    els.showcaseModal.addEventListener("click", (e) => {
+      if (e.target === els.showcaseModal || e.target.closest("[data-close]")) els.showcaseModal.hidden = true;
+    });
+    els.showcaseOrigin.addEventListener("change", () => {
+      if (!showcaseFind) return;
+      showcaseFind.origin = els.showcaseOrigin.value;
+      save();
+      renderShowcase();
+      renderFinds(); refreshDashboard(); refreshStats();
+    });
+    els.showcaseDownload.addEventListener("click", showcaseDownload);
+    els.showcaseShare.addEventListener("click", showcaseShare);
+    els.showcaseCopy.addEventListener("click", showcaseCopy);
+  }
 
   // Boxes tab
   document.getElementById("box-prev").addEventListener("click", () => gotoBox(curBox - 1));

@@ -637,3 +637,13 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .leg-structs { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .leg-locate { text-transform: none; cursor: pointer; font-family: ui-monospace, monospace; user-select: all; }
 .leg-locate:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ---------- obtainment origin + shiny showcase (#3/#4) ---------- */
+.origin-chip { font-size: .68rem; font-weight: 700; padding: 1px 7px; border-radius: 999px;
+  white-space: nowrap; background: var(--panel-2); border: 1px solid var(--line); color: var(--muted); }
+.find-show { cursor: pointer; }
+.find-show:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.hunt-origin-field { margin: 12px 0 4px; }
+.showcase-box { max-width: 700px; text-align: center; }
+.showcase-canvas-wrap { background: var(--bg); border-radius: 12px; overflow: hidden; }
+#showcase-canvas { display: block; width: 100%; height: auto; image-rendering: auto; }

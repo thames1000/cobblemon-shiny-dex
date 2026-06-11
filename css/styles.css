@@ -647,3 +647,20 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .showcase-box { max-width: 700px; text-align: center; }
 .showcase-canvas-wrap { background: var(--bg); border-radius: 12px; overflow: hidden; }
 #showcase-canvas { display: block; width: 100%; height: auto; image-rendering: auto; }
+
+/* ---------- "what to hunt next" recommender (#12) ---------- */
+.next-list { display: flex; flex-direction: column; }
+.next-row { gap: 10px; }
+.next-main { flex: 1; min-width: 0; }
+.next-name { font-weight: 600; text-transform: capitalize; }
+.next-name .muted { font-weight: 400; }
+.next-reasons { margin-top: 3px; line-height: 1.7; }
+.next-row .ctrl-btn { margin-left: auto; flex: none; }
+.next-reason { display: inline-block; font-size: .66rem; font-weight: 700; padding: 1px 7px; border-radius: 999px;
+  background: var(--panel-2); border: 1px solid var(--line); color: var(--muted); margin: 0 4px 0 0; white-space: nowrap; }
+.next-reason.r-wl { color: var(--gold); border-color: color-mix(in srgb, var(--gold) 45%, var(--line)); }
+.next-reason.r-gap { color: var(--boxed); border-color: color-mix(in srgb, var(--boxed) 45%, var(--line)); }
+.next-reason.r-biome { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+.next-reason.r-leg { color: #c084fc; border-color: #7c3aed; }
+.next-reason.r-hard, .next-reason.r-rare { color: #f6a544; border-color: color-mix(in srgb, #f6a544 40%, var(--line)); }
+.next-reason.r-fv { color: #8ab4ff; border-color: color-mix(in srgb, #8ab4ff 40%, var(--line)); }

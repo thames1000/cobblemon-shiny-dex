@@ -1982,6 +1982,7 @@ function refreshDashboard() {
 function renderDashboard() {
   renderDashHunt();
   renderDashProgress();
+  renderDashNext();
   renderDashWishlist();
   renderDashGaps();
   renderDashFinds();
@@ -2104,6 +2105,127 @@ function renderDashGaps() {
         `<span class="dash-gap-nm">${nm}</span>` +
       `</div>`;
     }).join("") + `</div>`;
+}
+
+/* ---------- "What should I hunt next?" recommender (#12) ---------- */
+// Static id maps (forms/variants by base dex) — built once; membership in
+// state.forms / state.variants is read live so "still needed" stays current.
+let FV_BY_DEX = null;
+function fvIndex() {
+  if (FV_BY_DEX) return FV_BY_DEX;
+  const m = {};
+  const add = (dex, key, id) => { (m[dex] = m[dex] || { formIds: [], variantIds: [] })[key].push(id); };
+  if (FORMS) for (const k of ["mega", "primal", "gmax"]) for (const f of FORMS[k] || []) add(f.dex, "formIds", f.id);
+  for (const v of allVariants()) if (v && v.dex) add(v.dex, "variantIds", v.id);
+  FV_BY_DEX = m;
+  return m;
+}
+// How many of a species' Mega/GMax forms + regional/cosmetic variants you still
+// need (forms: not unlocked; variants: not yet shiny). null if none apply.
+function fvNeed(dex) {
+  const e = fvIndex()[dex];
+  if (!e) return null;
+  const formsNeed = e.formIds.filter((id) => !state.forms[id]).length;
+  const varNeed = e.variantIds.filter((id) => state.variants[id] !== "shiny").length;
+  const count = formsNeed + varNeed;
+  return count ? count : null;
+}
+// Best (most common) wild rarity a species reaches, across all its spawn entries.
+// null = no natural wild spawn at all. Cached — spawn data is static.
+let BEST_RARITY = null;
+function bestRarityByDex() {
+  if (BEST_RARITY) return BEST_RARITY;
+  const m = {};
+  for (const dex in SPAWNS) {
+    let best = null;
+    for (const e of SPAWNS[dex]) {
+      const r = RARITY_ORDER[e.r];
+      if (r == null) continue;
+      if (best == null || r < best) best = r;
+    }
+    if (best != null) m[Number(dex)] = best;
+  }
+  BEST_RARITY = m;
+  return m;
+}
+const RARITY_NAME = ["common", "uncommon", "rare", "ultra-rare"];
+// Rank not-yet-shiny species by a blend of the signals the user cares about.
+// Each matched signal adds score AND a reason chip, so the ranking is transparent.
+function huntSuggestions(biome, limit = 8) {
+  const hasShiny = (st) => st === "shiny" || st === "boxed";
+  const attr = {};          // dex -> per-roll spawn/lure odds in this biome
+  const inBiome = {};       // dex -> best rarity order in this biome
+  if (biome && BIOME_INDEX[biome]) {
+    for (const a of computeAttraction(biome, [], true)) attr[a.dex] = a.p;
+    for (const { dex, entry } of biomePool(biome)) {
+      const r = RARITY_ORDER[entry.r];
+      if (r == null) continue;
+      if (inBiome[dex] == null || r < inBiome[dex]) inBiome[dex] = r;
+    }
+  }
+  const bestR = bestRarityByDex();
+  const firstGap = SPECIES.find((sp) => !hasShiny(dexState(sp.dex)));
+  const firstGapDex = firstGap ? firstGap.dex : null;
+
+  const out = [];
+  for (const sp of SPECIES) {
+    const dex = sp.dex;
+    if (hasShiny(dexState(dex))) continue; // only suggest shinies you still need
+    let score = 0;
+    const reasons = [];
+    if (state.wishlist.includes(dex)) { score += 60; reasons.push({ i: "★", t: "Wishlist", c: "r-wl" }); }
+    if (dex === firstGapDex) { score += 35; reasons.push({ i: "📦", t: "Next box gap", c: "r-gap" }); }
+    if (inBiome[dex] != null) {
+      score += 22;
+      const p = attr[dex] || 0;
+      score += Math.min(20, p * 200);
+      const pct = p > 0 ? (p * 100).toFixed(p * 100 < 1 ? 2 : 1) + "%" : null;
+      reasons.push({ i: "📍", t: `Spawns here · ${RARITY_NAME[inBiome[dex]]}${pct ? ` · 🍪 ${pct}` : ""}`, c: "r-biome" });
+    }
+    const fv = fvNeed(dex);
+    if (fv) { score += 18; reasons.push({ i: "✦", t: `${fv} form/variant${fv > 1 ? "s" : ""} to get`, c: "r-fv" }); }
+    if (isLegendary(dex)) { score += 30; reasons.push({ i: "👑", t: "Legendary", c: "r-leg" }); }
+    const br = bestR[dex];
+    if (br >= 3) { score += 18; reasons.push({ i: "💎", t: "Ultra-rare", c: "r-hard" }); }
+    else if (br === 2) { score += 10; reasons.push({ i: "💎", t: "Rare", c: "r-rare" }); }
+    const bst = COACH[dex] && COACH[dex].bst;
+    if (bst >= 600 && !isLegendary(dex)) { score += 12; reasons.push({ i: "🌟", t: "High value", c: "r-bst" }); }
+
+    if (score > 0) out.push({ dex, sp, score, reasons });
+  }
+  out.sort((a, b) => b.score - a.score || a.dex - b.dex);
+  return out.slice(0, limit);
+}
+function defaultHuntBiome() {
+  const biomes = Object.keys(BIOME_INDEX).sort();
+  if (state.config.huntBiome && BIOME_INDEX[state.config.huntBiome]) return state.config.huntBiome;
+  return biomes.includes("forest") ? "forest" : biomes[0];
+}
+function renderDashNext() {
+  const el = document.getElementById("dash-next");
+  if (!el) return;
+  const biomes = Object.keys(BIOME_INDEX).sort();
+  if (!biomes.length) { el.innerHTML = `<h2>🎯 What should I hunt next?</h2><p class="hint">Spawn data unavailable.</p>`; return; }
+  const biome = defaultHuntBiome();
+  const opts = biomes.map((b) => `<option value="${b}"${b === biome ? " selected" : ""}>${b} (${BIOME_INDEX[b].length})</option>`).join("");
+  const head = `<h2>🎯 What should I hunt next? <span class="muted">— ranked for you</span></h2>
+    <label class="field" style="margin:4px 0 10px">Your current biome
+      <select id="dash-next-biome" class="select" style="width:100%">${opts}</select></label>`;
+  const sugg = huntSuggestions(biome, 8);
+  if (!sugg.length) {
+    el.innerHTML = head + `<p class="hint">No standout targets here — you've shiny'd everything that scores in this biome. Try another biome, check your ★ wishlist, or 🎲 Surprise me.</p>`;
+    return;
+  }
+  el.innerHTML = head + `<div class="next-list">` + sugg.map((s) => {
+    const nm = s.sp.name.replace(/-/g, " ");
+    const chips = s.reasons.map((r) => `<span class="next-reason ${r.c}">${r.i} ${r.t}</span>`).join("");
+    return `<div class="find-row next-row" data-dex="${s.dex}">` +
+      `<img loading="lazy" src="${spriteUrl(s.dex, true)}" alt="${s.sp.name}" />` +
+      `<div class="next-main"><div class="next-name">${nm} <span class="muted">#${String(s.dex).padStart(4, "0")}</span></div>` +
+      `<div class="next-reasons">${chips}</div></div>` +
+      `<button class="ctrl-btn dash-gap-hunt" data-dex="${s.dex}" title="Start a hunt for ${nm}">🎯</button>` +
+    `</div>`;
+  }).join("") + `</div>`;
 }
 
 function renderDashFinds() {
@@ -3590,6 +3712,11 @@ function wire() {
       if (e.key !== "Enter" && e.key !== " ") return;
       const gap = e.target.closest(".dash-gap[data-dex]");
       if (gap) { e.preventDefault(); showTab("boxes"); jumpToSpecies(DEX_BY_NUM[Number(gap.dataset.dex)]); }
+    });
+    // "What to hunt next" biome picker.
+    homePanel.addEventListener("change", (e) => {
+      const sel = e.target.closest("#dash-next-biome");
+      if (sel) { state.config.huntBiome = sel.value; save(); renderDashNext(); }
     });
   }
 

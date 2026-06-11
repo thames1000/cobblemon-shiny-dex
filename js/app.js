@@ -29,6 +29,8 @@ let MOVE_BY_NAME = {}; // name -> move meta
 let COACH = {};     // dex -> {base,bst,abilities,moves[]}
 let FORMS = null;   // {mega:[],primal:[],gmax:[]}
 let VARIANTS = null; // {regional:{alolan,galarian,hisuian,paldean}, cosmetic:[]}
+let LEGENDS = null;  // {tiers:[], list:[{dex,tier,shiny,sys,struct,note}]}
+let LEGEND_BY_DEX = {}; // dex -> legendary entry
 let DEX_BY_NUM = {}; // dex -> species
 
 // Pack defaults (Cobblemon + Unchained + Cobbreeding). All editable in-app.
@@ -59,7 +61,7 @@ function newParty(name) {
 }
 function defaultParty() { const p = newParty("Party 1"); return { active: p.id, list: [p] }; }
 function freshState() {
-  return { dex: {}, forms: {}, variants: {}, berries: {}, wishlist: [], party: defaultParty(), config: defaultConfig(), hunt: defaultHunt() };
+  return { dex: {}, forms: {}, variants: {}, legendaries: {}, berries: {}, wishlist: [], party: defaultParty(), config: defaultConfig(), hunt: defaultHunt() };
 }
 let state = freshState();
 
@@ -68,6 +70,7 @@ function normalize() {
   if (!state.dex) state.dex = {};
   if (!state.forms) state.forms = {};
   if (!state.variants) state.variants = {};
+  if (!state.legendaries) state.legendaries = {};
   if (!state.berries) state.berries = {};
   // Wishlist: unique, finite dex numbers, in add order.
   const rawWish = Array.isArray(state.wishlist) ? state.wishlist : [];
@@ -202,7 +205,7 @@ function applyRemoteState(json) {
   applyingRemote = false;
 }
 function renderAll() {
-  renderDex(); renderForms(); renderVariants(); renderBerries(); renderParty();
+  renderDex(); renderForms(); renderVariants(); renderLegendary(); renderBerries(); renderParty();
   fillConfigInputs(); renderHunt(); renderBoxes(); renderSnack();
   renderDashboard(); renderStats();
 }
@@ -314,6 +317,7 @@ function mergeRemote(remoteJson) {
   merged.dex = mergeMap(state.dex, r.dex);
   merged.forms = mergeMap(state.forms, r.forms);
   merged.variants = mergeMap(state.variants, r.variants);
+  merged.legendaries = mergeMap(state.legendaries, r.legendaries);
   merged.berries = mergeMap(state.berries, r.berries);
   // Hunt sessions: keep the higher encounter count per hunt.
   const ls = (state.hunt && state.hunt.sessions) || {};
@@ -653,6 +657,119 @@ function renderVariantsStats() {
     `<span class="stat">Cosmetic ${VARIANTS.cosmetic.filter((v) => state.variants[v.id]).length}/${VARIANTS.cosmetic.length}</span>` +
     `<span class="stat">Unown ${unown.filter((v) => state.variants[v.id]).length}/${unown.length}</span>` +
     `<span class="stat">Cobblemon ${cob.filter((v) => state.variants[v.id]).length}/${cob.length}</span>`;
+}
+
+/* ---------- legendary tab (shiny tracker + summon/reset calculator) ---------- */
+function legName(dex) {
+  const sp = DEX_BY_NUM[dex];
+  return sp ? sp.name.replace(/-/g, " ") : "#" + dex;
+}
+// State per legendary: absent = none, true = caught, "shiny" = caught shiny.
+function legendCard(e) {
+  const st = state.legendaries[e.dex];
+  const shiny = st === "shiny";
+  const have = !!st;
+  const el = document.createElement("div");
+  el.className = `mon ${have ? "f-unlocked" : "f-locked"}${shiny ? " f-shiny" : ""}`;
+  el.dataset.legDex = e.dex;
+  const struct = (e.struct || []).join(", ");
+  el.title = `${legName(e.dex)} — ${e.sys}${struct ? `\n🏛 ${struct}` : ""}${e.note ? `\n${e.note}` : ""}`;
+  el.innerHTML =
+    `${have ? `<span class="badge">${shiny ? "✨" : "✓"}</span>` : ""}` +
+    `<img loading="lazy" src="${spriteUrl(e.dex, shiny)}" alt="${legName(e.dex)}" />` +
+    `<div class="dexno">#${String(e.dex).padStart(4, "0")}</div>` +
+    `<div class="nm">${legName(e.dex)}</div>`;
+  return el;
+}
+function renderLegendary() {
+  if (!LEGENDS) return;
+  const wrap = document.getElementById("legendary-groups");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+  for (const t of LEGENDS.tiers) {
+    const entries = LEGENDS.list.filter((e) => e.tier === t.key);
+    if (!entries.length) continue;
+    const have = entries.filter((e) => state.legendaries[e.dex]).length;
+    const shinyN = entries.filter((e) => state.legendaries[e.dex] === "shiny").length;
+    const sec = document.createElement("div");
+    sec.className = "leg-tier";
+    const head = document.createElement("div");
+    head.className = "leg-tier-head";
+    head.innerHTML = `<h2 class="section-h">${t.icon} ${t.label}
+        <span class="muted" style="font-weight:400">· ✨ ${shinyN} / ${entries.length} shiny · ${have} caught</span></h2>
+      <p class="hint" style="margin:-4px 0 8px">${t.desc}</p>`;
+    sec.appendChild(head);
+    const grid = document.createElement("div");
+    grid.className = "grid";
+    const frag = document.createDocumentFragment();
+    entries.forEach((e) => frag.appendChild(legendCard(e)));
+    grid.appendChild(frag);
+    sec.appendChild(grid);
+    wrap.appendChild(sec);
+  }
+  renderLegendaryStats();
+}
+function renderLegendaryStats() {
+  if (!LEGENDS) return;
+  const all = LEGENDS.list;
+  const have = all.filter((e) => state.legendaries[e.dex]).length;
+  const shinyN = all.filter((e) => state.legendaries[e.dex] === "shiny").length;
+  const pct = all.length ? ((shinyN / all.length) * 100).toFixed(0) : 0;
+  els.legendaryStats.innerHTML =
+    `<span class="stat">✨ <b>${shinyN}</b>/${all.length} shiny (${pct}%)</span>` +
+    `<div class="bar"><i style="width:${pct}%"></i></div>` +
+    `<span class="stat"><b>${have}</b> caught</span>` +
+    LEGENDS.tiers.map((t) => {
+      const es = all.filter((e) => e.tier === t.key);
+      const s = es.filter((e) => state.legendaries[e.dex] === "shiny").length;
+      return es.length ? `<span class="stat">${t.icon} ${s}/${es.length}</span>` : "";
+    }).join("");
+}
+// Geometric distribution: independent rolls at p = 1/denom. Returns the summon
+// count by which you have a 50/90/99% chance of at least one shiny, plus the mean.
+function legShinyMath(denom) {
+  const p = 1 / denom;
+  const q = 1 - p;
+  const at = (chance) => Math.ceil(Math.log(1 - chance) / Math.log(q));
+  return { p, mean: denom, p50: at(0.5), p90: at(0.9), p99: at(0.99) };
+}
+function legLocateChip(id) {
+  return `<span class="struct-chip leg-locate" data-locate="${id}" title="Copy /locate command">🏛 ${id}</span>`;
+}
+function renderLegCalc() {
+  const denom = Math.max(1, Math.floor(Number(els.legCalcRate.value) || 50));
+  const dex = els.legCalcTarget.value ? Number(els.legCalcTarget.value) : null;
+  const e = dex ? LEGEND_BY_DEX[dex] : null;
+  const m = legShinyMath(denom);
+  const pctStr = (m.p * 100).toFixed(m.p * 100 < 1 ? 2 : 1) + "%";
+  const tier = e ? LEGENDS.tiers.find((t) => t.key === e.tier) : null;
+  // The "attempt" unit depends on how you re-roll: a fresh structure for one-time
+  // loot, otherwise just another summon.
+  const unit = tier && tier.farm === "reset" ? "fresh structures" : "summons";
+  let head = `<div><b>${pctStr}</b> shiny per summon (1 / ${denom}) — independent rolls, no pity.</div>`;
+  let farmLine = "";
+  if (e) {
+    head = `<div class="leg-calc-target"><img src="${spriteUrl(dex, true)}" alt=""/>
+      <span><b>${legName(dex)}</b> — ${e.sys}<br><span class="muted">${tier ? tier.icon + " " + tier.label : ""}</span></span></div>` + head;
+    if (tier && tier.farm === "reset")
+      farmLine = `<p class="hint">🗝️ One-time loot — each shiny attempt needs a <b>newly generated structure</b>. This is a resource-world reset target: regenerate, re-summon, repeat.</p>`;
+    else if (tier && tier.farm === "none")
+      farmLine = `<p class="hint">🧩 Quest-gated — typically <b>one summon per playthrough</b>, so the 2% is effectively one-and-done; a reset won't re-arm it. (Verify whether the spawner re-triggers on your server.)</p>`;
+    else if (tier && tier.farm === "infinite")
+      farmLine = `<p class="hint">♻️ Free re-summon — just re-trigger the spawner until shiny. The counts below are how many tries that takes.</p>`;
+    else if (tier && tier.farm === "mine")
+      farmLine = `<p class="hint">⛏️ Renewable — each attempt costs one mineable gating item, so "summons" below = items to farm.</p>`;
+    if (e.struct && e.struct.length)
+      farmLine += `<div class="leg-structs">Find it: ${e.struct.map(legLocateChip).join(" ")}</div>`;
+    if (e.note) farmLine += `<p class="hint" style="margin:6px 0 0">${e.note}</p>`;
+  }
+  els.legCalcOut.innerHTML = head +
+    `<table class="odds-table"><tbody>
+      <tr><td>Expected (average)</td><td><b>${m.mean.toLocaleString()}</b> ${unit}</td></tr>
+      <tr><td>50% chance by</td><td><b>${m.p50.toLocaleString()}</b> ${unit}</td></tr>
+      <tr><td>90% chance by</td><td><b>${m.p90.toLocaleString()}</b> ${unit}</td></tr>
+      <tr><td>99% chance by</td><td><b>${m.p99.toLocaleString()}</b> ${unit}</td></tr>
+    </tbody></table>` + farmLine;
 }
 
 /* ---------- berries tab (reference + collection tracking + mutation trees) ---------- */
@@ -3113,6 +3230,7 @@ function showTab(name) {
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
   document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("active", p.id === `panel-${name}`));
   if (name === "boxes") renderBoxes(); // refresh in case dex changed on another tab
+  if (name === "legendary") renderLegendary();
   if (name === "home") renderDashboard();
   if (name === "stats") renderStats();
   if (name === "sim") renderSim();
@@ -3137,7 +3255,7 @@ function importData(file) {
       state = Object.assign(freshState(), d);
       normalize();
       save();
-      renderDex(); renderForms(); renderVariants(); renderBerries(); renderParty();
+      renderDex(); renderForms(); renderVariants(); renderLegendary(); renderBerries(); renderParty();
       fillConfigInputs(); renderHunt(); renderBoxes(); renderSnack();
       renderDashboard(); renderStats();
       const dexN = Object.keys(state.dex).length;
@@ -3162,6 +3280,10 @@ function grabEls() {
     formsStats: document.getElementById("forms-stats"),
     variantsStats: document.getElementById("variants-stats"),
     variantSearch: document.getElementById("variant-search"),
+    legendaryStats: document.getElementById("legendary-stats"),
+    legCalcRate: document.getElementById("leg-calc-rate"),
+    legCalcTarget: document.getElementById("leg-calc-target"),
+    legCalcOut: document.getElementById("leg-calc-out"),
     berriesStats: document.getElementById("berries-stats"),
     berrySearch: document.getElementById("berry-search"),
     boxesStats: document.getElementById("boxes-stats"),
@@ -3336,6 +3458,42 @@ function wire() {
     renderVariantsStats();
   });
   els.variantSearch.addEventListener("input", renderVariants);
+
+  // Legendary tab: cycle a card's state, or copy a structure's /locate command.
+  document.getElementById("panel-legendary").addEventListener("click", (e) => {
+    const chip = e.target.closest(".leg-locate");
+    if (chip) {
+      const cmd = `/locate structure ${chip.dataset.locate}`;
+      const flash = () => { const o = chip.textContent; chip.textContent = "✓ copied"; setTimeout(() => (chip.textContent = o), 1000); };
+      if (navigator.clipboard) navigator.clipboard.writeText(cmd).then(flash, flash); else flash();
+      return;
+    }
+    const card = e.target.closest(".mon");
+    if (!card || !card.dataset.legDex) return;
+    const dex = Number(card.dataset.legDex);
+    const cur = state.legendaries[dex];
+    if (!cur) state.legendaries[dex] = true;
+    else if (cur === true) state.legendaries[dex] = "shiny";
+    else delete state.legendaries[dex];
+    save();
+    const entry = LEGEND_BY_DEX[dex];
+    if (entry) card.replaceWith(legendCard(entry));
+    renderLegendaryStats();
+  });
+  // Legendary shiny calculator: rate input, quick-rate presets, target select.
+  if (els.legCalcRate) {
+    els.legCalcRate.addEventListener("input", renderLegCalc);
+    els.legCalcTarget.addEventListener("change", () => {
+      const dex = els.legCalcTarget.value ? Number(els.legCalcTarget.value) : null;
+      const e = dex ? LEGEND_BY_DEX[dex] : null;
+      if (e) els.legCalcRate.value = e.shiny; // sync rate to the picked legendary
+      renderLegCalc();
+    });
+    document.querySelectorAll(".quick-rate").forEach((b) => b.addEventListener("click", () => {
+      els.legCalcRate.value = b.dataset.rate;
+      renderLegCalc();
+    }));
+  }
 
   // Berries tab: search + kind filter chips.
   if (els.berrySearch) els.berrySearch.addEventListener("input", renderBerries);
@@ -3608,7 +3766,7 @@ function wire() {
   els.resetAll.addEventListener("click", () => {
     if (confirm("Erase ALL progress? Export first if unsure.")) {
       state = freshState();
-      save(); renderDex(); renderForms(); renderVariants(); renderBerries(); renderParty();
+      save(); renderDex(); renderForms(); renderVariants(); renderLegendary(); renderBerries(); renderParty();
       fillConfigInputs(); renderHunt(); renderBoxes(); renderSnack(); renderDashboard(); renderStats();
     }
   });
@@ -3679,7 +3837,7 @@ async function boot() {
     showAccountView();
   });
   showAccountView();
-  const [sp, fm, spawns, berries, variants, berryGuide, moves, coach] = await Promise.all([
+  const [sp, fm, spawns, berries, variants, berryGuide, moves, coach, legends] = await Promise.all([
     fetch("js/data/species.json").then((r) => r.json()),
     fetch("js/data/forms.json").then((r) => r.json()),
     fetch("js/data/spawns.json").then((r) => r.json()).catch(() => ({})),
@@ -3688,6 +3846,7 @@ async function boot() {
     fetch("js/data/berry-guide.json").then((r) => r.json()).catch(() => []),
     fetch("js/data/moves.json").then((r) => r.json()).catch(() => []),
     fetch("js/data/coach.json").then((r) => r.json()).catch(() => ({})),
+    fetch("js/data/legendaries.json").then((r) => r.json()).catch(() => ({ tiers: [], list: [] })),
   ]);
   SPECIES = sp;
   MOVES = moves;
@@ -3696,6 +3855,9 @@ async function boot() {
   COACH = coach;
   FORMS = { mega: fm.mega, primal: fm.primal, gmax: fm.gmax };
   VARIANTS = variants;
+  LEGENDS = legends;
+  LEGEND_BY_DEX = {};
+  (LEGENDS.list || []).forEach((e) => (LEGEND_BY_DEX[e.dex] = e));
   SPAWNS = spawns;
   BERRIES = berries;
   BERRY_GUIDE = berryGuide;
@@ -3743,11 +3905,23 @@ async function boot() {
   ["snack-s0", "snack-s1", "snack-s2"].forEach((id) => { document.getElementById(id).innerHTML = seasoningOpts; });
   populateSimControls(biomeOpts, seasoningOpts);
 
+  // Legendary calculator target dropdown — grouped by re-spawn tier.
+  if (els.legCalcTarget && LEGENDS) {
+    els.legCalcTarget.innerHTML = `<option value="">— any legendary (generic 2%) —</option>` +
+      LEGENDS.tiers.map((t) => {
+        const es = LEGENDS.list.filter((e) => e.tier === t.key);
+        return es.length ? `<optgroup label="${t.icon} ${t.label}">` +
+          es.map((e) => `<option value="${e.dex}">${legName(e.dex)}</option>`).join("") + `</optgroup>` : "";
+      }).join("");
+  }
+
   wire();
   fillConfigInputs();
   renderDex();
   renderForms();
   renderVariants();
+  renderLegendary();
+  renderLegCalc();
   renderHunt();
   renderFarm();
   renderBoxes();

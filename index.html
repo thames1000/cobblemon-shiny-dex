@@ -26,6 +26,7 @@
     <button class="tab" data-tab="party">Party</button>
     <button class="tab" data-tab="forms">Mega/GMax</button>
     <button class="tab" data-tab="variants">Variants</button>
+    <button class="tab" data-tab="legendary">Legendary</button>
     <button class="tab" data-tab="hunt">Hunt</button>
     <button class="tab" data-tab="stats">Stats</button>
     <button class="tab" data-tab="spawns">Spawns</button>
@@ -144,6 +145,38 @@
         Arbok skin patterns, Torterra-line tree types, Gholdengo netherite, Valencia &amp; more. Artwork (normal and
         shiny) is pulled from the <a href="https://wiki.cobblemon.com/index.php/Pok%C3%A9mon/Unique_Forms" target="_blank" rel="noopener">Cobblemon Wiki</a>.</p>
       <div class="grid" id="variants-grid-cobblemon"></div>
+    </section>
+
+    <!-- ============ LEGENDARY TAB ============ -->
+    <section class="panel" id="panel-legendary">
+      <div class="stats-bar" id="legendary-stats"></div>
+      <p class="hint">Legendary &amp; Mythical shiny tracker for Cobbleverse. Tracked separately from the main dex.
+        Every Legendary Monuments summon has a flat <strong>2% (1/50)</strong> shiny chance. Cards are grouped by
+        <strong>how you re-roll that 2%</strong> — the axis that decides how farmable a shiny is. Tap a card to cycle
+        <em>none → caught → ✨ shiny → none</em>; tap a <span class="struct-chip">🏛 structure</span> chip to copy its
+        <code>/locate</code> command.</p>
+
+      <div class="card" id="legendary-calc">
+        <h2>🎲 Shiny summon calculator</h2>
+        <p class="hint" style="margin-top:0">How many summons (= fresh structures, for one-time loot) to expect a shiny.
+          Each summon is an independent roll, so there's no pity — these are odds, not guarantees.</p>
+        <div class="sim-grid">
+          <label class="field" style="margin:0">Shiny rate (1 / N)
+            <input type="number" id="leg-calc-rate" class="search" min="1" value="50" />
+          </label>
+          <label class="field" style="margin:0">Target <span class="muted">(optional — sets the rate &amp; context)</span>
+            <select id="leg-calc-target" class="select" style="width:100%"></select>
+          </label>
+        </div>
+        <div class="controls" style="margin:-2px 0 4px">
+          <button class="ctrl-btn quick-rate" data-rate="50">2% (Monuments)</button>
+          <button class="ctrl-btn quick-rate" data-rate="4096">1/4096 (charm)</button>
+          <button class="ctrl-btn quick-rate" data-rate="8192">1/8192 (base)</button>
+        </div>
+        <div id="leg-calc-out" class="odds-readout"></div>
+      </div>
+
+      <div id="legendary-groups"></div>
     </section>
 
     <!-- ============ HUNT TAB ============ -->
@@ -576,7 +609,7 @@
         <h2>Backup &amp; restore</h2>
         <p class="hint">Your progress lives only in this browser. Export regularly — it's your only backup.
           The JSON includes <strong>everything</strong>: Dex &amp; Boxes, Mega/GMax, <strong>Variants</strong>
-          (incl. shinies), your <strong>Berry collection</strong>, Hunt sessions and settings.</p>
+          and <strong>Legendaries</strong> (incl. shinies), your <strong>Berry collection</strong>, Hunt sessions and settings.</p>
         <div class="controls">
           <button id="export-btn" class="ctrl-btn good">⬇ Export JSON</button>
           <button id="import-btn" class="ctrl-btn">⬆ Import JSON</button>

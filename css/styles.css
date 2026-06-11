@@ -622,3 +622,18 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
   0% { box-shadow: 0 0 0 2px var(--accent), 0 0 16px var(--accent); }
   100% { box-shadow: none; }
 }
+
+/* ---------- legendary tab ---------- */
+.leg-tier { margin-bottom: 6px; }
+.leg-tier-head .section-h { margin-bottom: 2px; }
+.odds-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+.odds-table td { padding: 5px 8px; border-top: 1px solid var(--line); font-size: .9rem; }
+.odds-table td:first-child { color: var(--muted); }
+.odds-table td:last-child { text-align: right; }
+.odds-table b { color: var(--gold); }
+.quick-rate { padding: 5px 10px; font-size: .8rem; }
+.leg-calc-target { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.leg-calc-target img { width: 48px; height: 48px; image-rendering: pixelated; }
+.leg-structs { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.leg-locate { text-transform: none; cursor: pointer; font-family: ui-monospace, monospace; user-select: all; }
+.leg-locate:hover { border-color: var(--accent); color: var(--accent); }

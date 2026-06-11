@@ -215,7 +215,7 @@ function applyRemoteState(json) {
 function renderAll() {
   renderDex(); renderForms(); renderVariants(); renderLegendary(); renderBerries(); renderParty();
   fillConfigInputs(); renderHunt(); renderBoxes(); renderSnack();
-  renderDashboard(); renderStats();
+  renderDashboard(); renderStats(); renderLog();
 }
 
 /* ----- account UI ----- */
@@ -1654,6 +1654,40 @@ function renderFinds() {
   wrap.innerHTML = finds.slice().reverse().map(findRowHtml).join("");
 }
 
+/* ---------- log tab: full hunt history + on-demand showcase (#8) ---------- */
+function renderLog() {
+  const el = document.getElementById("log-list");
+  if (!el) return;
+  const finds = state.hunt.finds || [];
+  const stat = document.getElementById("log-stats");
+  if (stat) {
+    stat.innerHTML = `<span class="stat">✨ <b>${finds.length}</b> shiny logged</span>` +
+      `<span class="stat">${[...new Set(finds.map((f) => f.dex))].length} distinct species</span>`;
+  }
+  if (!finds.length) {
+    el.innerHTML = `<p class="hint">No shinies logged yet. Log a find with ✨ Found! / 📦 Boxed! and it lands here —
+      then tap it to regenerate its showcase card whenever you like.</p>`;
+    return;
+  }
+  const q = ((els.logSearch && els.logSearch.value) || "").trim().toLowerCase().replace(/^#/, "");
+  let rows = finds;
+  if (q) rows = rows.filter((f) => {
+    const name = (f.name || "").toLowerCase();
+    const origin = ((ORIGINS[findOrigin(f)] || {}).label || "").toLowerCase();
+    return name.includes(q) || (f.mode || "").toLowerCase().includes(q) || origin.includes(q) || String(f.dex) === q;
+  });
+  const dur = (f) => (f.foundAt || 0) - (f.startedAt || 0);
+  const cmp = {
+    newest: (a, b) => (b.foundAt || 0) - (a.foundAt || 0),
+    oldest: (a, b) => (a.foundAt || 0) - (b.foundAt || 0),
+    luckiest: (a, b) => (findLuckP(b) == null ? -1 : findLuckP(b)) - (findLuckP(a) == null ? -1 : findLuckP(a)),
+    encounters: (a, b) => (b.count || 0) - (a.count || 0),
+    longest: (a, b) => dur(b) - dur(a),
+  }[(els.logSort && els.logSort.value) || "newest"] || ((a, b) => (b.foundAt || 0) - (a.foundAt || 0));
+  rows = rows.slice().sort(cmp);
+  el.innerHTML = rows.length ? rows.map(findRowHtml).join("") : `<p class="hint">No finds match that search.</p>`;
+}
+
 function setMode(mode) {
   state.hunt.mode = mode;
   if (els.huntOrigin) delete els.huntOrigin.dataset.touched; // let origin re-default per mode
@@ -1721,17 +1755,43 @@ function foundShiny(boxed) {
   const luck = computeLuck(h.mode, s.count).p;
   const now = Date.now();
   const origin = (els.huntOrigin && els.huntOrigin.value) || (h.mode === "breeding" ? "hatched" : "self");
-  state.hunt.finds.push({
+  const find = {
     id: "f" + now.toString(36) + Math.floor(Math.random() * 1e4).toString(36),
     dex: h.activeDex, name: sp ? sp.name : String(h.activeDex), mode: h.mode, count: s.count,
     startedAt: s.startedAt || now, foundAt: now, luck, origin,
-  });
+  };
+  state.hunt.finds.push(find);
   if (boxed) state.dex[String(h.activeDex)] = "boxed";
   else if (dexState(h.activeDex) !== "boxed") state.dex[String(h.activeDex)] = "shiny";
   // Reset this session's count AND clock for a fresh hunt.
   s.count = 0;
   s.startedAt = now;
-  save(); renderHunt(); renderDex(); renderBoxes(); refreshDashboard(); refreshStats();
+  save(); renderHunt(); renderDex(); renderBoxes(); refreshDashboard(); refreshStats(); renderLog();
+  // Celebrate immediately: pop the shareable showcase for the catch you just logged,
+  // so you never have to dig through Recent finds to generate it.
+  openShowcase(find.id);
+}
+// Log an off-hunt / "random encounter" shiny — one you bumped into while NOT
+// hunting it. Uses the species typed in the target box, doesn't touch any active
+// hunt, and is flagged `random` so it stays out of the encounter & luck averages.
+function logRandomCatch(boxed) {
+  const raw = (els.huntInput && els.huntInput.value) || "";
+  const q = String(raw).trim().toLowerCase().replace(/^#/, "");
+  if (!q) { alert("Type which Pokémon you caught in the Target box, then log it."); return; }
+  const sp = SPECIES.find((s) => s.name === q) || (/^\d+$/.test(q) ? DEX_BY_NUM[Number(q)] : null) || SPECIES.find((s) => s.name.startsWith(q));
+  if (!sp) { alert(`No species matching "${raw}".`); return; }
+  const now = Date.now();
+  const origin = (els.huntOrigin && els.huntOrigin.value) || "self";
+  const find = {
+    id: "f" + now.toString(36) + Math.floor(Math.random() * 1e4).toString(36),
+    dex: sp.dex, name: sp.name, mode: "random", count: 0, random: true,
+    startedAt: null, foundAt: now, luck: null, origin,
+  };
+  state.hunt.finds.push(find);
+  if (boxed) state.dex[String(sp.dex)] = "boxed";
+  else if (dexState(sp.dex) !== "boxed") state.dex[String(sp.dex)] = "shiny";
+  save(); renderHunt(); renderDex(); renderBoxes(); refreshDashboard(); refreshStats(); renderLog();
+  openShowcase(find.id);
 }
 
 /* ---------- start a hunt from a Dex card ---------- */
@@ -1782,7 +1842,12 @@ function computeLuck(mode, count) {
   const odds = effectiveFlatOdds(mode);
   return { p: Math.pow(1 - 1 / odds, count), expected: Math.round(odds) };
 }
+// An off-hunt / "random encounter" find: caught while not hunting it, so it has
+// no meaningful encounter count or luck and is excluded from the averages.
+function isRandomFind(f) { return !!(f && f.random); }
+function trackedFinds() { return (state.hunt.finds || []).filter((f) => !isRandomFind(f)); }
 function findLuckP(f) {
+  if (isRandomFind(f)) return null; // untracked — no luck to compute
   return (typeof f.luck === "number") ? f.luck : computeLuck(f.mode, f.count).p;
 }
 function luckBadge(p) {
@@ -1826,14 +1891,20 @@ const COUNT_UNIT = { breeding: "eggs", chain: "KOs", encounter: "enc." };
 // Shared "recent finds" row (Home + Hunt + Stats) — luck + origin chips, tap to showcase.
 function findRowHtml(f) {
   const date = fmtDate(f.foundAt);
+  const o = ORIGINS[findOrigin(f)];
+  const head = `<div class="find-row find-show" data-find="${f.id}" role="button" tabindex="0" title="Open shareable showcase card">` +
+    `<img src="${spriteUrl(f.dex, true)}" alt="" />` +
+    `<span class="find-name">${(f.name || "").replace(/-/g, " ")}</span>` +
+    `<span class="origin-chip" title="How you got it">${o.icon} ${o.label}</span>`;
+  if (isRandomFind(f)) {
+    return head +
+      `<span class="luck-chip luck-random" title="Off-hunt catch — kept out of the encounter &amp; luck averages">🎲 Random</span>` +
+      `<span class="muted">off-hunt · ${date}</span></div>`;
+  }
   const unit = f.mode === "breeding" ? " eggs" : f.mode === "chain" ? " KOs" : "";
   const p = findLuckP(f);
   const b = luckBadge(p);
-  const o = ORIGINS[findOrigin(f)];
-  return `<div class="find-row find-show" data-find="${f.id}" role="button" tabindex="0" title="Open shareable showcase card">` +
-    `<img src="${spriteUrl(f.dex, true)}" alt="" />` +
-    `<span class="find-name">${(f.name || "").replace(/-/g, " ")}</span>` +
-    `<span class="origin-chip" title="How you got it">${o.icon} ${o.label}</span>` +
+  return head +
     `<span class="luck-chip ${b.cls}" title="Luckier than ${Math.round(p * 100)}% of equivalent hunts">${b.txt}</span>` +
     `<span class="muted">${f.mode} · ${f.count}${unit} · ${date}</span></div>`;
 }
@@ -1857,11 +1928,15 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 function showcaseText(f) {
+  const o = ORIGINS[findOrigin(f)];
+  const head = `✨ Shiny ${titleName(f.name)} ✨  #${String(f.dex).padStart(4, "0")}`;
+  if (isRandomFind(f)) {
+    return [head, `🎲 Random encounter (off-hunt)`, `${o.icon} ${o.label} · ${fmtDate(f.foundAt)}`, `— tracked in ShinyDex HQ`].join("\n");
+  }
   const od = findOdds(f);
   const dur = fmtElapsed((f.foundAt || 0) - (f.startedAt || 0));
-  const o = ORIGINS[findOrigin(f)];
   return [
-    `✨ Shiny ${titleName(f.name)} ✨  #${String(f.dex).padStart(4, "0")}`,
+    head,
     `${MODE_NAME[f.mode] || f.mode} · ${f.count} ${COUNT_UNIT[f.mode] || ""}`.trim(),
     `Odds 1/${od.oneIn} · ${od.pct.toFixed(1)}% by then · ${luckBadge(findLuckP(f)).txt}`,
     `${o.icon} ${o.label}${dur ? ` · ${dur}` : ""} · ${fmtDate(f.foundAt)}`,
@@ -1886,24 +1961,31 @@ function paintShowcase(f, img) {
   const sx = 56, sy = 104, ss = 184;
   if (img) { ctx.imageSmoothingEnabled = false; ctx.drawImage(img, sx, sy, ss, ss); }
 
-  // Luck pill centred under the sprite.
-  const lb = luckBadge(findLuckP(f));
+  const o = ORIGINS[findOrigin(f)];
+  const random = isRandomFind(f);
+  // Pill centred under the sprite: luck for a hunt, a neutral "Random" for off-hunt.
+  const lb = random ? { cls: "luck-random", txt: "🎲 Random encounter" } : luckBadge(findLuckP(f));
   ctx.font = "bold 16px system-ui, sans-serif";
   const pw = ctx.measureText(lb.txt).width + 28, ph = 30, px = sx + ss / 2 - pw / 2, py = sy + ss + 4;
-  roundRect(ctx, px, py, pw, ph, 15); ctx.fillStyle = luckColor(lb.cls); ctx.fill();
+  roundRect(ctx, px, py, pw, ph, 15); ctx.fillStyle = random ? "#93a4b8" : luckColor(lb.cls); ctx.fill();
   ctx.fillStyle = "#0b1322"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
   ctx.fillText(lb.txt, sx + ss / 2, py + ph / 2 + 1);
 
-  // Info column.
-  const od = findOdds(f), o = ORIGINS[findOrigin(f)], dur = fmtElapsed((f.foundAt || 0) - (f.startedAt || 0));
-  const rows = [
-    ["Method", MODE_NAME[f.mode] || f.mode],
-    ["Count", `${f.count} ${COUNT_UNIT[f.mode] || ""}`.trim()],
-    ["Odds at find", `1 / ${od.oneIn}  ·  ${od.pct.toFixed(1)}%`],
-    ["Obtained", `${o.icon} ${o.label}`],
-  ];
-  if (dur) rows.push(["Hunt time", dur]);
-  rows.push(["Date", fmtDate(f.foundAt)]);
+  // Info column — an off-hunt catch carries no count/odds/time, just how & when.
+  const rows = random
+    ? [["Method", "🎲 Random encounter"], ["Obtained", `${o.icon} ${o.label}`], ["Date", fmtDate(f.foundAt)]]
+    : (() => {
+      const od = findOdds(f), dur = fmtElapsed((f.foundAt || 0) - (f.startedAt || 0));
+      const r = [
+        ["Method", MODE_NAME[f.mode] || f.mode],
+        ["Count", `${f.count} ${COUNT_UNIT[f.mode] || ""}`.trim()],
+        ["Odds at find", `1 / ${od.oneIn}  ·  ${od.pct.toFixed(1)}%`],
+        ["Obtained", `${o.icon} ${o.label}`],
+      ];
+      if (dur) r.push(["Hunt time", dur]);
+      r.push(["Date", fmtDate(f.foundAt)]);
+      return r;
+    })();
   ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
   const ix = 280, iy = 126, lh = 40;
   rows.forEach((r, i) => {
@@ -2171,9 +2253,13 @@ function huntSuggestions(biome, limit = 8) {
   for (const sp of SPECIES) {
     const dex = sp.dex;
     if (hasShiny(dexState(dex))) continue; // only suggest shinies you still need
+    const wished = state.wishlist.includes(dex);
+    // Only weight things you can actually hunt here — unless you've wishlisted it,
+    // which always keeps it in the running regardless of the current biome.
+    if (inBiome[dex] == null && !wished) continue;
     let score = 0;
     const reasons = [];
-    if (state.wishlist.includes(dex)) { score += 60; reasons.push({ i: "★", t: "Wishlist", c: "r-wl" }); }
+    if (wished) { score += 60; reasons.push({ i: "★", t: "Wishlist", c: "r-wl" }); }
     if (dex === firstGapDex) { score += 35; reasons.push({ i: "📦", t: "Next box gap", c: "r-gap" }); }
     if (inBiome[dex] != null) {
       score += 22;
@@ -2238,7 +2324,8 @@ function renderDashFinds() {
   }
   const recent = finds.slice(-5).reverse();
   el.innerHTML =
-    `<h2>Recent finds <span class="muted">— ${finds.length} total</span></h2>` +
+    `<h2>Recent finds <span class="muted">— ${finds.length} total</span>` +
+    `<button class="ctrl-btn ghost dash-log-link" data-gotab="log" style="float:right">Full log →</button></h2>` +
     recent.map(findRowHtml).join("");
 }
 
@@ -2297,32 +2384,38 @@ function renderStatsSummary() {
       `<p class="hint">No shinies logged yet — log finds with ✨ Found! / 📦 Boxed! and your luck stats appear here.</p>`;
     return;
   }
+  // Averages & luck cover tracked hunts only; off-hunt "random" catches still
+  // count as logged shinies but are kept out of the encounter/luck maths.
+  const tracked = finds.filter((f) => !isRandomFind(f));
+  const randomN = finds.length - tracked.length;
   const byMode = { chain: 0, breeding: 0, encounter: 0 };
   let totalEnc = 0, best = null, worst = null;
-  for (const f of finds) {
+  for (const f of tracked) {
     byMode[f.mode] = (byMode[f.mode] || 0) + 1;
     totalEnc += Number(f.count) || 0;
     const p = findLuckP(f);
+    if (p == null) continue;
     if (!best || p > best.p) best = { f, p };
     if (!worst || p < worst.p) worst = { f, p };
   }
-  const avg = Math.round(totalEnc / finds.length);
+  const avg = tracked.length ? Math.round(totalEnc / tracked.length) : 0;
   el.innerHTML =
-    `<h2>Stats <span class="muted">— ${finds.length} shiny logged</span></h2>` +
+    `<h2>Stats <span class="muted">— ${finds.length} shiny logged${randomN ? ` · ${randomN} off-hunt` : ""}</span></h2>` +
     `<div class="dash-stat-line">` +
       `<span class="stat"><b>${c.shiny}</b>/${c.total} shiny</span>` +
       `<span class="stat">📦 boxed <b>${c.boxed}</b></span>` +
       `<span class="stat">caught <b>${c.caught}</b></span>` +
     `</div>` +
     `<div class="dash-stat-line">` +
-      `<span class="stat">total tracked <b>${totalEnc.toLocaleString()}</b></span>` +
+      `<span class="stat">tracked hunts <b>${tracked.length}</b></span>` +
+      `<span class="stat">total enc. <b>${totalEnc.toLocaleString()}</b></span>` +
       `<span class="stat">avg / shiny <b>${avg.toLocaleString()}</b></span>` +
       `<span class="stat">chain <b>${byMode.chain}</b> · breed <b>${byMode.breeding}</b> · enc <b>${byMode.encounter}</b></span>` +
     `</div>` +
-    `<div class="stats-luck">` +
+    (best ? `<div class="stats-luck">` +
       `<div class="luck-line">🍀 Luckiest: ${findRef(best.f)}</div>` +
       `<div class="luck-line">💀 Unluckiest: ${findRef(worst.f)}</div>` +
-    `</div>`;
+    `</div>` : "");
 }
 
 function renderStatsTime() {
@@ -2357,10 +2450,11 @@ function renderStatsMilestones() {
   if (!el) return;
   const c = dexCounts();
   const finds = state.hunt.finds;
-  const totalEnc = finds.reduce((s, f) => s + (Number(f.count) || 0), 0);
+  const tracked = finds.filter((f) => !isRandomFind(f)); // encounter/luck milestones ignore off-hunt catches
+  const totalEnc = tracked.reduce((s, f) => s + (Number(f.count) || 0), 0);
   const gensComplete = Object.keys(c.genTot).filter((g) => (c.genBox[g] || 0) === c.genTot[g]).length;
-  const bestLuck = finds.reduce((m, f) => Math.max(m, findLuckP(f)), 0);
-  const longest = finds.reduce((m, f) => Math.max(m, Number(f.count) || 0), 0);
+  const bestLuck = tracked.reduce((m, f) => { const p = findLuckP(f); return p != null && p > m ? p : m; }, 0);
+  const longest = tracked.reduce((m, f) => Math.max(m, Number(f.count) || 0), 0);
   const M = [
     { icon: "✨", title: "First Shiny", desc: "Log your first shiny", done: finds.length >= 1, prog: `${finds.length}` },
     { icon: "🔟", title: "Perfect Ten", desc: "10 shinies logged", done: finds.length >= 10, prog: `${finds.length}/10` },
@@ -3532,6 +3626,7 @@ function showTab(name) {
   document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("active", p.id === `panel-${name}`));
   if (name === "boxes") renderBoxes(); // refresh in case dex changed on another tab
   if (name === "legendary") renderLegendary();
+  if (name === "log") renderLog();
   if (name === "home") renderDashboard();
   if (name === "stats") renderStats();
   if (name === "sim") renderSim();
@@ -3558,7 +3653,7 @@ function importData(file) {
       save();
       renderDex(); renderForms(); renderVariants(); renderLegendary(); renderBerries(); renderParty();
       fillConfigInputs(); renderHunt(); renderBoxes(); renderSnack();
-      renderDashboard(); renderStats();
+      renderDashboard(); renderStats(); renderLog();
       const dexN = Object.keys(state.dex).length;
       const varN = Object.keys(state.variants).length;
       const berryN = Object.keys(state.berries).length;
@@ -3608,6 +3703,8 @@ function grabEls() {
     showcaseCopy: document.getElementById("showcase-copy"),
     speciesList: document.getElementById("species-list"),
     huntFinds: document.getElementById("hunt-finds"),
+    logSearch: document.getElementById("log-search"),
+    logSort: document.getElementById("log-sort"),
     huntActiveCard: document.getElementById("hunt-active-card"),
     huntActive: document.getElementById("hunt-active"),
     cfgBase: document.getElementById("cfg-base"),
@@ -3855,11 +3952,14 @@ function wire() {
   // Origin select: remember the user's deliberate choice for this mode session.
   if (els.huntOrigin) els.huntOrigin.addEventListener("change", () => { els.huntOrigin.dataset.touched = "1"; });
 
-  // Tapping any logged find (Hunt / Home / Stats) opens its shareable showcase card.
+  // Tapping any logged find (Hunt / Home / Log) opens its shareable showcase card.
   document.addEventListener("click", (e) => {
     const row = e.target.closest(".find-show[data-find]");
     if (row) openShowcase(row.dataset.find);
   });
+  // Log tab: search + sort re-render the history list.
+  if (els.logSearch) els.logSearch.addEventListener("input", renderLog);
+  if (els.logSort) els.logSort.addEventListener("change", renderLog);
   // Showcase modal: close, edit origin, export.
   if (els.showcaseModal) {
     els.showcaseModal.addEventListener("click", (e) => {
@@ -3915,6 +4015,8 @@ function wire() {
   document.getElementById("hunt-boxed").addEventListener("click", () => foundShiny(true));
   document.getElementById("hunt-load").addEventListener("click", () => loadTarget(els.huntInput.value));
   document.getElementById("hunt-random").addEventListener("click", randomHuntTarget);
+  document.getElementById("hunt-offhunt").addEventListener("click", () => logRandomCatch(false));
+  document.getElementById("hunt-offhunt-box").addEventListener("click", () => logRandomCatch(true));
   els.huntRandomScope.addEventListener("change", () => { state.config.randomScope = els.huntRandomScope.value; save(); });
   els.huntActive.addEventListener("click", (e) => {
     const drop = e.target.closest(".ah-drop");
@@ -4106,7 +4208,7 @@ function wire() {
     if (confirm("Erase ALL progress? Export first if unsure.")) {
       state = freshState();
       save(); renderDex(); renderForms(); renderVariants(); renderLegendary(); renderBerries(); renderParty();
-      fillConfigInputs(); renderHunt(); renderBoxes(); renderSnack(); renderDashboard(); renderStats();
+      fillConfigInputs(); renderHunt(); renderBoxes(); renderSnack(); renderDashboard(); renderStats(); renderLog();
     }
   });
 

@@ -28,6 +28,7 @@
     <button class="tab" data-tab="variants">Variants</button>
     <button class="tab" data-tab="legendary">Legendary</button>
     <button class="tab" data-tab="hunt">Hunt</button>
+    <button class="tab" data-tab="log">Log</button>
     <button class="tab" data-tab="stats">Stats</button>
     <button class="tab" data-tab="spawns">Spawns</button>
     <button class="tab" data-tab="snack">PokéSnack</button>
@@ -233,6 +234,12 @@
           </select>
         </div>
         <p class="hint" style="margin:6px 0 0">Bored? Roll a random Pokémon to hunt — pick the pool it draws from on the right.</p>
+        <div class="controls" style="margin-top:10px">
+          <button id="hunt-offhunt" class="ctrl-btn shiny" title="Log a shiny you caught while NOT hunting it">🎲 Caught one off-hunt</button>
+          <button id="hunt-offhunt-box" class="ctrl-btn good" title="Log an off-hunt shiny and mark it boxed">📦 Off-hunt &amp; boxed</button>
+        </div>
+        <p class="hint" style="margin:6px 0 0">Bumped into a shiny you weren't hunting? Type it above and log it here — it's saved
+          to your Log and dex but <strong>kept out of the encounter &amp; luck averages</strong>.</p>
       </div>
 
       <div class="card" id="hunt-active-card" hidden>
@@ -266,6 +273,25 @@
         <h2>Recent finds</h2>
         <div id="hunt-finds"><p class="hint" id="hunt-no-finds">No shinies logged yet — go get one. ✨</p></div>
       </div>
+    </section>
+
+    <!-- ============ LOG TAB ============ -->
+    <section class="panel" id="panel-log">
+      <div class="stats-bar" id="log-stats"></div>
+      <p class="hint">Every shiny you've ever logged — the full hunt history, not just recent. Tap any entry to
+        <strong>regenerate its showcase card</strong> (download / share / copy) at any time. Search and sort to find a
+        specific catch.</p>
+      <div class="toolbar">
+        <input type="search" id="log-search" class="search" placeholder="Search name, method or origin…" />
+        <select id="log-sort" class="select">
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+          <option value="luckiest">Luckiest</option>
+          <option value="encounters">Most encounters</option>
+          <option value="longest">Longest hunt</option>
+        </select>
+      </div>
+      <div id="log-list"></div>
     </section>
 
     <!-- ============ STATS TAB ============ -->

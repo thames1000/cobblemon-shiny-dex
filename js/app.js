@@ -3851,6 +3851,30 @@ let biomeWorker = null;
 let biomeState = { cx: 0, cz: 0, bpp: 2, cols: 192, rows: 192, img: null, grid: null, palette: null, legend: null, busy: false };
 let biomeRerender = false, biomeRenderTimer = null;
 const BIOME_ZOOM_STEPS = [1, 2, 4, 8, 16];
+// Authoritative legendary/Cobbleverse structures (real datapack params) — always
+// overlaid on the biome map as icons, regardless of the seed-map finder.
+let STRUCTURES = null, biomeIconHits = [];
+function loadStructures() {
+  if (STRUCTURES) return Promise.resolve();
+  return fetch("js/data/worldgen/structures.json").then((r) => r.json())
+    .then((s) => { STRUCTURES = s; if (biomeState.img) drawBiomeCanvas(0, 0); })
+    .catch(() => (STRUCTURES = []));
+}
+// Candidate block positions of a structure_set within a view box (reuses the
+// validated random_spread placement from the seed-map engine).
+function structuresInView(seed, st, minX, maxX, minZ, maxZ) {
+  const sp = st.spacing, out = [];
+  const rMinX = Math.floor(Math.floor(minX / 16) / sp) - 1, rMaxX = Math.floor(Math.floor(maxX / 16) / sp) + 1;
+  const rMinZ = Math.floor(Math.floor(minZ / 16) / sp) - 1, rMaxZ = Math.floor(Math.floor(maxZ / 16) / sp) + 1;
+  for (let rx = rMinX; rx <= rMaxX; rx++) {
+    for (let rz = rMinZ; rz <= rMaxZ; rz++) {
+      const ch = smCandidateChunk(seed, rx, rz, st);
+      const bx = ch[0] * 16 + 8, bz = ch[1] * 16 + 8;
+      if (bx >= minX && bx <= maxX && bz >= minZ && bz <= maxZ) out.push({ x: bx, z: bz });
+    }
+  }
+  return out;
+}
 let BIOME_REMAP = null; // loaded lazily for hover labels (worker applies its own copy)
 function loadBiomeRemap() {
   if (BIOME_REMAP) return;
@@ -3876,7 +3900,7 @@ function getBiomeWorker() {
 function renderBiomeMap() {
   const w = getBiomeWorker();
   if (!w) { els.smBiomeStatus.textContent = "⚠ module workers unsupported in this browser"; return; }
-  loadBiomeRemap();
+  loadBiomeRemap(); loadStructures();
   if (biomeState.busy) { biomeRerender = true; return; } // queue the latest pan/zoom
   const cv = els.smBiomeCanvas;
   const bpp = Math.max(1, Number(els.smBiomeZoom.value) || 2);
@@ -3925,16 +3949,27 @@ function drawBiomeCanvas(dragX, dragY) {
 function drawBiomeStructures(ctx, ox, oy) {
   const cv = els.smBiomeCanvas;
   const ppb = cv.width / (biomeState.cols * biomeState.bpp); // px per block
-  if (smLastResults) {
-    for (const r of smLastResults.results) {
-      if (!r.valid || !r.cands) continue;
-      ctx.fillStyle = smPackColor(r.st.pack);
-      for (const c of r.cands.slice(0, 12)) {
+  const final = !ox && !oy;
+  if (final) biomeIconHits = [];
+  if (STRUCTURES && STRUCTURES.length) {
+    const seed = seedToLong(els.smSeed.value);
+    const halfX = (biomeState.cols * biomeState.bpp) / 2, halfZ = (biomeState.rows * biomeState.bpp) / 2;
+    const minX = biomeState.cx - halfX, maxX = biomeState.cx + halfX, minZ = biomeState.cz - halfZ, maxZ = biomeState.cz + halfZ;
+    const TOTAL_CAP = 450, PER_CAP = 90;
+    let total = 0;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "13px system-ui, sans-serif";
+    for (const st of STRUCTURES) {            // rarest-first (structures.json is sorted)
+      if (total >= TOTAL_CAP) break;
+      let n = 0;
+      for (const c of structuresInView(seed, st, minX, maxX, minZ, maxZ)) {
+        if (n >= PER_CAP || total >= TOTAL_CAP) break;
         const px = cv.width / 2 + (c.x - biomeState.cx) * ppb + ox;
         const py = cv.height / 2 + (c.z - biomeState.cz) * ppb + oy;
-        if (px < -4 || px > cv.width + 4 || py < -4 || py > cv.height + 4) continue;
-        ctx.beginPath(); ctx.arc(px, py, 4, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = "#0b1322"; ctx.lineWidth = 1.5; ctx.stroke();
+        if (px < -8 || px > cv.width + 8 || py < -8 || py > cv.height + 8) continue;
+        ctx.fillStyle = "rgba(0,0,0,.5)"; ctx.beginPath(); ctx.arc(px, py, 8, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#fff"; ctx.fillText(st.icon, px, py + 0.5);
+        if (final) biomeIconHits.push({ x: px, y: py, st, bx: c.x, bz: c.z });
+        n++; total++;
       }
     }
   }
@@ -3959,8 +3994,12 @@ function wireBiomePan() {
   });
   cv.addEventListener("pointermove", (e) => {
     if (biomeDrag) { drawBiomeCanvas(e.offsetX - biomeDrag.x, e.offsetY - biomeDrag.y); return; }
+    if (!els.smBiomeHover) return;
+    // structure icon under the cursor wins over the biome readout
+    const hit = biomeIconHits.find((k) => Math.abs(k.x - e.offsetX) < 10 && Math.abs(k.y - e.offsetY) < 10);
+    if (hit) { els.smBiomeHover.textContent = `${hit.st.icon} ${hit.st.name}${hit.st.target ? ` → ${hit.st.target}` : ""} · X ${hit.bx}, Z ${hit.bz}`; return; }
     const h = biomeAtPointer(e.offsetX, e.offsetY); // hover readout
-    if (els.smBiomeHover) els.smBiomeHover.textContent = h
+    els.smBiomeHover.textContent = h
       ? `${biomeLabel(h.mapped)}${h.mapped !== h.orig ? ` (Terralith: ${biomeLabel(h.orig)})` : ""} · X ${h.bx}, Z ${h.bz}` : "";
   });
   cv.addEventListener("pointerleave", () => { if (els.smBiomeHover) els.smBiomeHover.textContent = ""; });

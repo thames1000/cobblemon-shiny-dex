@@ -1711,6 +1711,19 @@ function loadTarget(raw) {
   ensureSession(state.hunt.mode, sp.dex);
   save(); renderHunt();
 }
+// Begin hunting a species straight away (used by the "What to hunt next" card):
+// set it as the active target, optionally switch mode, and jump to the Hunt tab.
+function startHuntFor(dex, mode) {
+  const sp = DEX_BY_NUM[dex];
+  if (!sp) return;
+  if (mode) state.hunt.mode = mode;
+  state.hunt.activeDex = dex;
+  ensureSession(state.hunt.mode, dex);
+  if (els.huntInput) els.huntInput.value = sp.name;
+  if (els.huntOrigin) delete els.huntOrigin.dataset.touched; // re-default origin for the new mode
+  save(); renderHunt();
+  showTab("hunt");
+}
 // The pool 🎲 Surprise me draws from, per the chosen scope.
 //  smart    – wishlist (un-caught) → not-yet-shiny → anything  (the default)
 //  unshiny  – anything you haven't shiny-caught yet
@@ -2313,7 +2326,7 @@ function renderDashNext() {
       `<img loading="lazy" src="${spriteUrl(s.dex, true)}" alt="${s.sp.name}" />` +
       `<div class="next-main"><div class="next-name">${nm} <span class="muted">#${String(s.dex).padStart(4, "0")}</span></div>` +
       `<div class="next-reasons">${chips}</div></div>` +
-      `<button class="ctrl-btn dash-gap-hunt" data-dex="${s.dex}" title="Start a hunt for ${nm}">🎯</button>` +
+      `<button class="ctrl-btn good next-hunt" data-dex="${s.dex}" title="Start hunting ${nm}">🎯 Hunt</button>` +
     `</div>`;
   }).join("") + `</div>`;
 }
@@ -3800,6 +3813,8 @@ function wire() {
       if (e.target.closest("#dash-found")) { foundShiny(false); return; }
       if (e.target.closest("#dash-boxed")) { foundShiny(true); return; }
       if (e.target.closest("#dash-surprise")) { randomHuntTarget(); refreshDashboard(); return; }
+      const nextHunt = e.target.closest(".next-hunt");
+      if (nextHunt) { e.stopPropagation(); startHuntFor(Number(nextHunt.dataset.dex), "encounter"); return; }
       const gapHunt = e.target.closest(".dash-gap-hunt");
       if (gapHunt) { e.stopPropagation(); openHuntStart(Number(gapHunt.dataset.dex)); return; }
       const gapBox = e.target.closest(".dash-gap-box");

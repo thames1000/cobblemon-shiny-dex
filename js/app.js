@@ -3934,6 +3934,15 @@ function biomeAtPointer(offsetX, offsetY) {
   const bz = Math.round(biomeState.cz - (biomeState.rows * biomeState.bpp) / 2 + (cy + 0.5) * biomeState.bpp);
   return { orig, mapped, bx, bz };
 }
+// Original (pre-remap) biome at a world position, from the rendered grid — used
+// to validate that a structure can actually generate at a candidate chunk.
+function biomeAtWorld(x, z) {
+  if (!biomeState.grid) return null;
+  const cellX = Math.floor((x - (biomeState.cx - biomeState.cols * biomeState.bpp / 2)) / biomeState.bpp);
+  const cellZ = Math.floor((z - (biomeState.cz - biomeState.rows * biomeState.bpp / 2)) / biomeState.bpp);
+  if (cellX < 0 || cellX >= biomeState.cols || cellZ < 0 || cellZ >= biomeState.rows) return null;
+  return biomeState.palette[biomeState.grid[cellZ * biomeState.cols + cellX]];
+}
 // dragX/dragY shift the cached image during a pan (visual only, before re-render).
 function drawBiomeCanvas(dragX, dragY) {
   const cv = els.smBiomeCanvas, ctx = cv.getContext("2d");
@@ -3963,6 +3972,9 @@ function drawBiomeStructures(ctx, ox, oy) {
       let n = 0;
       for (const c of structuresInView(seed, st, minX, maxX, minZ, maxZ)) {
         if (n >= PER_CAP || total >= TOTAL_CAP) break;
+        // Only draw where the structure's biome actually occurs (skip validation
+        // when it has no biome list, or the cell is off the rendered grid).
+        if (st.biomes && st.biomes.length) { const wb = biomeAtWorld(c.x, c.z); if (wb && st.biomes.indexOf(wb) < 0) continue; }
         const px = cv.width / 2 + (c.x - biomeState.cx) * ppb + ox;
         const py = cv.height / 2 + (c.z - biomeState.cz) * ppb + oy;
         if (px < -8 || px > cv.width + 8 || py < -8 || py > cv.height + 8) continue;

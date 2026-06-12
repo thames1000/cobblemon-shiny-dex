@@ -4,20 +4,43 @@
  * the multi-noise biome source for a seed, and samples biomes at the surface
  * (quart Y=32 / block 128). Heavy, so it lives in a worker. Biome Replacer rules
  * and the colour table are applied here so the main thread just blits pixels.
+ *
+ * deepslate is loaded by DYNAMIC import (not a top-level import) so a CDN failure
+ * surfaces a real error message instead of an opaque worker onerror, and so we can
+ * fall back across CDNs. jsDelivr's +esm is a single self-contained bundle (robust
+ * in a worker); esm.sh splits into nested imports that can fail, so it's the backup.
  */
-import * as d from "https://esm.sh/deepslate@0.23.6";
-
-const { WorldgenRegistries: WR, Identifier, NoiseParameters, DensityFunction, NoiseGeneratorSettings, RandomState, MultiNoiseBiomeSource } = d;
 const SURFACE_QY = 32; // quart Y of the surface sample (block 128) — clears caves
+const CDNS = [
+  "https://cdn.jsdelivr.net/npm/deepslate@0.23.6/+esm",
+  "https://esm.sh/deepslate@0.23.6",
+];
 
-let ready = null;       // promise resolving once bundles are registered
-let BUNDLES = null;     // {settings, biomeSource, colors, remap}
+let D = null;           // deepslate module
+let C = null;           // { WR, Identifier, NoiseParameters, DensityFunction, NoiseGeneratorSettings, RandomState, MultiNoiseBiomeSource }
+let ready = null;       // promise resolving once engine + bundles are loaded
+let BUNDLES = null;     // { settings, biomeSourceJson, colors, remap }
 let cache = { seed: null, biomeSource: null, sampler: null };
 
 function url(p) { return new URL(p, self.location.href).href; }
-async function loadJson(p) { const r = await fetch(url(p)); if (!r.ok) throw new Error(`fetch ${p}: ${r.status}`); return r.json(); }
+async function loadJson(p) { const r = await fetch(url(p)); if (!r.ok) throw new Error(`fetch ${p}: HTTP ${r.status}`); return r.json(); }
+
+async function loadEngine() {
+  let lastErr;
+  for (const u of CDNS) {
+    try { return await import(u); }
+    catch (e) { lastErr = e; }
+  }
+  throw new Error("couldn't load the worldgen engine (deepslate) — check your connection / ad-blocker." + (lastErr ? " [" + (lastErr.message || lastErr) + "]" : ""));
+}
 
 async function init() {
+  D = await loadEngine();
+  C = {
+    WR: D.WorldgenRegistries, Identifier: D.Identifier, NoiseParameters: D.NoiseParameters,
+    DensityFunction: D.DensityFunction, NoiseGeneratorSettings: D.NoiseGeneratorSettings,
+    RandomState: D.RandomState, MultiNoiseBiomeSource: D.MultiNoiseBiomeSource,
+  };
   const [dfs, noises, settings, biomeSourceJson, colors, remap] = await Promise.all([
     loadJson("data/worldgen/density_functions.json"),
     loadJson("data/worldgen/noises.json"),
@@ -26,14 +49,9 @@ async function init() {
     loadJson("data/worldgen/biome_colors.json"),
     loadJson("data/worldgen/biome_replacer.json"),
   ]);
-  for (const [id, j] of Object.entries(noises)) WR.NOISE.register(Identifier.parse(id), NoiseParameters.fromJson(j));
-  for (const [id, j] of Object.entries(dfs)) WR.DENSITY_FUNCTION.register(Identifier.parse(id), DensityFunction.fromJson(j));
-  BUNDLES = {
-    settings: NoiseGeneratorSettings.fromJson(settings),
-    biomeSourceJson,
-    colors,
-    remap,
-  };
+  for (const [id, j] of Object.entries(noises)) C.WR.NOISE.register(C.Identifier.parse(id), C.NoiseParameters.fromJson(j));
+  for (const [id, j] of Object.entries(dfs)) C.WR.DENSITY_FUNCTION.register(C.Identifier.parse(id), C.DensityFunction.fromJson(j));
+  BUNDLES = { settings: C.NoiseGeneratorSettings.fromJson(settings), biomeSourceJson, colors, remap };
 }
 function ensureReady() { if (!ready) ready = init(); return ready; }
 
@@ -48,11 +66,10 @@ function seedToLong(s) {
 }
 function buildForSeed(seed) {
   if (cache.seed === seed && cache.sampler) return;
-  const rs = new RandomState(BUNDLES.settings, seedToLong(seed));
-  cache = { seed, biomeSource: MultiNoiseBiomeSource.fromJson(BUNDLES.biomeSourceJson), sampler: rs.sampler };
+  const rs = new C.RandomState(BUNDLES.settings, seedToLong(seed));
+  cache = { seed, biomeSource: C.MultiNoiseBiomeSource.fromJson(BUNDLES.biomeSourceJson), sampler: rs.sampler };
 }
 function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
-// Apply the Biome Replacer remap, then resolve a colour (fallback grey).
 const colorCache = {};
 function colorFor(id) {
   if (colorCache[id]) return colorCache[id];
@@ -81,12 +98,8 @@ async function render(msg) {
     }
     if ((py & 15) === 0) self.postMessage({ type: "progress", pct: Math.round((py / rows) * 100) });
   }
-  // legend: present biomes after remap, with their colour
-  const legend = [...present].map((id) => {
-    const mapped = BUNDLES.remap[id] || id;
-    return { id: mapped, hex: BUNDLES.colors[mapped] || BUNDLES.colors[id] || "#3a4a5a" };
-  });
-  const uniq = {}; for (const l of legend) uniq[l.id] = l.hex;
+  const uniq = {};
+  for (const id of present) { const mapped = BUNDLES.remap[id] || id; uniq[mapped] = BUNDLES.colors[mapped] || BUNDLES.colors[id] || "#3a4a5a"; }
   self.postMessage({ type: "done", rgba: rgba.buffer, cols, rows, legend: Object.entries(uniq).map(([id, hex]) => ({ id, hex })) }, [rgba.buffer]);
 }
 

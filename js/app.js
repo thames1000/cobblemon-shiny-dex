@@ -3859,7 +3859,7 @@ function getBiomeWorker() {
     else if (m.type === "done") onBiomeDone(m);
     else if (m.type === "error") { biomeState.busy = false; if (els.smBiomeStatus) els.smBiomeStatus.textContent = "⚠ " + m.message; }
   };
-  biomeWorker.onerror = () => { biomeState.busy = false; if (els.smBiomeStatus) els.smBiomeStatus.textContent = "⚠ couldn't load the worldgen engine (needs internet)"; };
+  biomeWorker.onerror = (e) => { biomeState.busy = false; if (els.smBiomeStatus) els.smBiomeStatus.textContent = "⚠ biome worker error" + (e && e.message ? ": " + e.message : " (check console)"); };
   return biomeWorker;
 }
 function renderBiomeMap() {

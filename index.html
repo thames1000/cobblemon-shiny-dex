@@ -650,6 +650,30 @@
         </details>
       </div>
 
+      <div class="card">
+        <h2>🗺 Biome map <span class="muted">— Terralith (your worldgen)</span></h2>
+        <p class="hint" style="margin-top:0">Renders your server's <strong>actual Terralith biomes</strong> for the seed above
+          (runs the real datapack worldgen via deepslate, with your Biome Replacer remap applied). Drag to pan; enabled
+          structures overlay as dots. Needs an internet connection the first time (loads the worldgen engine).</p>
+        <div class="controls" style="margin-bottom:8px">
+          <button id="sm-biome-render" class="ctrl-btn good">🗺 Render biome map</button>
+          <label class="muted" style="display:flex;align-items:center;gap:6px">Detail
+            <select id="sm-biome-zoom" class="select">
+              <option value="1">1 blk/px (zoomed in)</option>
+              <option value="2" selected>2 blk/px</option>
+              <option value="4">4 blk/px</option>
+              <option value="8">8 blk/px</option>
+              <option value="16">16 blk/px (wide)</option>
+            </select>
+          </label>
+          <span id="sm-biome-status" class="muted"></span>
+        </div>
+        <div class="showcase-canvas-wrap" style="max-width:420px;margin:0 auto">
+          <canvas id="sm-biome-canvas" width="384" height="384" style="cursor:grab;touch-action:none"></canvas>
+        </div>
+        <div id="sm-biome-legend" class="sm-legend"></div>
+      </div>
+
       <div class="card" id="sm-out-card" hidden>
         <h2>📍 Nearest candidates</h2>
         <div class="showcase-canvas-wrap"><canvas id="sm-canvas" width="640" height="640"></canvas></div>

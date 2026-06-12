@@ -35,6 +35,7 @@
     <button class="tab" data-tab="sim">Spawn Sim</button>
     <button class="tab" data-tab="berries">Berries</button>
     <button class="tab" data-tab="farm">Farm</button>
+    <button class="tab" data-tab="seedmap">Seed Map</button>
     <button class="tab" data-tab="data">Data</button>
   </nav>
 
@@ -584,6 +585,75 @@
         <div id="farm-shiny-out" class="odds-readout"></div>
         <p class="hint">"Expected" is the average; you have a 50/90/99% chance of a shiny by the listed counts.
           Tip: time a few minutes of your actual farm to get a real encounters/hour.</p>
+      </div>
+    </section>
+
+    <!-- ============ SEED MAP TAB ============ -->
+    <section class="panel" id="panel-seedmap">
+      <p class="hint">Live seed → structure map. Enter a world seed and this runs Minecraft's
+        <code>random_spread</code> placement to find where each structure's chunks land. Results are
+        <strong>candidate positions</strong> — Minecraft still runs a biome/terrain check at each, so a few won't
+        actually generate. Accuracy depends entirely on each structure_set's <strong>spacing · separation · salt</strong>
+        being correct — paste the datapack JSON below to load them exactly.</p>
+
+      <div class="card">
+        <h2>🌱 Seed &amp; search</h2>
+        <div class="sim-grid">
+          <label class="field" style="margin:0">World seed <span class="muted">(number or text)</span>
+            <input type="text" id="sm-seed" class="search" placeholder="e.g. -4172144997902289642" />
+          </label>
+          <label class="field" style="margin:0">Search radius (blocks)
+            <input type="number" id="sm-radius" class="search" value="5000" min="100" step="500" />
+          </label>
+          <label class="field" style="margin:0">Center X
+            <input type="number" id="sm-cx" class="search" value="0" />
+          </label>
+          <label class="field" style="margin:0">Center Z
+            <input type="number" id="sm-cz" class="search" value="0" />
+          </label>
+        </div>
+        <div class="controls" style="margin-top:8px">
+          <button id="sm-find" class="ctrl-btn good">🔍 Find structures</button>
+          <span id="sm-status" class="muted"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>📦 Datapacks</h2>
+        <p class="hint" style="margin-top:0">Toggle which structure groups to include.</p>
+        <div id="sm-packs" class="controls"></div>
+      </div>
+
+      <div class="card">
+        <h2>🏛 Structure sets</h2>
+        <p class="hint" style="margin-top:0">Edit <strong>spacing / separation / salt / spread</strong> per structure_set,
+          or paste a datapack's structure_set JSON below to fill them exactly. Rows missing a salt or separation are
+          skipped until you provide them.</p>
+        <div id="sm-structs"></div>
+        <details style="margin-top:10px">
+          <summary class="summary-h">➕ Add / import a structure_set</summary>
+          <div class="sim-grid" style="margin-top:10px">
+            <label class="field" style="margin:0">Display name
+              <input type="text" id="sm-add-name" class="search" placeholder="e.g. Lugia Temple" />
+            </label>
+            <label class="field" style="margin:0">Structure-set id
+              <input type="text" id="sm-add-id" class="search" placeholder="e.g. legendarymonuments:lugia_temple" />
+            </label>
+            <label class="field" style="margin:0">Datapack group
+              <input type="text" id="sm-add-pack" class="search" placeholder="e.g. legendarymonuments" />
+            </label>
+          </div>
+          <label class="field">Paste structure_set JSON <span class="muted">(optional — reads spacing/separation/salt/spread)</span>
+            <textarea id="sm-add-json" class="search" rows="5" style="width:100%;font-family:ui-monospace,monospace" placeholder='{ "placement": { "type": "minecraft:random_spread", "spacing": 80, "separation": 40, "salt": 14357618, "spread_type": "linear" } }'></textarea>
+          </label>
+          <div class="controls"><button id="sm-add" class="ctrl-btn good">Add / update structure_set</button></div>
+        </details>
+      </div>
+
+      <div class="card" id="sm-out-card" hidden>
+        <h2>📍 Nearest candidates</h2>
+        <div class="showcase-canvas-wrap"><canvas id="sm-canvas" width="640" height="640"></canvas></div>
+        <div id="sm-results"></div>
       </div>
     </section>
 

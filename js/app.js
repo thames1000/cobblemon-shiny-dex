@@ -3644,6 +3644,208 @@ function applySimPlan(plan) {
   els.simBiome.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
+/* ---------- seed map: live seed → structure coordinates (Chunkbase-style) ---------- */
+// Java's Random LCG, exact (validated against the canonical new Random(0) sequence).
+const JR_MULT = 0x5DEECE66Dn, JR_ADD = 0xBn, JR_MASK = (1n << 48n) - 1n;
+class JRandom {
+  constructor(seed) { this.setSeed(seed); }
+  setSeed(seed) { this.seed = (BigInt.asUintN(64, BigInt(seed)) ^ JR_MULT) & JR_MASK; }
+  next(bits) { this.seed = (this.seed * JR_MULT + JR_ADD) & JR_MASK; return Number(BigInt.asIntN(32, this.seed >> BigInt(48 - bits))); }
+  nextInt(bound) {
+    if (bound <= 0) return 0;
+    if ((bound & -bound) === bound) return Number((BigInt(bound) * BigInt(this.next(31))) >> 31n);
+    let bits, val;
+    do { bits = this.next(31); val = bits % bound; } while (bits - val + (bound - 1) < 0);
+    return val;
+  }
+}
+// World seed: a number string is taken literally (64-bit); anything else uses
+// Java's String.hashCode, exactly like Minecraft.
+function seedToLong(s) {
+  s = String(s == null ? "" : s).trim();
+  if (s === "") return 0n;
+  if (/^-?\d+$/.test(s)) return BigInt.asIntN(64, BigInt(s));
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
+  return BigInt(h);
+}
+function smRegionSeed(seed, rx, rz, salt) {
+  return BigInt.asIntN(64, BigInt(rx) * 341873128712n + BigInt(rz) * 132897987541n + seed + BigInt(salt));
+}
+// The candidate chunk a structure_set tries to place in one region (rx,rz).
+function smCandidateChunk(seed, rx, rz, st) {
+  const d = st.spacing - st.separation;
+  const rng = new JRandom(smRegionSeed(seed, rx, rz, st.salt));
+  let ox, oz;
+  if (st.spread === "triangular") {
+    ox = Math.floor((rng.nextInt(d) + rng.nextInt(d)) / 2);
+    oz = Math.floor((rng.nextInt(d) + rng.nextInt(d)) / 2);
+  } else { ox = rng.nextInt(d); oz = rng.nextInt(d); }
+  return [rx * st.spacing + ox, rz * st.spacing + oz];
+}
+function smStructValid(st) {
+  return st && st.spacing > 0 && st.separation != null && st.separation >= 0
+    && st.separation < st.spacing && st.salt != null && st.salt !== "";
+}
+// All candidate block positions for a structure_set within `radius` of (cx,cz).
+function smFindCandidates(seed, st, cx, cz, radius) {
+  const ccx = Math.floor(cx / 16), ccz = Math.floor(cz / 16);
+  const rChunks = Math.ceil(radius / 16);
+  const cReg = Math.floor(ccx / st.spacing), cRegZ = Math.floor(ccz / st.spacing);
+  const rr = Math.ceil(rChunks / st.spacing) + 1;
+  const out = [];
+  for (let rx = cReg - rr; rx <= cReg + rr; rx++) {
+    for (let rz = cRegZ - rr; rz <= cRegZ + rr; rz++) {
+      const [chx, chz] = smCandidateChunk(seed, rx, rz, st);
+      const bx = chx * 16 + 8, bz = chz * 16 + 8;
+      const dist = Math.round(Math.hypot(bx - cx, bz - cz));
+      if (dist <= radius) out.push({ x: bx, z: bz, dist });
+    }
+  }
+  out.sort((a, b) => a.dist - b.dist);
+  return out;
+}
+// Prefilled from decompiling Cobbleverse (spacing known; separation/salt must come
+// from the datapack — paste the structure_set JSON to load them exactly).
+const DEFAULT_SEEDMAP = [
+  { id: "legendarymonuments:shrines", name: "Ruin Shrines (Treasures of Ruin)", pack: "legendarymonuments", spacing: 80, separation: 40, salt: null, spread: "linear", enabled: true },
+  { id: "legendarymonuments:lake_guardians", name: "Lake Guardians (Uxie/Mesprit/Azelf)", pack: "legendarymonuments", spacing: 80, separation: null, salt: null, spread: "linear", enabled: true },
+  { id: "legendarymonuments:turnback_cave", name: "Turnback Cave (Giratina)", pack: "legendarymonuments", spacing: 250, separation: null, salt: null, spread: "linear", enabled: true },
+  { id: "legendarymonuments:eternatus_cocoon", name: "Eternatus Cocoon", pack: "legendarymonuments", spacing: 280, separation: null, salt: null, spread: "linear", enabled: true },
+  { id: "legendarymonuments:giratina_island", name: "Giratina Island", pack: "legendarymonuments", spacing: 200, separation: null, salt: null, spread: "linear", enabled: true },
+  { id: "legendarymonuments:heatran_cave", name: "Heatran Cave", pack: "legendarymonuments", spacing: 205, separation: null, salt: null, spread: "linear", enabled: true },
+  { id: "legendarymonuments:lugia_temple", name: "Lugia Temple", pack: "legendarymonuments", spacing: 205, separation: null, salt: null, spread: "linear", enabled: true },
+  { id: "legendarymonuments:hall_of_origin", name: "Hall of Origin (Arceus)", pack: "legendarymonuments", spacing: 150, separation: null, salt: null, spread: "linear", enabled: true },
+  { id: "cobbleverse:mythical/jirachi", name: "Jirachi structure", pack: "cobbleverse", spacing: 285, separation: null, salt: null, spread: "linear", enabled: true },
+];
+const SM_PACK_COLORS = { cobbleverse: "#4fd1c5", legendarymonuments: "#f6c544", lumymon: "#c084fc" };
+function smPackColor(p) { return SM_PACK_COLORS[p] || "#8ab4ff"; }
+function seedMapCfg() {
+  let m = state.config.seedMap;
+  if (!m || typeof m !== "object") m = state.config.seedMap = {};
+  if (!Array.isArray(m.structures) || !m.structures.length) m.structures = JSON.parse(JSON.stringify(DEFAULT_SEEDMAP));
+  if (typeof m.seed !== "string") m.seed = "";
+  if (!Number.isFinite(m.cx)) m.cx = 0;
+  if (!Number.isFinite(m.cz)) m.cz = 0;
+  if (!Number.isFinite(m.radius)) m.radius = 5000;
+  return m;
+}
+let smLastResults = null; // cached for canvas redraw
+function smPacks() { return [...new Set(seedMapCfg().structures.map((s) => s.pack || "custom"))]; }
+function renderSeedMapPacks() {
+  const el = document.getElementById("sm-packs");
+  if (!el) return;
+  const m = seedMapCfg();
+  el.innerHTML = smPacks().map((p) => {
+    const on = m.structures.some((s) => (s.pack || "custom") === p && s.enabled !== false);
+    return `<button class="ctrl-btn sm-pack${on ? " active" : ""}" data-pack="${p}" style="border-color:${smPackColor(p)}">${on ? "✓ " : ""}${p}</button>`;
+  }).join("");
+}
+function renderSeedMapStructs() {
+  const el = document.getElementById("sm-structs");
+  if (!el) return;
+  const m = seedMapCfg();
+  el.innerHTML = `<div class="sm-row sm-head"><span></span><span>structure_set</span><span>spacing</span><span>separ.</span><span>salt</span><span>spread</span><span></span></div>` +
+    m.structures.map((st) => {
+      const bad = !smStructValid(st);
+      return `<div class="sm-row${st.enabled === false ? " sm-off" : ""}" data-id="${st.id}">` +
+        `<label class="sm-en"><input type="checkbox" class="sm-enable" ${st.enabled !== false ? "checked" : ""} /></label>` +
+        `<div class="sm-name"><b style="color:${smPackColor(st.pack)}">${st.name}</b><span class="muted">${st.id}${bad ? ` · <span class="sm-warn">needs ${st.salt == null || st.salt === "" ? "salt" : "separation"}</span>` : ""}</span></div>` +
+        `<input class="sm-f" data-f="spacing" type="number" value="${st.spacing == null ? "" : st.spacing}" />` +
+        `<input class="sm-f" data-f="separation" type="number" value="${st.separation == null ? "" : st.separation}" />` +
+        `<input class="sm-f" data-f="salt" type="number" value="${st.salt == null ? "" : st.salt}" />` +
+        `<select class="sm-f" data-f="spread"><option value="linear"${st.spread !== "triangular" ? " selected" : ""}>linear</option><option value="triangular"${st.spread === "triangular" ? " selected" : ""}>triangular</option></select>` +
+        `<button class="sm-del" title="Remove">✕</button>` +
+      `</div>`;
+    }).join("");
+}
+function renderSeedMap() {
+  const m = seedMapCfg();
+  if (els.smSeed) els.smSeed.value = m.seed;
+  if (els.smCx) els.smCx.value = m.cx;
+  if (els.smCz) els.smCz.value = m.cz;
+  if (els.smRadius) els.smRadius.value = m.radius;
+  renderSeedMapPacks();
+  renderSeedMapStructs();
+}
+function smStructById(id) { return seedMapCfg().structures.find((s) => s.id === id); }
+function computeSeedMap() {
+  const m = seedMapCfg();
+  m.seed = els.smSeed.value;
+  m.cx = Math.round(Number(els.smCx.value) || 0);
+  m.cz = Math.round(Number(els.smCz.value) || 0);
+  m.radius = Math.max(100, Math.round(Number(els.smRadius.value) || 5000));
+  save();
+  const seed = seedToLong(m.seed);
+  const active = m.structures.filter((s) => s.enabled !== false);
+  const results = active.map((st) => ({
+    st, valid: smStructValid(st),
+    cands: smStructValid(st) ? smFindCandidates(seed, st, m.cx, m.cz, m.radius) : null,
+  }));
+  smLastResults = { results, m };
+  renderSeedMapResults();
+}
+function smCopyFlash(btn) { const o = btn.textContent; btn.textContent = "✓"; setTimeout(() => (btn.textContent = o), 900); }
+function renderSeedMapResults() {
+  if (!smLastResults) return;
+  const { results, m } = smLastResults;
+  const card = document.getElementById("sm-out-card");
+  const out = document.getElementById("sm-results");
+  const status = document.getElementById("sm-status");
+  if (card) card.hidden = false;
+  const skipped = results.filter((r) => !r.valid).length;
+  if (status) status.textContent = `seed ${seedToLong(m.seed)} · ${results.length - skipped} structure set${results.length - skipped === 1 ? "" : "s"} searched within ${m.radius.toLocaleString()} blocks${skipped ? ` · ${skipped} skipped (missing params)` : ""}`;
+  out.innerHTML = results.map((r) => {
+    const col = smPackColor(r.st.pack);
+    if (!r.valid) return `<div class="sm-res"><div class="sm-res-h"><span class="sm-dot" style="background:${col}"></span><b>${r.st.name}</b> <span class="sm-warn">skipped — set spacing/separation/salt (or paste the structure_set JSON)</span></div></div>`;
+    if (!r.cands.length) return `<div class="sm-res"><div class="sm-res-h"><span class="sm-dot" style="background:${col}"></span><b>${r.st.name}</b> <span class="muted">— none within ${m.radius.toLocaleString()} blocks</span></div></div>`;
+    const rows = r.cands.slice(0, 6).map((c) =>
+      `<div class="sm-cand"><span class="sm-coord">X <b>${c.x}</b>, Z <b>${c.z}</b></span>` +
+      `<span class="muted">${c.dist.toLocaleString()} blocks</span>` +
+      `<button class="ctrl-btn ghost sm-copy" data-xz="${c.x} ${c.z}" title="Copy coordinates">copy</button>` +
+      `<button class="ctrl-btn ghost sm-copy" data-xz="/tp @s ${c.x} ~ ${c.z}" title="Copy /tp command">/tp</button></div>`).join("");
+    return `<div class="sm-res"><div class="sm-res-h"><span class="sm-dot" style="background:${col}"></span><b>${r.st.name}</b> <span class="muted">— ${r.cands.length} in range, nearest ${Math.min(6, r.cands.length)}:</span></div>${rows}</div>`;
+  }).join("");
+  drawSeedMapCanvas();
+}
+function drawSeedMapCanvas() {
+  const cv = document.getElementById("sm-canvas");
+  if (!cv || !smLastResults) return;
+  const { results, m } = smLastResults;
+  const ctx = cv.getContext("2d");
+  const W = cv.width, H = cv.height, cxp = W / 2, czp = H / 2, R = m.radius;
+  ctx.fillStyle = "#0b1322"; ctx.fillRect(0, 0, W, H);
+  // radius circle + crosshair
+  ctx.strokeStyle = "#243549"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(cxp, czp, (W / 2) - 6, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cxp, 6); ctx.lineTo(cxp, H - 6); ctx.moveTo(6, czp); ctx.lineTo(W - 6, czp); ctx.stroke();
+  const scale = ((W / 2) - 6) / R;
+  for (const r of results) {
+    if (!r.valid || !r.cands.length) continue;
+    ctx.fillStyle = smPackColor(r.st.pack);
+    for (const c of r.cands.slice(0, 8)) {
+      const px = cxp + (c.x - m.cx) * scale, py = czp + (c.z - m.cz) * scale;
+      ctx.beginPath(); ctx.arc(px, py, c === r.cands[0] ? 5 : 3, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  // center marker
+  ctx.fillStyle = "#e7eef7"; ctx.beginPath(); ctx.arc(cxp, czp, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#93a4b8"; ctx.font = "12px system-ui, sans-serif"; ctx.textAlign = "left";
+  ctx.fillText(`±${R.toLocaleString()} blocks`, 8, H - 8);
+}
+// Pull placement params out of a pasted Minecraft structure_set JSON.
+function smParseJson(text) {
+  let j;
+  try { j = JSON.parse(text); } catch (e) { return null; }
+  const p = j && j.placement;
+  if (!p) return null;
+  const num = (v) => (v == null ? null : Number(v));
+  return {
+    spacing: num(p.spacing), separation: num(p.separation), salt: num(p.salt),
+    spread: (p.spread_type === "triangular") ? "triangular" : "linear",
+  };
+}
+
 /* ---------- tabs ---------- */
 function showTab(name) {
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
@@ -3651,6 +3853,7 @@ function showTab(name) {
   if (name === "boxes") renderBoxes(); // refresh in case dex changed on another tab
   if (name === "legendary") renderLegendary();
   if (name === "log") renderLog();
+  if (name === "seedmap") renderSeedMap();
   if (name === "home") renderDashboard();
   if (name === "stats") renderStats();
   if (name === "sim") renderSim();
@@ -3729,6 +3932,10 @@ function grabEls() {
     huntFinds: document.getElementById("hunt-finds"),
     logSearch: document.getElementById("log-search"),
     logSort: document.getElementById("log-sort"),
+    smSeed: document.getElementById("sm-seed"),
+    smCx: document.getElementById("sm-cx"),
+    smCz: document.getElementById("sm-cz"),
+    smRadius: document.getElementById("sm-radius"),
     huntActiveCard: document.getElementById("hunt-active-card"),
     huntActive: document.getElementById("hunt-active"),
     cfgBase: document.getElementById("cfg-base"),
@@ -3986,6 +4193,72 @@ function wire() {
   // Log tab: search + sort re-render the history list.
   if (els.logSearch) els.logSearch.addEventListener("input", renderLog);
   if (els.logSort) els.logSort.addEventListener("change", renderLog);
+
+  // Seed Map tab.
+  const smPanel = document.getElementById("panel-seedmap");
+  if (smPanel) {
+    smPanel.addEventListener("click", (e) => {
+      if (e.target.closest("#sm-find")) { computeSeedMap(); return; }
+      const pack = e.target.closest(".sm-pack");
+      if (pack) {
+        const p = pack.dataset.pack, m = seedMapCfg();
+        const on = m.structures.some((s) => (s.pack || "custom") === p && s.enabled !== false);
+        m.structures.forEach((s) => { if ((s.pack || "custom") === p) s.enabled = !on; });
+        save(); renderSeedMapPacks(); renderSeedMapStructs();
+        return;
+      }
+      const del = e.target.closest(".sm-del");
+      if (del) {
+        const id = del.closest(".sm-row").dataset.id, m = seedMapCfg();
+        m.structures = m.structures.filter((s) => s.id !== id);
+        save(); renderSeedMap();
+        return;
+      }
+      const copy = e.target.closest(".sm-copy");
+      if (copy) {
+        const txt = copy.dataset.xz;
+        const done = () => smCopyFlash(copy);
+        if (navigator.clipboard) navigator.clipboard.writeText(txt).then(done, done); else done();
+        return;
+      }
+      if (e.target.closest("#sm-add")) {
+        const id = (document.getElementById("sm-add-id").value || "").trim();
+        if (!id) { alert("Give the structure_set an id (e.g. legendarymonuments:lugia_temple)."); return; }
+        const name = (document.getElementById("sm-add-name").value || "").trim() || id;
+        const pack = (document.getElementById("sm-add-pack").value || "").trim() || (id.includes(":") ? id.split(":")[0] : "custom");
+        const json = (document.getElementById("sm-add-json").value || "").trim();
+        const parsed = json ? smParseJson(json) : null;
+        if (json && !parsed) { alert("Couldn't read that structure_set JSON — check it has a \"placement\" block."); return; }
+        const m = seedMapCfg();
+        let st = m.structures.find((s) => s.id === id);
+        if (!st) { st = { id, name, pack, spacing: null, separation: null, salt: null, spread: "linear", enabled: true }; m.structures.push(st); }
+        st.name = name; st.pack = pack;
+        if (parsed) Object.assign(st, parsed);
+        save(); renderSeedMap();
+        ["sm-add-id", "sm-add-name", "sm-add-pack", "sm-add-json"].forEach((i) => { document.getElementById(i).value = ""; });
+        return;
+      }
+    });
+    // Edit a structure_set field (spacing/separation/salt/spread) or toggle it.
+    smPanel.addEventListener("change", (e) => {
+      const en = e.target.closest(".sm-enable");
+      if (en) {
+        const st = smStructById(en.closest(".sm-row").dataset.id);
+        if (st) { st.enabled = en.checked; save(); renderSeedMapPacks(); }
+        return;
+      }
+      const f = e.target.closest(".sm-f");
+      if (f) {
+        const st = smStructById(f.closest(".sm-row").dataset.id);
+        if (!st) return;
+        const key = f.dataset.f;
+        if (key === "spread") st.spread = f.value;
+        else st[key] = f.value === "" ? null : Number(f.value);
+        save(); renderSeedMapStructs();
+        return;
+      }
+    });
+  }
   // Showcase modal: close, edit origin, export.
   if (els.showcaseModal) {
     els.showcaseModal.addEventListener("click", (e) => {

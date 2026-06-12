@@ -671,3 +671,28 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 /* wishlisted Pokémon that spawn in the selected biome — highlighted at the top */
 .next-row.next-hot { background: color-mix(in srgb, var(--gold) 12%, transparent);
   border-left: 3px solid var(--gold); padding-left: 7px; border-radius: 6px; }
+
+/* ---------- seed map ---------- */
+#sm-structs { overflow-x: auto; }
+.sm-row { display: grid; grid-template-columns: 28px minmax(150px,1fr) 64px 64px 90px 92px 28px;
+  gap: 6px; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--line); min-width: 540px; }
+.sm-row.sm-head { color: var(--muted); font-size: .72rem; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.sm-row.sm-off { opacity: .45; }
+.sm-name { min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.sm-name b { font-size: .9rem; }
+.sm-name .muted { font-size: .68rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sm-warn { color: var(--danger); }
+.sm-row .sm-f { width: 100%; padding: 4px 6px; font-size: .82rem; background: var(--panel-2);
+  border: 1px solid var(--line); border-radius: 6px; color: var(--text); }
+.sm-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: .9rem; }
+.sm-del:hover { color: var(--danger); }
+.sm-pack { font-size: .82rem; text-transform: capitalize; }
+.sm-pack.active { background: var(--panel-2); }
+.sm-res { padding: 8px 0; border-bottom: 1px solid var(--line); }
+.sm-res-h { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-bottom: 4px; }
+.sm-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+.sm-cand { display: flex; align-items: center; gap: 10px; padding: 2px 0 2px 17px; font-size: .88rem; flex-wrap: wrap; }
+.sm-coord b { color: var(--gold); }
+.sm-cand .muted { margin-left: auto; }
+.sm-copy { padding: 2px 8px; font-size: .72rem; }
+#sm-canvas { display: block; width: 100%; height: auto; max-width: 480px; margin: 0 auto; }

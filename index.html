@@ -591,10 +591,10 @@
     <!-- ============ SEED MAP TAB ============ -->
     <section class="panel" id="panel-seedmap">
       <p class="hint">Live seed → structure map. Enter a world seed and this runs Minecraft's
-        <code>random_spread</code> placement to find where each structure's chunks land. Results are
-        <strong>candidate positions</strong> — Minecraft still runs a biome/terrain check at each, so a few won't
-        actually generate. Accuracy depends entirely on each structure_set's <strong>spacing · separation · salt</strong>
-        being correct — paste the datapack JSON below to load them exactly.</p>
+        <code>random_spread</code> placement to find where every Cobbleverse / LegendaryMonuments structure's chunks
+        land — all <strong>32 structures</strong> (overworld + Nether + End) are built in with their real datapack
+        params. Results are <strong>candidate positions</strong>; Minecraft still runs a biome/terrain check at each,
+        so a few won't actually generate.</p>
 
       <div class="card">
         <h2>🌱 Seed &amp; search</h2>
@@ -616,38 +616,6 @@
           <button id="sm-find" class="ctrl-btn good">🔍 Find structures</button>
           <span id="sm-status" class="muted"></span>
         </div>
-      </div>
-
-      <div class="card">
-        <h2>📦 Datapacks</h2>
-        <p class="hint" style="margin-top:0">Toggle which structure groups to include.</p>
-        <div id="sm-packs" class="controls"></div>
-      </div>
-
-      <div class="card">
-        <h2>🏛 Structure sets</h2>
-        <p class="hint" style="margin-top:0">Edit <strong>spacing / separation / salt / spread</strong> per structure_set,
-          or paste a datapack's structure_set JSON below to fill them exactly. Rows missing a salt or separation are
-          skipped until you provide them.</p>
-        <div id="sm-structs"></div>
-        <details style="margin-top:10px">
-          <summary class="summary-h">➕ Add / import a structure_set</summary>
-          <div class="sim-grid" style="margin-top:10px">
-            <label class="field" style="margin:0">Display name
-              <input type="text" id="sm-add-name" class="search" placeholder="e.g. Lugia Temple" />
-            </label>
-            <label class="field" style="margin:0">Structure-set id
-              <input type="text" id="sm-add-id" class="search" placeholder="e.g. legendarymonuments:lugia_temple" />
-            </label>
-            <label class="field" style="margin:0">Datapack group
-              <input type="text" id="sm-add-pack" class="search" placeholder="e.g. legendarymonuments" />
-            </label>
-          </div>
-          <label class="field">Paste structure_set JSON <span class="muted">(optional — reads spacing/separation/salt/spread)</span>
-            <textarea id="sm-add-json" class="search" rows="5" style="width:100%;font-family:ui-monospace,monospace" placeholder='{ "placement": { "type": "minecraft:random_spread", "spacing": 80, "separation": 40, "salt": 14357618, "spread_type": "linear" } }'></textarea>
-          </label>
-          <div class="controls"><button id="sm-add" class="ctrl-btn good">Add / update structure_set</button></div>
-        </details>
       </div>
 
       <div class="card">

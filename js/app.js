@@ -3707,23 +3707,12 @@ function smFindCandidates(seed, st, cx, cz, radius) {
 }
 // Prefilled from decompiling Cobbleverse (spacing known; separation/salt must come
 // from the datapack — paste the structure_set JSON to load them exactly).
-const DEFAULT_SEEDMAP = [
-  { id: "legendarymonuments:shrines", name: "Ruin Shrines (Treasures of Ruin)", pack: "legendarymonuments", spacing: 80, separation: 40, salt: null, spread: "linear", enabled: true },
-  { id: "legendarymonuments:lake_guardians", name: "Lake Guardians (Uxie/Mesprit/Azelf)", pack: "legendarymonuments", spacing: 80, separation: null, salt: null, spread: "linear", enabled: true },
-  { id: "legendarymonuments:turnback_cave", name: "Turnback Cave (Giratina)", pack: "legendarymonuments", spacing: 250, separation: null, salt: null, spread: "linear", enabled: true },
-  { id: "legendarymonuments:eternatus_cocoon", name: "Eternatus Cocoon", pack: "legendarymonuments", spacing: 280, separation: null, salt: null, spread: "linear", enabled: true },
-  { id: "legendarymonuments:giratina_island", name: "Giratina Island", pack: "legendarymonuments", spacing: 200, separation: null, salt: null, spread: "linear", enabled: true },
-  { id: "legendarymonuments:heatran_cave", name: "Heatran Cave", pack: "legendarymonuments", spacing: 205, separation: null, salt: null, spread: "linear", enabled: true },
-  { id: "legendarymonuments:lugia_temple", name: "Lugia Temple", pack: "legendarymonuments", spacing: 205, separation: null, salt: null, spread: "linear", enabled: true },
-  { id: "legendarymonuments:hall_of_origin", name: "Hall of Origin (Arceus)", pack: "legendarymonuments", spacing: 150, separation: null, salt: null, spread: "linear", enabled: true },
-  { id: "cobbleverse:mythical/jirachi", name: "Jirachi structure", pack: "cobbleverse", spacing: 285, separation: null, salt: null, spread: "linear", enabled: true },
-];
 const SM_PACK_COLORS = { cobbleverse: "#4fd1c5", legendarymonuments: "#f6c544", lumymon: "#c084fc" };
 function smPackColor(p) { return SM_PACK_COLORS[p] || "#8ab4ff"; }
 function seedMapCfg() {
   let m = state.config.seedMap;
   if (!m || typeof m !== "object") m = state.config.seedMap = {};
-  if (!Array.isArray(m.structures) || !m.structures.length) m.structures = JSON.parse(JSON.stringify(DEFAULT_SEEDMAP));
+  delete m.structures; // legacy editable list removed — structures are bundled now
   if (typeof m.seed !== "string") m.seed = "";
   if (!Number.isFinite(m.cx)) m.cx = 0;
   if (!Number.isFinite(m.cz)) m.cz = 0;
@@ -3731,45 +3720,15 @@ function seedMapCfg() {
   return m;
 }
 let smLastResults = null; // cached for canvas redraw
-function smPacks() { return [...new Set(seedMapCfg().structures.map((s) => s.pack || "custom"))]; }
-function renderSeedMapPacks() {
-  const el = document.getElementById("sm-packs");
-  if (!el) return;
-  const m = seedMapCfg();
-  el.innerHTML = smPacks().map((p) => {
-    const on = m.structures.some((s) => (s.pack || "custom") === p && s.enabled !== false);
-    return `<button class="ctrl-btn sm-pack${on ? " active" : ""}" data-pack="${p}" style="border-color:${smPackColor(p)}">${on ? "✓ " : ""}${p}</button>`;
-  }).join("");
-}
-function renderSeedMapStructs() {
-  const el = document.getElementById("sm-structs");
-  if (!el) return;
-  const m = seedMapCfg();
-  el.innerHTML = `<div class="sm-row sm-head"><span></span><span>structure_set</span><span>spacing</span><span>separ.</span><span>salt</span><span>spread</span><span></span></div>` +
-    m.structures.map((st) => {
-      const bad = !smStructValid(st);
-      return `<div class="sm-row${st.enabled === false ? " sm-off" : ""}" data-id="${st.id}">` +
-        `<label class="sm-en"><input type="checkbox" class="sm-enable" ${st.enabled !== false ? "checked" : ""} /></label>` +
-        `<div class="sm-name"><b style="color:${smPackColor(st.pack)}">${st.name}</b><span class="muted">${st.id}${bad ? ` · <span class="sm-warn">needs ${st.salt == null || st.salt === "" ? "salt" : "separation"}</span>` : ""}</span></div>` +
-        `<input class="sm-f" data-f="spacing" type="number" value="${st.spacing == null ? "" : st.spacing}" />` +
-        `<input class="sm-f" data-f="separation" type="number" value="${st.separation == null ? "" : st.separation}" />` +
-        `<input class="sm-f" data-f="salt" type="number" value="${st.salt == null ? "" : st.salt}" />` +
-        `<select class="sm-f" data-f="spread"><option value="linear"${st.spread !== "triangular" ? " selected" : ""}>linear</option><option value="triangular"${st.spread === "triangular" ? " selected" : ""}>triangular</option></select>` +
-        `<button class="sm-del" title="Remove">✕</button>` +
-      `</div>`;
-    }).join("");
-}
 function renderSeedMap() {
   const m = seedMapCfg();
   if (els.smSeed) els.smSeed.value = m.seed;
   if (els.smCx) els.smCx.value = m.cx;
   if (els.smCz) els.smCz.value = m.cz;
   if (els.smRadius) els.smRadius.value = m.radius;
-  renderSeedMapPacks();
-  renderSeedMapStructs();
 }
-function smStructById(id) { return seedMapCfg().structures.find((s) => s.id === id); }
 function computeSeedMap() {
+  if (!STRUCTURES) { loadStructures().then(computeSeedMap); return; } // bundled structures
   const m = seedMapCfg();
   m.seed = els.smSeed.value;
   m.cx = Math.round(Number(els.smCx.value) || 0);
@@ -3777,15 +3736,14 @@ function computeSeedMap() {
   m.radius = Math.max(100, Math.round(Number(els.smRadius.value) || 5000));
   save();
   const seed = seedToLong(m.seed);
-  const active = m.structures.filter((s) => s.enabled !== false);
-  const results = active.map((st) => ({
-    st, valid: smStructValid(st),
-    cands: smStructValid(st) ? smFindCandidates(seed, st, m.cx, m.cz, m.radius) : null,
-  }));
+  const results = STRUCTURES.map((st) => ({ st, cands: smFindCandidates(seed, st, m.cx, m.cz, m.radius) }))
+    .filter((r) => r.cands.length)
+    .sort((a, b) => a.cands[0].dist - b.cands[0].dist);
   smLastResults = { results, m };
   renderSeedMapResults();
 }
 function smCopyFlash(btn) { const o = btn.textContent; btn.textContent = "✓"; setTimeout(() => (btn.textContent = o), 900); }
+const SM_DIM_LABEL = { nether: "🔥 Nether", end: "🟣 End" };
 function renderSeedMapResults() {
   if (!smLastResults) return;
   const { results, m } = smLastResults;
@@ -3793,18 +3751,19 @@ function renderSeedMapResults() {
   const out = document.getElementById("sm-results");
   const status = document.getElementById("sm-status");
   if (card) card.hidden = false;
-  const skipped = results.filter((r) => !r.valid).length;
-  if (status) status.textContent = `seed ${seedToLong(m.seed)} · ${results.length - skipped} structure set${results.length - skipped === 1 ? "" : "s"} searched within ${m.radius.toLocaleString()} blocks${skipped ? ` · ${skipped} skipped (missing params)` : ""}`;
+  if (status) status.textContent = `seed ${seedToLong(m.seed)} · ${results.length} structure${results.length === 1 ? "" : "s"} within ${m.radius.toLocaleString()} blocks of (${m.cx}, ${m.cz})`;
+  if (!results.length) { out.innerHTML = `<p class="hint">No structures within ${m.radius.toLocaleString()} blocks — try a larger radius.</p>`; drawSeedMapCanvas(); return; }
   out.innerHTML = results.map((r) => {
     const col = smPackColor(r.st.pack);
-    if (!r.valid) return `<div class="sm-res"><div class="sm-res-h"><span class="sm-dot" style="background:${col}"></span><b>${r.st.name}</b> <span class="sm-warn">skipped — set spacing/separation/salt (or paste the structure_set JSON)</span></div></div>`;
-    if (!r.cands.length) return `<div class="sm-res"><div class="sm-res-h"><span class="sm-dot" style="background:${col}"></span><b>${r.st.name}</b> <span class="muted">— none within ${m.radius.toLocaleString()} blocks</span></div></div>`;
+    const dim = SM_DIM_LABEL[r.st.dim] ? ` · ${SM_DIM_LABEL[r.st.dim]}` : "";
     const rows = r.cands.slice(0, 6).map((c) =>
       `<div class="sm-cand"><span class="sm-coord">X <b>${c.x}</b>, Z <b>${c.z}</b></span>` +
       `<span class="muted">${c.dist.toLocaleString()} blocks</span>` +
       `<button class="ctrl-btn ghost sm-copy" data-xz="${c.x} ${c.z}" title="Copy coordinates">copy</button>` +
       `<button class="ctrl-btn ghost sm-copy" data-xz="/tp @s ${c.x} ~ ${c.z}" title="Copy /tp command">/tp</button></div>`).join("");
-    return `<div class="sm-res"><div class="sm-res-h"><span class="sm-dot" style="background:${col}"></span><b>${r.st.name}</b> <span class="muted">— ${r.cands.length} in range, nearest ${Math.min(6, r.cands.length)}:</span></div>${rows}</div>`;
+    return `<div class="sm-res"><div class="sm-res-h"><span class="sm-dot" style="background:${col}"></span>` +
+      `<b>${r.st.icon || ""} ${r.st.name}</b>${r.st.target ? ` <span class="muted">→ ${r.st.target}</span>` : ""}` +
+      `<span class="muted">${dim} · nearest ${Math.min(6, r.cands.length)} of ${r.cands.length}</span></div>${rows}</div>`;
   }).join("");
   drawSeedMapCanvas();
 }
@@ -3821,7 +3780,7 @@ function drawSeedMapCanvas() {
   ctx.beginPath(); ctx.moveTo(cxp, 6); ctx.lineTo(cxp, H - 6); ctx.moveTo(6, czp); ctx.lineTo(W - 6, czp); ctx.stroke();
   const scale = ((W / 2) - 6) / R;
   for (const r of results) {
-    if (!r.valid || !r.cands.length) continue;
+    if (!r.cands || !r.cands.length) continue;
     ctx.fillStyle = smPackColor(r.st.pack);
     for (const c of r.cands.slice(0, 8)) {
       const px = cxp + (c.x - m.cx) * scale, py = czp + (c.z - m.cz) * scale;
@@ -3833,19 +3792,6 @@ function drawSeedMapCanvas() {
   ctx.fillStyle = "#93a4b8"; ctx.font = "12px system-ui, sans-serif"; ctx.textAlign = "left";
   ctx.fillText(`±${R.toLocaleString()} blocks`, 8, H - 8);
 }
-// Pull placement params out of a pasted Minecraft structure_set JSON.
-function smParseJson(text) {
-  let j;
-  try { j = JSON.parse(text); } catch (e) { return null; }
-  const p = j && j.placement;
-  if (!p) return null;
-  const num = (v) => (v == null ? null : Number(v));
-  return {
-    spacing: num(p.spacing), separation: num(p.separation), salt: num(p.salt),
-    spread: (p.spread_type === "triangular") ? "triangular" : "linear",
-  };
-}
-
 /* ---------- biome map (deepslate Terralith, in a worker) ---------- */
 let biomeWorker = null;
 let biomeState = { cx: 0, cz: 0, bpp: 2, cols: 192, rows: 192, img: null, grid: null, palette: null, legend: null, busy: false };
@@ -3968,6 +3914,7 @@ function drawBiomeStructures(ctx, ox, oy) {
     let total = 0;
     ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "13px system-ui, sans-serif";
     for (const st of STRUCTURES) {            // rarest-first (structures.json is sorted)
+      if (st.dim && st.dim !== "overworld") continue; // biome map is the overworld
       if (total >= TOTAL_CAP) break;
       let n = 0;
       for (const c of structuresInView(seed, st, minX, maxX, minZ, maxZ)) {
@@ -4417,62 +4364,11 @@ function wire() {
     smPanel.addEventListener("click", (e) => {
       if (e.target.closest("#sm-find")) { computeSeedMap(); return; }
       if (e.target.closest("#sm-biome-render")) { renderBiomeMap(); return; }
-      const pack = e.target.closest(".sm-pack");
-      if (pack) {
-        const p = pack.dataset.pack, m = seedMapCfg();
-        const on = m.structures.some((s) => (s.pack || "custom") === p && s.enabled !== false);
-        m.structures.forEach((s) => { if ((s.pack || "custom") === p) s.enabled = !on; });
-        save(); renderSeedMapPacks(); renderSeedMapStructs();
-        return;
-      }
-      const del = e.target.closest(".sm-del");
-      if (del) {
-        const id = del.closest(".sm-row").dataset.id, m = seedMapCfg();
-        m.structures = m.structures.filter((s) => s.id !== id);
-        save(); renderSeedMap();
-        return;
-      }
       const copy = e.target.closest(".sm-copy");
       if (copy) {
         const txt = copy.dataset.xz;
         const done = () => smCopyFlash(copy);
         if (navigator.clipboard) navigator.clipboard.writeText(txt).then(done, done); else done();
-        return;
-      }
-      if (e.target.closest("#sm-add")) {
-        const id = (document.getElementById("sm-add-id").value || "").trim();
-        if (!id) { alert("Give the structure_set an id (e.g. legendarymonuments:lugia_temple)."); return; }
-        const name = (document.getElementById("sm-add-name").value || "").trim() || id;
-        const pack = (document.getElementById("sm-add-pack").value || "").trim() || (id.includes(":") ? id.split(":")[0] : "custom");
-        const json = (document.getElementById("sm-add-json").value || "").trim();
-        const parsed = json ? smParseJson(json) : null;
-        if (json && !parsed) { alert("Couldn't read that structure_set JSON — check it has a \"placement\" block."); return; }
-        const m = seedMapCfg();
-        let st = m.structures.find((s) => s.id === id);
-        if (!st) { st = { id, name, pack, spacing: null, separation: null, salt: null, spread: "linear", enabled: true }; m.structures.push(st); }
-        st.name = name; st.pack = pack;
-        if (parsed) Object.assign(st, parsed);
-        save(); renderSeedMap();
-        ["sm-add-id", "sm-add-name", "sm-add-pack", "sm-add-json"].forEach((i) => { document.getElementById(i).value = ""; });
-        return;
-      }
-    });
-    // Edit a structure_set field (spacing/separation/salt/spread) or toggle it.
-    smPanel.addEventListener("change", (e) => {
-      const en = e.target.closest(".sm-enable");
-      if (en) {
-        const st = smStructById(en.closest(".sm-row").dataset.id);
-        if (st) { st.enabled = en.checked; save(); renderSeedMapPacks(); }
-        return;
-      }
-      const f = e.target.closest(".sm-f");
-      if (f) {
-        const st = smStructById(f.closest(".sm-row").dataset.id);
-        if (!st) return;
-        const key = f.dataset.f;
-        if (key === "spread") st.spread = f.value;
-        else st[key] = f.value === "" ? null : Number(f.value);
-        save(); renderSeedMapStructs();
         return;
       }
     });

@@ -667,3 +667,7 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 
 /* off-hunt / random-encounter find chip (excluded from averages) */
 .luck-chip.luck-random { background: var(--panel-2); border: 1px solid var(--line); color: var(--muted); }
+
+/* wishlisted Pokémon that spawn in the selected biome — highlighted at the top */
+.next-row.next-hot { background: color-mix(in srgb, var(--gold) 12%, transparent);
+  border-left: 3px solid var(--gold); padding-left: 7px; border-radius: 6px; }

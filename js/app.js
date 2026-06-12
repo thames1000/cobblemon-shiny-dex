@@ -2271,12 +2271,17 @@ function huntSuggestions(biome, limit = 8) {
     const dex = sp.dex;
     if (hasShiny(dexState(dex))) continue; // only suggest shinies you still need
     const wished = state.wishlist.includes(dex);
+    const here = inBiome[dex] != null;
     // Only weight things you can actually hunt here — unless you've wishlisted it,
     // which always keeps it in the running regardless of the current biome.
-    if (inBiome[dex] == null && !wished) continue;
+    if (!here && !wished) continue;
+    // Tier drives the primary ordering: "spawns here" outranks a wishlist-only
+    // pick, and wishlisted mons that ALSO spawn here float to the very top — so
+    // picking a biome highlights which of your wishlist you can hunt right now.
+    const tier = (wished && here) ? 3 : here ? 2 : 1;
     let score = 0;
     const reasons = [];
-    if (wished) { score += 60; reasons.push({ i: "★", t: "Wishlist", c: "r-wl" }); }
+    if (wished) { score += 60; reasons.push({ i: "★", t: here ? "Wishlist — here!" : "Wishlist", c: "r-wl" }); }
     if (dex === firstGapDex) { score += 35; reasons.push({ i: "📦", t: "Next box gap", c: "r-gap" }); }
     if (inBiome[dex] != null) {
       score += 22;
@@ -2294,9 +2299,9 @@ function huntSuggestions(biome, limit = 8) {
     const bst = COACH[dex] && COACH[dex].bst;
     if (bst >= 600 && !isLegendary(dex)) { score += 12; reasons.push({ i: "🌟", t: "High value", c: "r-bst" }); }
 
-    if (score > 0) out.push({ dex, sp, score, reasons });
+    if (score > 0) out.push({ dex, sp, score, reasons, tier, hot: wished && here });
   }
-  out.sort((a, b) => b.score - a.score || a.dex - b.dex);
+  out.sort((a, b) => b.tier - a.tier || b.score - a.score || a.dex - b.dex);
   return out.slice(0, limit);
 }
 function defaultHuntBiome() {
@@ -2311,10 +2316,12 @@ function renderDashNext() {
   if (!biomes.length) { el.innerHTML = `<h2>🎯 What should I hunt next?</h2><p class="hint">Spawn data unavailable.</p>`; return; }
   const biome = defaultHuntBiome();
   const opts = biomes.map((b) => `<option value="${b}"${b === biome ? " selected" : ""}>${b} (${BIOME_INDEX[b].length})</option>`).join("");
-  const head = `<h2>🎯 What should I hunt next? <span class="muted">— ranked for you</span></h2>
-    <label class="field" style="margin:4px 0 10px">Your current biome
-      <select id="dash-next-biome" class="select" style="width:100%">${opts}</select></label>`;
   const sugg = huntSuggestions(biome, 8);
+  const hotN = sugg.filter((s) => s.hot).length;
+  const head = `<h2>🎯 What should I hunt next? <span class="muted">— ranked for you</span></h2>
+    <label class="field" style="margin:4px 0 ${hotN ? 4 : 10}px">Your current biome
+      <select id="dash-next-biome" class="select" style="width:100%">${opts}</select></label>` +
+    (hotN ? `<p class="hint" style="margin:0 0 10px">★ <strong>${hotN}</strong> of your wishlist ${hotN === 1 ? "spawns" : "spawn"} in <strong>${biome}</strong> — highlighted below.</p>` : "");
   if (!sugg.length) {
     el.innerHTML = head + `<p class="hint">No standout targets here — you've shiny'd everything that scores in this biome. Try another biome, check your ★ wishlist, or 🎲 Surprise me.</p>`;
     return;
@@ -2322,7 +2329,7 @@ function renderDashNext() {
   el.innerHTML = head + `<div class="next-list">` + sugg.map((s) => {
     const nm = s.sp.name.replace(/-/g, " ");
     const chips = s.reasons.map((r) => `<span class="next-reason ${r.c}">${r.i} ${r.t}</span>`).join("");
-    return `<div class="find-row next-row" data-dex="${s.dex}">` +
+    return `<div class="find-row next-row${s.hot ? " next-hot" : ""}" data-dex="${s.dex}">` +
       `<img loading="lazy" src="${spriteUrl(s.dex, true)}" alt="${s.sp.name}" />` +
       `<div class="next-main"><div class="next-name">${nm} <span class="muted">#${String(s.dex).padStart(4, "0")}</span></div>` +
       `<div class="next-reasons">${chips}</div></div>` +

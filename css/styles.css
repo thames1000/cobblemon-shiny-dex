@@ -702,3 +702,6 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .sm-leg { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); text-transform: capitalize; white-space: nowrap; }
 .sm-leg i { width: 11px; height: 11px; border-radius: 3px; border: 1px solid rgba(0,0,0,.35); flex: none; }
 #sm-biome-canvas { background: #0b1322; border-radius: 8px; }
+
+.sm-hover { min-height: 1.2em; margin-top: 6px; text-align: center; font-size: .82rem; text-transform: capitalize; }
+.sm-hover:empty::before { content: "—"; opacity: .4; }

@@ -3848,7 +3848,18 @@ function smParseJson(text) {
 
 /* ---------- biome map (deepslate Terralith, in a worker) ---------- */
 let biomeWorker = null;
-let biomeState = { cx: 0, cz: 0, bpp: 2, cols: 192, rows: 192, img: null, legend: null, busy: false };
+let biomeState = { cx: 0, cz: 0, bpp: 2, cols: 192, rows: 192, img: null, grid: null, palette: null, legend: null, busy: false };
+let biomeRerender = false, biomeRenderTimer = null;
+const BIOME_ZOOM_STEPS = [1, 2, 4, 8, 16];
+let BIOME_REMAP = null; // loaded lazily for hover labels (worker applies its own copy)
+function loadBiomeRemap() {
+  if (BIOME_REMAP) return;
+  fetch("js/data/worldgen/biome_replacer.json").then((r) => r.json()).then((m) => (BIOME_REMAP = m)).catch(() => (BIOME_REMAP = {}));
+}
+function scheduleBiomeRender() {
+  clearTimeout(biomeRenderTimer);
+  biomeRenderTimer = setTimeout(renderBiomeMap, 140);
+}
 function getBiomeWorker() {
   if (biomeWorker) return biomeWorker;
   try { biomeWorker = new Worker("js/biome-worker.js", { type: "module" }); }
@@ -3865,7 +3876,8 @@ function getBiomeWorker() {
 function renderBiomeMap() {
   const w = getBiomeWorker();
   if (!w) { els.smBiomeStatus.textContent = "⚠ module workers unsupported in this browser"; return; }
-  if (biomeState.busy) return;
+  loadBiomeRemap();
+  if (biomeState.busy) { biomeRerender = true; return; } // queue the latest pan/zoom
   const cv = els.smBiomeCanvas;
   const bpp = Math.max(1, Number(els.smBiomeZoom.value) || 2);
   const cols = Math.round(cv.width / 2), rows = Math.round(cv.height / 2); // half-res sample, scaled up
@@ -3877,10 +3889,26 @@ function renderBiomeMap() {
 function onBiomeDone(m) {
   biomeState.busy = false;
   biomeState.img = new ImageData(new Uint8ClampedArray(m.rgba), m.cols, m.rows);
+  biomeState.grid = new Uint16Array(m.ids);
+  biomeState.palette = m.palette;
   biomeState.legend = m.legend;
   drawBiomeCanvas(0, 0);
   renderBiomeLegend(m.legend);
   els.smBiomeStatus.textContent = `${m.legend.length} biomes · ${biomeState.bpp} blk/px · ${biomeState.cols * biomeState.bpp}×${biomeState.rows * biomeState.bpp} blocks`;
+  if (biomeRerender) { biomeRerender = false; renderBiomeMap(); } // a pan/zoom queued during render
+}
+// Biome + world coords under the cursor, from the cached grid.
+function biomeAtPointer(offsetX, offsetY) {
+  if (!biomeState.grid) return null;
+  const cv = els.smBiomeCanvas;
+  const cx = Math.floor(offsetX / (cv.width / biomeState.cols));
+  const cy = Math.floor(offsetY / (cv.height / biomeState.rows));
+  if (cx < 0 || cx >= biomeState.cols || cy < 0 || cy >= biomeState.rows) return null;
+  const orig = biomeState.palette[biomeState.grid[cy * biomeState.cols + cx]];
+  const mapped = (BIOME_REMAP && BIOME_REMAP[orig]) || orig;
+  const bx = Math.round(biomeState.cx - (biomeState.cols * biomeState.bpp) / 2 + (cx + 0.5) * biomeState.bpp);
+  const bz = Math.round(biomeState.cz - (biomeState.rows * biomeState.bpp) / 2 + (cy + 0.5) * biomeState.bpp);
+  return { orig, mapped, bx, bz };
 }
 // dragX/dragY shift the cached image during a pan (visual only, before re-render).
 function drawBiomeCanvas(dragX, dragY) {
@@ -3930,9 +3958,12 @@ function wireBiomePan() {
     cv.setPointerCapture(e.pointerId); cv.style.cursor = "grabbing";
   });
   cv.addEventListener("pointermove", (e) => {
-    if (!biomeDrag) return;
-    drawBiomeCanvas(e.offsetX - biomeDrag.x, e.offsetY - biomeDrag.y);
+    if (biomeDrag) { drawBiomeCanvas(e.offsetX - biomeDrag.x, e.offsetY - biomeDrag.y); return; }
+    const h = biomeAtPointer(e.offsetX, e.offsetY); // hover readout
+    if (els.smBiomeHover) els.smBiomeHover.textContent = h
+      ? `${biomeLabel(h.mapped)}${h.mapped !== h.orig ? ` (Terralith: ${biomeLabel(h.orig)})` : ""} · X ${h.bx}, Z ${h.bz}` : "";
   });
+  cv.addEventListener("pointerleave", () => { if (els.smBiomeHover) els.smBiomeHover.textContent = ""; });
   cv.addEventListener("pointerup", (e) => {
     if (!biomeDrag) return;
     const ppb = cv.width / (biomeState.cols * biomeState.bpp);
@@ -3943,6 +3974,21 @@ function wireBiomePan() {
     els.smCx.value = ncx; els.smCz.value = ncz; // keep the structure finder in sync
     renderBiomeMap();
   });
+  // Scroll-wheel zoom, anchored on the cursor.
+  cv.addEventListener("wheel", (e) => {
+    if (!biomeState.img) return;
+    e.preventDefault();
+    let i = BIOME_ZOOM_STEPS.indexOf(biomeState.bpp); if (i < 0) i = 1;
+    const ni = Math.max(0, Math.min(BIOME_ZOOM_STEPS.length - 1, i + (e.deltaY > 0 ? 1 : -1)));
+    if (ni === i) return;
+    const newBpp = BIOME_ZOOM_STEPS[ni], W = cv.width, H = cv.height;
+    const worldX = biomeState.cx + (e.offsetX - W / 2) * (biomeState.cols * biomeState.bpp) / W;
+    const worldZ = biomeState.cz + (e.offsetY - H / 2) * (biomeState.rows * biomeState.bpp) / H;
+    els.smCx.value = Math.round(worldX - (e.offsetX - W / 2) * (biomeState.cols * newBpp) / W);
+    els.smCz.value = Math.round(worldZ - (e.offsetY - H / 2) * (biomeState.rows * newBpp) / H);
+    biomeState.bpp = newBpp; if (els.smBiomeZoom) els.smBiomeZoom.value = String(newBpp);
+    scheduleBiomeRender();
+  }, { passive: false });
 }
 
 /* ---------- tabs ---------- */
@@ -4040,6 +4086,7 @@ function grabEls() {
     smBiomeStatus: document.getElementById("sm-biome-status"),
     smBiomeCanvas: document.getElementById("sm-biome-canvas"),
     smBiomeLegend: document.getElementById("sm-biome-legend"),
+    smBiomeHover: document.getElementById("sm-biome-hover"),
     huntActiveCard: document.getElementById("hunt-active-card"),
     huntActive: document.getElementById("hunt-active"),
     cfgBase: document.getElementById("cfg-base"),

@@ -84,14 +84,16 @@ async function render(msg) {
   const { cols, rows, cx, cz, bpp } = msg;
   const bs = cache.biomeSource, sampler = cache.sampler;
   const rgba = new Uint8ClampedArray(cols * rows * 4);
-  const present = new Set();
+  const ids = new Uint16Array(cols * rows); // palette index per cell, for hover lookups
+  const palette = [], pIdx = {};            // original (pre-remap) biome ids
   const halfW = (cols * bpp) / 2, halfH = (rows * bpp) / 2;
   for (let py = 0; py < rows; py++) {
     const bz = cz - halfH + (py + 0.5) * bpp;
     for (let px = 0; px < cols; px++) {
       const bx = cx - halfW + (px + 0.5) * bpp;
       const id = bs.getBiome(Math.floor(bx) >> 2, SURFACE_QY, Math.floor(bz) >> 2, sampler).toString();
-      present.add(id);
+      let pi = pIdx[id]; if (pi === undefined) { pi = palette.length; pIdx[id] = pi; palette.push(id); }
+      ids[py * cols + px] = pi;
       const [r, g, b] = colorFor(id);
       const o = (py * cols + px) * 4;
       rgba[o] = r; rgba[o + 1] = g; rgba[o + 2] = b; rgba[o + 3] = 255;
@@ -99,8 +101,8 @@ async function render(msg) {
     if ((py & 15) === 0) self.postMessage({ type: "progress", pct: Math.round((py / rows) * 100) });
   }
   const uniq = {};
-  for (const id of present) { const mapped = BUNDLES.remap[id] || id; uniq[mapped] = BUNDLES.colors[mapped] || BUNDLES.colors[id] || "#3a4a5a"; }
-  self.postMessage({ type: "done", rgba: rgba.buffer, cols, rows, legend: Object.entries(uniq).map(([id, hex]) => ({ id, hex })) }, [rgba.buffer]);
+  for (const id of palette) { const mapped = BUNDLES.remap[id] || id; uniq[mapped] = BUNDLES.colors[mapped] || BUNDLES.colors[id] || "#3a4a5a"; }
+  self.postMessage({ type: "done", rgba: rgba.buffer, ids: ids.buffer, palette, cols, rows, legend: Object.entries(uniq).map(([id, hex]) => ({ id, hex })) }, [rgba.buffer, ids.buffer]);
 }
 
 self.onmessage = (e) => {

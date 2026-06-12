@@ -3930,9 +3930,12 @@ function drawBiomeStructures(ctx, ox, oy) {
       let n = 0;
       for (const c of structuresInView(seed, st, minX, maxX, minZ, maxZ)) {
         if (n >= PER_CAP || total >= TOTAL_CAP) break;
-        // Only draw where the structure's biome actually occurs (skip validation
-        // when it has no biome list, or the cell is off the rendered grid).
-        if (st.biomes && st.biomes.length) { const wb = biomeAtWorld(c.x, c.z); if (wb && st.biomes.indexOf(wb) < 0) continue; }
+        // Optional biome match: hide icons whose biome doesn't occur here. Off by
+        // default — a fixed-Y biome sample misreads elevation biomes (plateaus,
+        // peaks), which would wrongly hide e.g. Jirachi in a blooming_plateau.
+        if (els.smBiomeMatch && els.smBiomeMatch.checked && st.biomes && st.biomes.length) {
+          const wb = biomeAtWorld(c.x, c.z); if (wb && st.biomes.indexOf(wb) < 0) continue;
+        }
         const px = cv.width / 2 + (c.x - biomeState.cx) * ppb + ox;
         const py = cv.height / 2 + (c.z - biomeState.cz) * ppb + oy;
         if (px < -8 || px > cv.width + 8 || py < -8 || py > cv.height + 8) continue;
@@ -4107,6 +4110,7 @@ function grabEls() {
     smRadius: document.getElementById("sm-radius"),
     smBiomeRender: document.getElementById("sm-biome-render"),
     smBiomeZoom: document.getElementById("sm-biome-zoom"),
+    smBiomeMatch: document.getElementById("sm-biome-match"),
     smBiomeStatus: document.getElementById("sm-biome-status"),
     smBiomeCanvas: document.getElementById("sm-biome-canvas"),
     smBiomeLegend: document.getElementById("sm-biome-legend"),
@@ -4393,6 +4397,7 @@ function wire() {
       }
     });
     if (els.smBiomeZoom) els.smBiomeZoom.addEventListener("change", () => { if (biomeState.img) renderBiomeMap(); });
+    if (els.smBiomeMatch) els.smBiomeMatch.addEventListener("change", () => { if (biomeState.img || biomeState.dim === "end") drawBiomeCanvas(0, 0); });
     wireBiomePan();
   }
   // Showcase modal: close, edit origin, export.

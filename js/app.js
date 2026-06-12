@@ -2239,7 +2239,11 @@ function huntSuggestions(biome, limit = 8) {
   const inBiome = {};       // dex -> best rarity order in this biome
   if (biome && BIOME_INDEX[biome]) {
     for (const a of computeAttraction(biome, [], true)) attr[a.dex] = a.p;
-    for (const { dex, entry } of biomePool(biome)) {
+    // Only count species that EXPLICITLY list this biome — not the "any overworld"
+    // / "any biome" wildcards (biomePool folds those in). Those pseudo-spawns are
+    // too generic and would put mons like Terapagos/Meltan on every biome's list.
+    // (Wishlisted mons still pass the gate below regardless.)
+    for (const { dex, entry } of BIOME_INDEX[biome]) {
       const r = RARITY_ORDER[entry.r];
       if (r == null) continue;
       if (inBiome[dex] == null || r < inBiome[dex]) inBiome[dex] = r;

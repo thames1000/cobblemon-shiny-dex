@@ -3736,7 +3736,8 @@ function computeSeedMap() {
   m.radius = Math.max(100, Math.round(Number(els.smRadius.value) || 5000));
   save();
   const seed = seedToLong(m.seed);
-  const results = STRUCTURES.map((st) => ({ st, cands: smFindCandidates(seed, st, m.cx, m.cz, m.radius) }))
+  const results = STRUCTURES.filter((st) => (st.dim || "overworld") === biomeState.dim)
+    .map((st) => ({ st, cands: smFindCandidates(seed, st, m.cx, m.cz, m.radius) }))
     .filter((r) => r.cands.length)
     .sort((a, b) => a.cands[0].dist - b.cands[0].dist);
   smLastResults = { results, m };
@@ -3794,7 +3795,8 @@ function drawSeedMapCanvas() {
 }
 /* ---------- biome map (deepslate Terralith, in a worker) ---------- */
 let biomeWorker = null;
-let biomeState = { cx: 0, cz: 0, bpp: 2, cols: 192, rows: 192, img: null, grid: null, palette: null, legend: null, busy: false };
+let biomeState = { dim: "overworld", cx: 0, cz: 0, bpp: 2, cols: 192, rows: 192, img: null, grid: null, palette: null, legend: null, busy: false };
+const DIM_BG = { overworld: "#0b1322", nether: "#1a0f0c", end: "#0e0a18" };
 let biomeRerender = false, biomeRenderTimer = null;
 const BIOME_ZOOM_STEPS = [1, 2, 4, 8, 16];
 // Authoritative legendary/Cobbleverse structures (real datapack params) — always
@@ -3844,17 +3846,26 @@ function getBiomeWorker() {
   return biomeWorker;
 }
 function renderBiomeMap() {
-  const w = getBiomeWorker();
-  if (!w) { els.smBiomeStatus.textContent = "⚠ module workers unsupported in this browser"; return; }
   loadBiomeRemap(); loadStructures();
-  if (biomeState.busy) { biomeRerender = true; return; } // queue the latest pan/zoom
   const cv = els.smBiomeCanvas;
   const bpp = Math.max(1, Number(els.smBiomeZoom.value) || 2);
   const cols = Math.round(cv.width / 2), rows = Math.round(cv.height / 2); // half-res sample, scaled up
   const cx = Math.round(Number(els.smCx.value) || 0), cz = Math.round(Number(els.smCz.value) || 0);
-  biomeState.cx = cx; biomeState.cz = cz; biomeState.bpp = bpp; biomeState.cols = cols; biomeState.rows = rows; biomeState.busy = true;
+  biomeState.cx = cx; biomeState.cz = cz; biomeState.bpp = bpp; biomeState.cols = cols; biomeState.rows = rows;
+  // The End has no deepslate biome source — show a flat backdrop + its structures.
+  if (biomeState.dim === "end") {
+    biomeState.img = null; biomeState.grid = null; biomeState.palette = null;
+    biomeState.legend = [{ id: "minecraft:the_end", hex: "#0e0a18" }];
+    drawBiomeCanvas(0, 0); renderBiomeLegend(biomeState.legend);
+    els.smBiomeStatus.textContent = `The End — flat (biomes not computed) · ${cols * bpp}×${rows * bpp} blocks`;
+    return;
+  }
+  const w = getBiomeWorker();
+  if (!w) { els.smBiomeStatus.textContent = "⚠ module workers unsupported in this browser"; return; }
+  if (biomeState.busy) { biomeRerender = true; return; } // queue the latest pan/zoom
+  biomeState.busy = true;
   els.smBiomeStatus.textContent = "rendering… 0%";
-  w.postMessage({ type: "render", seed: els.smSeed.value, cx, cz, bpp, cols, rows });
+  w.postMessage({ type: "render", seed: els.smSeed.value, cx, cz, bpp, cols, rows, dim: biomeState.dim });
 }
 function onBiomeDone(m) {
   biomeState.busy = false;
@@ -3893,7 +3904,7 @@ function biomeAtWorld(x, z) {
 function drawBiomeCanvas(dragX, dragY) {
   const cv = els.smBiomeCanvas, ctx = cv.getContext("2d");
   ctx.imageSmoothingEnabled = false;
-  ctx.fillStyle = "#0b1322"; ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.fillStyle = DIM_BG[biomeState.dim] || "#0b1322"; ctx.fillRect(0, 0, cv.width, cv.height);
   if (biomeState.img) {
     const tmp = document.createElement("canvas"); tmp.width = biomeState.img.width; tmp.height = biomeState.img.height;
     tmp.getContext("2d").putImageData(biomeState.img, 0, 0);
@@ -3914,7 +3925,7 @@ function drawBiomeStructures(ctx, ox, oy) {
     let total = 0;
     ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "13px system-ui, sans-serif";
     for (const st of STRUCTURES) {            // rarest-first (structures.json is sorted)
-      if (st.dim && st.dim !== "overworld") continue; // biome map is the overworld
+      if ((st.dim || "overworld") !== biomeState.dim) continue; // structures of the current dimension
       if (total >= TOTAL_CAP) break;
       let n = 0;
       for (const c of structuresInView(seed, st, minX, maxX, minZ, maxZ)) {
@@ -4364,6 +4375,15 @@ function wire() {
     smPanel.addEventListener("click", (e) => {
       if (e.target.closest("#sm-find")) { computeSeedMap(); return; }
       if (e.target.closest("#sm-biome-render")) { renderBiomeMap(); return; }
+      const dimBtn = e.target.closest("#sm-dim .seg-btn");
+      if (dimBtn) {
+        biomeState.dim = dimBtn.dataset.dim;
+        document.querySelectorAll("#sm-dim .seg-btn").forEach((b) => b.classList.toggle("active", b === dimBtn));
+        biomeState.img = null; biomeState.grid = null; // drop the previous dimension's map
+        renderBiomeMap();
+        if (smLastResults) computeSeedMap(); // refresh the finder for the new dimension
+        return;
+      }
       const copy = e.target.closest(".sm-copy");
       if (copy) {
         const txt = copy.dataset.xz;

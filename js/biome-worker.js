@@ -41,17 +41,23 @@ async function init() {
     DensityFunction: D.DensityFunction, NoiseGeneratorSettings: D.NoiseGeneratorSettings,
     RandomState: D.RandomState, MultiNoiseBiomeSource: D.MultiNoiseBiomeSource,
   };
-  const [dfs, noises, settings, biomeSourceJson, colors, remap] = await Promise.all([
+  const [dfs, noises, sOW, sNether, bsOW, bsNether, colors, remap] = await Promise.all([
     loadJson("data/worldgen/density_functions.json"),
     loadJson("data/worldgen/noises.json"),
     loadJson("data/worldgen/noise_settings.json"),
+    loadJson("data/worldgen/noise_settings_nether.json"),
     loadJson("data/worldgen/biome_source.json"),
+    loadJson("data/worldgen/biome_source_nether.json"),
     loadJson("data/worldgen/biome_colors.json"),
     loadJson("data/worldgen/biome_replacer.json"),
   ]);
   for (const [id, j] of Object.entries(noises)) C.WR.NOISE.register(C.Identifier.parse(id), C.NoiseParameters.fromJson(j));
   for (const [id, j] of Object.entries(dfs)) C.WR.DENSITY_FUNCTION.register(C.Identifier.parse(id), C.DensityFunction.fromJson(j));
-  BUNDLES = { settings: C.NoiseGeneratorSettings.fromJson(settings), biomeSourceJson, colors, remap };
+  BUNDLES = {
+    settings: { overworld: C.NoiseGeneratorSettings.fromJson(sOW), nether: C.NoiseGeneratorSettings.fromJson(sNether) },
+    biomeSourceJson: { overworld: bsOW, nether: bsNether },
+    colors, remap,
+  };
 }
 function ensureReady() { if (!ready) ready = init(); return ready; }
 
@@ -64,10 +70,10 @@ function seedToLong(s) {
   for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
   return BigInt(h);
 }
-function buildForSeed(seed) {
-  if (cache.seed === seed && cache.sampler) return;
-  const rs = new C.RandomState(BUNDLES.settings, seedToLong(seed));
-  cache = { seed, biomeSource: C.MultiNoiseBiomeSource.fromJson(BUNDLES.biomeSourceJson), sampler: rs.sampler };
+function buildForSeed(seed, dim) {
+  if (cache.seed === seed && cache.dim === dim && cache.sampler) return;
+  const rs = new C.RandomState(BUNDLES.settings[dim], seedToLong(seed));
+  cache = { seed, dim, biomeSource: C.MultiNoiseBiomeSource.fromJson(BUNDLES.biomeSourceJson[dim]), sampler: rs.sampler };
 }
 function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
 const colorCache = {};
@@ -80,7 +86,7 @@ function colorFor(id) {
 
 async function render(msg) {
   await ensureReady();
-  buildForSeed(msg.seed);
+  buildForSeed(msg.seed, msg.dim || "overworld");
   const { cols, rows, cx, cz, bpp } = msg;
   const bs = cache.biomeSource, sampler = cache.sampler;
   const rgba = new Uint8ClampedArray(cols * rows * 4);

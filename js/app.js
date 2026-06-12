@@ -3985,8 +3985,23 @@ function drawBiomeStructures(ctx, ox, oy) {
       }
     }
   }
+  // view-centre dot (where you're looking)
   ctx.fillStyle = "#fff"; ctx.strokeStyle = "#0b1322"; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.arc(cv.width / 2 + ox, cv.height / 2 + oy, 3, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  // permanent world-origin (0,0) crosshair — pans with the map
+  const o0x = cv.width / 2 + (0 - biomeState.cx) * ppb + ox, o0z = cv.height / 2 + (0 - biomeState.cz) * ppb + oy;
+  if (o0x >= -24 && o0x <= cv.width + 24 && o0z >= -24 && o0z <= cv.height + 24) {
+    for (const [col, w] of [["rgba(0,0,0,.6)", 4], ["#ffd54a", 2]]) {
+      ctx.strokeStyle = col; ctx.lineWidth = w;
+      ctx.beginPath(); ctx.arc(o0x, o0z, 7, 0, Math.PI * 2);
+      ctx.moveTo(o0x - 12, o0z); ctx.lineTo(o0x + 12, o0z);
+      ctx.moveTo(o0x, o0z - 12); ctx.lineTo(o0x, o0z + 12); ctx.stroke();
+    }
+    ctx.font = "bold 11px system-ui, sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+    ctx.lineWidth = 3; ctx.strokeStyle = "rgba(0,0,0,.7)"; ctx.strokeText("0,0", o0x + 11, o0z - 7);
+    ctx.fillStyle = "#ffd54a"; ctx.fillText("0,0", o0x + 11, o0z - 7);
+    if (final) biomeIconHits.push({ x: o0x, y: o0z, st: { icon: "⌖", name: "World origin", target: "" }, bx: 0, bz: 0 });
+  }
 }
 function biomeLabel(id) { return id.replace(/^minecraft:|^terralith:/, "").replace(/_/g, " "); }
 function renderBiomeLegend(legend) {

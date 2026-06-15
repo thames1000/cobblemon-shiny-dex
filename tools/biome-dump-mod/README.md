@@ -4,14 +4,16 @@ Exports your server's **real** biomes (the actual generator + Biome Replacer)
 so the seed-map biome layer is 100% accurate, not a reimplementation.
 
 ## Build
-Needs JDK 21. From this folder:
+Needs **JDK 21**. Use the bundled Gradle wrapper (do NOT use your system
+`gradle` — it's too old for modern JDKs):
 ```
-gradle build      # or ./gradlew build if you add the Gradle wrapper
+./gradlew build        # Windows: gradlew.bat build
 ```
-The jar lands in `build/libs/biome-dump-1.0.0.jar`.
+First run downloads Gradle 8.10.2 automatically. The jar lands in
+`build/libs/biome-dump-1.0.0.jar`.
 
-(If you don't have Gradle: install it, or copy these files over the official
-Fabric example-mod template at fabricmc.net and run its `./gradlew build`.)
+If `./gradlew` reports the wrong Java version, point it at JDK 21:
+`./gradlew build -Dorg.gradle.java.home=/path/to/jdk-21`
 
 ## Use
 1. Put the jar in your server's `mods/` folder and restart.

@@ -3930,18 +3930,20 @@ function drawBiomeStructures(ctx, ox, oy) {
       let n = 0;
       for (const c of structuresInView(seed, st, minX, maxX, minZ, maxZ)) {
         if (n >= PER_CAP || total >= TOTAL_CAP) break;
-        // Optional biome match: hide icons whose biome doesn't occur here. Off by
-        // default — a fixed-Y biome sample misreads elevation biomes (plateaus,
-        // peaks), which would wrongly hide e.g. Jirachi in a blooming_plateau.
-        if (els.smBiomeMatch && els.smBiomeMatch.checked && st.biomes && st.biomes.length) {
-          const wb = biomeAtWorld(c.x, c.z); if (wb && st.biomes.indexOf(wb) < 0) continue;
-        }
+        // Biome match, sampled at the chunk CORNER (what /locate reports). Off-biome
+        // candidates are dimmed, not hidden — my deepslate render isn't bit-exact to
+        // the server at every point, so a real structure can read the "wrong" biome.
+        let match = true;
+        if (st.biomes && st.biomes.length) { const wb = biomeAtWorld(c.x - 8, c.z - 8); if (wb) match = st.biomes.indexOf(wb) >= 0; }
+        if (!match && els.smBiomeMatch && els.smBiomeMatch.checked) continue; // "hide off-biome" mode
         const px = cv.width / 2 + (c.x - biomeState.cx) * ppb + ox;
         const py = cv.height / 2 + (c.z - biomeState.cz) * ppb + oy;
         if (px < -8 || px > cv.width + 8 || py < -8 || py > cv.height + 8) continue;
+        ctx.globalAlpha = match ? 1 : 0.38;
         ctx.fillStyle = "rgba(0,0,0,.5)"; ctx.beginPath(); ctx.arc(px, py, 8, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = "#fff"; ctx.fillText(st.icon, px, py + 0.5);
-        if (final) biomeIconHits.push({ x: px, y: py, st, bx: c.x, bz: c.z });
+        ctx.globalAlpha = 1;
+        if (final) biomeIconHits.push({ x: px, y: py, st, bx: c.x, bz: c.z, match });
         n++; total++;
       }
     }
@@ -3985,7 +3987,7 @@ function wireBiomePan() {
     if (!els.smBiomeHover) return;
     // structure icon under the cursor wins over the biome readout
     const hit = biomeIconHits.find((k) => Math.abs(k.x - e.offsetX) < 10 && Math.abs(k.y - e.offsetY) < 10);
-    if (hit) { els.smBiomeHover.textContent = `${hit.st.icon} ${hit.st.name}${hit.st.target ? ` → ${hit.st.target}` : ""} · X ${hit.bx}, Z ${hit.bz}`; return; }
+    if (hit) { els.smBiomeHover.textContent = `${hit.st.icon} ${hit.st.name}${hit.st.target ? ` → ${hit.st.target}` : ""} · X ${hit.bx}, Z ${hit.bz}${hit.match === false ? " · ⚠ off-biome (may not generate)" : ""}`; return; }
     const h = biomeAtPointer(e.offsetX, e.offsetY); // hover readout
     els.smBiomeHover.textContent = h
       ? `${biomeLabel(h.mapped)}${h.mapped !== h.orig ? ` (Terralith: ${biomeLabel(h.orig)})` : ""} · X ${h.bx}, Z ${h.bz}` : "";

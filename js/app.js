@@ -3754,22 +3754,32 @@ function renderSeedMapResults() {
   if (card) card.hidden = false;
   if (status) status.textContent = `seed ${seedToLong(m.seed)} · ${results.length} structure${results.length === 1 ? "" : "s"} within ${m.radius.toLocaleString()} blocks of (${m.cx}, ${m.cz})`;
   if (!results.length) { out.innerHTML = `<p class="hint">No structures within ${m.radius.toLocaleString()} blocks — try a larger radius.</p>`; drawSeedMapCanvas(); return; }
+  const showOff = !!(els.smBiomeMatch && els.smBiomeMatch.checked);
   out.innerHTML = results.map((r) => {
     const col = smPackColor(r.st.pack);
     const dim = SM_DIM_LABEL[r.st.dim] ? ` · ${SM_DIM_LABEL[r.st.dim]}` : "";
-    const rows = r.cands.slice(0, 6).map((c) =>
+    // Default: drop candidates a loaded probe confirms are off-biome, so the
+    // "nearest" shown is a real one. "Show off-biome" keeps every slot.
+    const cands = showOff ? r.cands : r.cands.filter((c) => candMatch(r.st, c.x, c.z, true) !== false);
+    const hidden = r.cands.length - cands.length;
+    const rows = cands.slice(0, 6).map((c) =>
       `<div class="sm-cand"><span class="sm-coord">X <b>${c.x}</b>, Z <b>${c.z}</b></span>` +
       `<span class="muted">${c.dist.toLocaleString()} blocks</span>` +
       `<button class="ctrl-btn ghost sm-copy" data-xz="${c.x} ${c.z}" title="Copy coordinates">copy</button>` +
       `<button class="ctrl-btn ghost sm-copy" data-xz="/tp @s ${c.x} ~ ${c.z}" title="Copy /tp command">/tp</button>` +
       (r.st.id ? `<button class="ctrl-btn ghost sm-copy" data-xz="/execute positioned ${c.x} 64 ${c.z} run locate structure ${r.st.id}" title="Copy a /locate that searches from this spot — run it in-game; if it returns these coords, the structure is confirmed here">/locate</button>` : "") +
-      `</div>`).join("");
+      `</div>`).join("") ||
+      `<div class="sm-cand"><span class="muted">all ${r.cands.length} nearby slots are off-biome — none valid in range (enable “Show off-biome” to see them)</span></div>`;
     const locateBtn = r.st.id
       ? `<button class="ctrl-btn ghost sm-copy" data-xz="/execute positioned ${m.cx} 64 ${m.cz} run locate structure ${r.st.id}" title="Copy a /locate that finds the nearest one to the scan center (${m.cx}, ${m.cz}) — the game's authoritative answer">📍 /locate</button>`
       : "";
+    const caveNote = structUnderground(r.st)
+      ? `<span class="muted" title="This structure's biome (${r.st.biomes.join(", ")}) only exists underground, so the biome map can't tell which slots are real. The coords below are raw placement slots — use /locate to find the actual one.">⛏ underground biome · coords are slots, use /locate</span>`
+      : "";
+    const offNote = hidden > 0 ? ` · ${hidden} off-biome hidden` : "";
     return `<div class="sm-res"><div class="sm-res-h"><span class="sm-dot" style="background:${col}"></span>` +
       `<b>${r.st.icon || ""} ${r.st.name}</b>${r.st.target ? ` <span class="muted">→ ${r.st.target}</span>` : ""}` +
-      `<span class="muted">${dim} · nearest ${Math.min(6, r.cands.length)} of ${r.cands.length}</span>${locateBtn}</div>${rows}</div>`;
+      `<span class="muted">${dim} · nearest ${Math.min(6, cands.length)} of ${cands.length}${offNote}</span>${locateBtn}${caveNote}</div>${rows}</div>`;
   }).join("");
   drawSeedMapCanvas();
 }
@@ -3865,6 +3875,7 @@ function loadStructureProbe(json) {
   document.querySelectorAll("#sm-dim .seg-btn").forEach((b) => b.classList.toggle("active", b.dataset.dim === dim));
   biomeState.dim = dim;
   if (biomeState.rendered) drawBiomeCanvas(0, 0);
+  renderSeedMapResults(); // list now filters off-biome candidates authoritatively
   els.smBiomeStatus.textContent = `🎯 probe loaded · ${byKey.size} candidate biomes (${dim})${warn} · markers now server-accurate`;
 }
 // Candidate block positions of a structure_set within a view box (reuses the
@@ -3973,6 +3984,28 @@ function drawBiomeCanvas(dragX, dragY) {
   }
   drawBiomeStructures(ctx, dragX || 0, dragY || 0);
 }
+// Cave/underground structures: their required biome only exists deep below, so
+// the surface biome map (and the surface-sampled probe) can't validate them —
+// flag for /locate instead of dimming. (e.g. giovanni→frostfire_caves, angelo→lush_caves)
+const CAVE_BIOME_RE = /(?:^|:)cave\/|caves$|lush_caves|dripstone_caves|deep_dark|frostfire/;
+function structUnderground(st) {
+  return !!(st && st.biomes && st.biomes.length && st.biomes.every((b) => CAVE_BIOME_RE.test(b)));
+}
+// Is a candidate on its structure's biome? true / false / null (can't tell).
+// probeOnly=true uses ONLY the loaded probe (authoritative — safe to hide/exclude on).
+// probeOnly=false also consults the deepslate render (advisory — only dim, never hide,
+// since it isn't bit-exact). Underground structures are never judgeable from above.
+function candMatch(st, x, z, probeOnly) {
+  if (structUnderground(st) || !st.biomes || !st.biomes.length) return null;
+  let wb = null;
+  if (structureProbe && structureProbe.dim === biomeState.dim) {
+    const p = structureProbe.byKey.get(x + "," + z);
+    if (p != null) wb = p;
+  }
+  if (wb == null) { if (probeOnly) return null; wb = biomeAtWorld(x - 8, z - 8); }
+  if (wb == null) return null;
+  return st.biomes.indexOf(wb) >= 0;
+}
 function drawBiomeStructures(ctx, ox, oy) {
   const cv = els.smBiomeCanvas;
   const ppb = cv.width / (biomeState.cols * biomeState.bpp); // px per block
@@ -3983,33 +4016,33 @@ function drawBiomeStructures(ctx, ox, oy) {
     const halfX = (biomeState.cols * biomeState.bpp) / 2, halfZ = (biomeState.rows * biomeState.bpp) / 2;
     const minX = biomeState.cx - halfX, maxX = biomeState.cx + halfX, minZ = biomeState.cz - halfZ, maxZ = biomeState.cz + halfZ;
     const TOTAL_CAP = 450, PER_CAP = 90;
+    const showOff = !!(els.smBiomeMatch && els.smBiomeMatch.checked);
     let total = 0;
     ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "13px system-ui, sans-serif";
     for (const st of STRUCTURES) {            // rarest-first (structures.json is sorted)
       if ((st.dim || "overworld") !== biomeState.dim) continue; // structures of the current dimension
       if (total >= TOTAL_CAP) break;
       let n = 0;
+      const underground = structUnderground(st);
       for (const c of structuresInView(seed, st, minX, maxX, minZ, maxZ)) {
         if (n >= PER_CAP || total >= TOTAL_CAP) break;
         // Biome match, sampled at the chunk CORNER (what /locate reports). A loaded
-        // probe gives the server's REAL biome here (authoritative); otherwise fall
-        // back to the deepslate render, which isn't bit-exact, so off-biome candidates
-        // are dimmed rather than hidden.
-        let match = true;
-        if (st.biomes && st.biomes.length) {
-          const probed = (structureProbe && structureProbe.dim === biomeState.dim) ? structureProbe.byKey.get(c.x + "," + c.z) : null;
-          const wb = probed != null ? probed : biomeAtWorld(c.x - 8, c.z - 8);
-          if (wb) match = st.biomes.indexOf(wb) >= 0;
-        }
-        if (!match && els.smBiomeMatch && els.smBiomeMatch.checked) continue; // "hide off-biome" mode
+        // probe is authoritative (safe to HIDE off-biome); the deepslate render isn't
+        // bit-exact, so it only DIMS. Cave structures can't be judged from the surface
+        // at all — shown with an amber "unvalidated" ring, never dimmed. Off-biome
+        // candidates are hidden by default unless "Show off-biome" is on.
+        const hardOff = candMatch(st, c.x, c.z, true) === false;   // probe-confirmed off-biome
+        const dimOff = hardOff || candMatch(st, c.x, c.z, false) === false; // + deepslate advisory
+        if (hardOff && !showOff) continue; // hide authoritatively-off unless showing them
         const px = cv.width / 2 + (c.x - biomeState.cx) * ppb + ox;
         const py = cv.height / 2 + (c.z - biomeState.cz) * ppb + oy;
         if (px < -8 || px > cv.width + 8 || py < -8 || py > cv.height + 8) continue;
-        ctx.globalAlpha = match ? 1 : 0.38;
+        ctx.globalAlpha = dimOff ? 0.38 : 1;
         ctx.fillStyle = "rgba(0,0,0,.5)"; ctx.beginPath(); ctx.arc(px, py, 8, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = "#fff"; ctx.fillText(st.icon, px, py + 0.5);
+        if (underground) { ctx.strokeStyle = "#ffd54a"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(px, py, 9.5, 0, Math.PI * 2); ctx.stroke(); }
         ctx.globalAlpha = 1;
-        if (final) biomeIconHits.push({ x: px, y: py, st, bx: c.x, bz: c.z, match });
+        if (final) biomeIconHits.push({ x: px, y: py, st, bx: c.x, bz: c.z, match: !dimOff, underground });
         n++; total++;
       }
     }
@@ -4467,7 +4500,7 @@ function wire() {
       }
     });
     if (els.smBiomeZoom) els.smBiomeZoom.addEventListener("change", () => { if (biomeState.rendered) renderBiomeMap(); });
-    if (els.smBiomeMatch) els.smBiomeMatch.addEventListener("change", () => { if (biomeState.img || biomeState.dim === "end") drawBiomeCanvas(0, 0); });
+    if (els.smBiomeMatch) els.smBiomeMatch.addEventListener("change", () => { if (biomeState.img || biomeState.dim === "end") drawBiomeCanvas(0, 0); renderSeedMapResults(); });
     if (els.smBiomeFile) els.smBiomeFile.addEventListener("change", (e) => {
       const f = e.target.files[0]; if (!f) return;
       const reader = new FileReader();

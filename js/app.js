@@ -3742,6 +3742,40 @@ function computeSeedMap() {
     .sort((a, b) => a.cands[0].dist - b.cands[0].dist);
   smLastResults = { results, m };
   renderSeedMapResults();
+  sampleCandidateBiomes(results); // async: tag each candidate on/off-biome, then re-filter
+}
+// Ask the worker for the real (surface-height) biome at each candidate so the
+// "Nearest candidates" list can drop off-biome slots — works without a server probe.
+let smSampleSeq = 0, smSamplePending = null;
+function sampleCandidateBiomes(results) {
+  const w = getBiomeWorker();
+  if (!w) return;
+  const CAP = 4000, pts = [], cave = [], refs = [];
+  for (const r of results) {
+    const under = structUnderground(r.st);
+    const judgeable = r.st.biomes && r.st.biomes.length;
+    for (const c of r.cands) {
+      if (!judgeable) { c.match = null; continue; }
+      if (pts.length >= CAP) { c.match = null; continue; }
+      c.match = null; // pending until the worker answers
+      pts.push([c.x, c.z]); cave.push(under); refs.push({ c, st: r.st });
+    }
+  }
+  if (!pts.length) return;
+  const id = ++smSampleSeq;
+  smSamplePending = { id, refs };
+  w.postMessage({ type: "samplePoints", id, seed: els.smSeed.value, dim: biomeState.dim, pts, cave });
+}
+function onCandidateBiomes(m) {
+  if (!smSamplePending || smSamplePending.id !== m.id || !m.biomes) return;
+  const refs = smSamplePending.refs;
+  smSamplePending = null;
+  for (let i = 0; i < refs.length; i++) {
+    const { c, st } = refs[i], b = m.biomes[i];
+    c.biome = b;
+    c.match = (b == null) ? null : st.biomes.indexOf(b) >= 0;
+  }
+  renderSeedMapResults();
 }
 function smCopyFlash(btn) { const o = btn.textContent; btn.textContent = "✓"; setTimeout(() => (btn.textContent = o), 900); }
 const SM_DIM_LABEL = { nether: "🔥 Nether", end: "🟣 End" };
@@ -3758,9 +3792,10 @@ function renderSeedMapResults() {
   out.innerHTML = results.map((r) => {
     const col = smPackColor(r.st.pack);
     const dim = SM_DIM_LABEL[r.st.dim] ? ` · ${SM_DIM_LABEL[r.st.dim]}` : "";
-    // Default: drop candidates a loaded probe confirms are off-biome, so the
-    // "nearest" shown is a real one. "Show off-biome" keeps every slot.
-    const cands = showOff ? r.cands : r.cands.filter((c) => candMatch(r.st, c.x, c.z, true) !== false);
+    // Default: drop candidates whose real (surface-sampled) biome is off, so the
+    // "nearest" shown is a real one. c.match is set async by sampleCandidateBiomes
+    // (null = pending/unjudgeable → kept). "Show off-biome" keeps every slot.
+    const cands = showOff ? r.cands : r.cands.filter((c) => c.match !== false);
     const hidden = r.cands.length - cands.length;
     const rows = cands.slice(0, 6).map((c) =>
       `<div class="sm-cand"><span class="sm-coord">X <b>${c.x}</b>, Z <b>${c.z}</b></span>` +
@@ -3910,6 +3945,7 @@ function getBiomeWorker() {
     const m = e.data;
     if (m.type === "progress") { if (els.smBiomeStatus) els.smBiomeStatus.textContent = `rendering… ${m.pct}%`; }
     else if (m.type === "done") onBiomeDone(m);
+    else if (m.type === "points") onCandidateBiomes(m);
     else if (m.type === "error") { biomeState.busy = false; if (els.smBiomeStatus) els.smBiomeStatus.textContent = "⚠ " + m.message; }
   };
   biomeWorker.onerror = (e) => { biomeState.busy = false; if (els.smBiomeStatus) els.smBiomeStatus.textContent = "⚠ biome worker error" + (e && e.message ? ": " + e.message : " (check console)"); };
@@ -3922,7 +3958,8 @@ function renderBiomeMap() {
   const bpp = Math.max(1, Number(els.smBiomeZoom.value) || 2);
   const cols = Math.round(cv.width / 2), rows = Math.round(cv.height / 2); // half-res sample, scaled up
   const cx = Math.round(Number(els.smCx.value) || 0), cz = Math.round(Number(els.smCz.value) || 0);
-  biomeState.cx = cx; biomeState.cz = cz; biomeState.bpp = bpp; biomeState.cols = cols; biomeState.rows = rows;
+  const caves = !!(els.smBiomeCaves && els.smBiomeCaves.checked) && biomeState.dim === "overworld";
+  biomeState.cx = cx; biomeState.cz = cz; biomeState.bpp = bpp; biomeState.cols = cols; biomeState.rows = rows; biomeState.caves = caves;
   // The End has no deepslate biome source — show a flat backdrop + its structures.
   if (biomeState.dim === "end") {
     biomeState.img = null; biomeState.grid = null; biomeState.palette = null; biomeState.rendered = true;
@@ -3936,7 +3973,7 @@ function renderBiomeMap() {
   if (biomeState.busy) { biomeRerender = true; return; } // queue the latest pan/zoom
   biomeState.busy = true;
   els.smBiomeStatus.textContent = "rendering… 0%";
-  w.postMessage({ type: "render", seed: els.smSeed.value, cx, cz, bpp, cols, rows, dim: biomeState.dim });
+  w.postMessage({ type: "render", seed: els.smSeed.value, cx, cz, bpp, cols, rows, dim: biomeState.dim, caves });
 }
 function onBiomeDone(m) {
   biomeState.busy = false;
@@ -3999,11 +4036,14 @@ function structUnderground(st) {
 // exactly. probeOnly=true uses ONLY the loaded probe (authoritative — safe to
 // hide/exclude on); else we also consult the deepslate render (advisory). Underground
 // structures (cave biomes) can't be judged from the surface at all.
-function candMatch(st, x, z, probeOnly) {
-  if (structUnderground(st) || !st.biomes || !st.biomes.length) return null;
+function candMatch(st, x, z, probeOnly, caveLayer) {
+  if (!st.biomes || !st.biomes.length) return null;
+  // Each map layer judges only its own structures: the surface map can't see cave
+  // biomes, the cave map can't see surface biomes.
+  if (!!caveLayer !== structUnderground(st)) return null;
   let wb = null;
-  if (structureProbe && structureProbe.dim === biomeState.dim) {
-    const p = structureProbe.byKey.get(x + "," + z);
+  if (!caveLayer && structureProbe && structureProbe.dim === biomeState.dim) {
+    const p = structureProbe.byKey.get(x + "," + z); // probe samples the surface only
     if (p != null) wb = p;
   }
   if (wb == null) { if (probeOnly) return null; wb = biomeAtWorld(x, z); }
@@ -4021,6 +4061,7 @@ function drawBiomeStructures(ctx, ox, oy) {
     const minX = biomeState.cx - halfX, maxX = biomeState.cx + halfX, minZ = biomeState.cz - halfZ, maxZ = biomeState.cz + halfZ;
     const TOTAL_CAP = 450, PER_CAP = 90;
     const showOff = !!(els.smBiomeMatch && els.smBiomeMatch.checked);
+    const caveLayer = !!biomeState.caves;
     let total = 0;
     ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "13px system-ui, sans-serif";
     for (const st of STRUCTURES) {            // rarest-first (structures.json is sorted)
@@ -4035,7 +4076,7 @@ function drawBiomeStructures(ctx, ox, oy) {
         // else the deepslate render. Cave structures can't be judged from the surface —
         // shown with an amber "unvalidated" ring, never off. Off-biome candidates are
         // HIDDEN unless "Show off-biome" is on (then dimmed).
-        const off = candMatch(st, c.x, c.z, false) === false; // probe-first, deepslate fallback
+        const off = candMatch(st, c.x, c.z, false, caveLayer) === false; // probe-first, deepslate fallback
         if (off && !showOff) continue; // hide off-biome unless showing them
         const px = cv.width / 2 + (c.x - biomeState.cx) * ppb + ox;
         const py = cv.height / 2 + (c.z - biomeState.cz) * ppb + oy;
@@ -4043,7 +4084,7 @@ function drawBiomeStructures(ctx, ox, oy) {
         ctx.globalAlpha = off ? 0.38 : 1;
         ctx.fillStyle = "rgba(0,0,0,.5)"; ctx.beginPath(); ctx.arc(px, py, 8, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = "#fff"; ctx.fillText(st.icon, px, py + 0.5);
-        if (underground) { ctx.strokeStyle = "#ffd54a"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(px, py, 9.5, 0, Math.PI * 2); ctx.stroke(); }
+        if (underground && !caveLayer) { ctx.strokeStyle = "#ffd54a"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(px, py, 9.5, 0, Math.PI * 2); ctx.stroke(); } // amber = unjudged on surface layer; cave view validates it
         ctx.globalAlpha = 1;
         if (final) biomeIconHits.push({ x: px, y: py, st, bx: c.x, bz: c.z, match: !off, underground });
         n++; total++;
@@ -4215,6 +4256,7 @@ function grabEls() {
     smBiomeRender: document.getElementById("sm-biome-render"),
     smBiomeZoom: document.getElementById("sm-biome-zoom"),
     smBiomeMatch: document.getElementById("sm-biome-match"),
+    smBiomeCaves: document.getElementById("sm-biome-caves"),
     smBiomeFile: document.getElementById("sm-biome-file"),
     smProbeFile: document.getElementById("sm-probe-file"),
     smBiomeStatus: document.getElementById("sm-biome-status"),
@@ -4504,6 +4546,7 @@ function wire() {
     });
     if (els.smBiomeZoom) els.smBiomeZoom.addEventListener("change", () => { if (biomeState.rendered) renderBiomeMap(); });
     if (els.smBiomeMatch) els.smBiomeMatch.addEventListener("change", () => { if (biomeState.img || biomeState.dim === "end") drawBiomeCanvas(0, 0); renderSeedMapResults(); });
+    if (els.smBiomeCaves) els.smBiomeCaves.addEventListener("change", () => { if (biomeState.rendered) renderBiomeMap(); });
     if (els.smBiomeFile) els.smBiomeFile.addEventListener("change", (e) => {
       const f = e.target.files[0]; if (!f) return;
       const reader = new FileReader();

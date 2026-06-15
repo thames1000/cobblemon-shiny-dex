@@ -98,6 +98,18 @@ function surfaceQuartY(fd, bx, bz) {
   }
   return found >> 2;
 }
+// Cave mode: cave biomes live underground at various depths, so scan a few quart-Ys
+// and return the first cave biome found (else the deepest sampled regional biome).
+const CAVE_QYS = [12, 4, -4, -12, -16]; // blocks ~48, 16, -16, -48, -64
+const CAVE_RE = /cave|deep_dark/;
+function caveBiomeAt(bs, sampler, qx, qz) {
+  let last = "minecraft:plains";
+  for (let i = 0; i < CAVE_QYS.length; i++) {
+    last = bs.getBiome(qx, CAVE_QYS[i], qz, sampler).toString();
+    if (CAVE_RE.test(last)) return last;
+  }
+  return last;
+}
 function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
 const colorCache = {};
 function colorFor(id) {
@@ -112,8 +124,9 @@ async function render(msg) {
   buildForSeed(msg.seed, msg.dim || "overworld");
   const { cols, rows, cx, cz, bpp } = msg;
   const bs = cache.biomeSource, sampler = cache.sampler;
+  const caves = !!msg.caves && cache.dim === "overworld"; // cave-layer view
   // Sample at the real surface height for the overworld; nether/end keep the fixed Y.
-  const fd = (cache.dim === "overworld") ? cache.heightFn : null;
+  const fd = (!caves && cache.dim === "overworld") ? cache.heightFn : null;
   // Surface height is smooth, so compute it on a coarse grid and reuse — sized so the
   // total height-scans stay ~constant regardless of zoom (keeps renders fast).
   const HBUDGET = 2600, viewW = cols * bpp;
@@ -128,15 +141,20 @@ async function render(msg) {
     for (let px = 0; px < cols; px++) {
       const bx = cx - halfW + (px + 0.5) * bpp;
       const qx = Math.floor(bx) >> 2, qz = Math.floor(bz) >> 2;
-      let qy = SURFACE_QY;
-      if (fd) {
-        const gx = Math.floor(bx / hStep), gz = Math.floor(bz / hStep);
-        const key = gx + "," + gz;
-        let h = hCache.get(key);
-        if (h === undefined) { h = surfaceQuartY(fd, gx * hStep + (hStep >> 1), gz * hStep + (hStep >> 1)); hCache.set(key, h); }
-        qy = h;
+      let id;
+      if (caves) {
+        id = caveBiomeAt(bs, sampler, qx, qz);
+      } else {
+        let qy = SURFACE_QY;
+        if (fd) {
+          const gx = Math.floor(bx / hStep), gz = Math.floor(bz / hStep);
+          const key = gx + "," + gz;
+          let h = hCache.get(key);
+          if (h === undefined) { h = surfaceQuartY(fd, gx * hStep + (hStep >> 1), gz * hStep + (hStep >> 1)); hCache.set(key, h); }
+          qy = h;
+        }
+        id = bs.getBiome(qx, qy, qz, sampler).toString();
       }
-      const id = bs.getBiome(qx, qy, qz, sampler).toString();
       let pi = pIdx[id]; if (pi === undefined) { pi = palette.length; pIdx[id] = pi; palette.push(id); }
       ids[py * cols + px] = pi;
       const [r, g, b] = colorFor(id);
@@ -150,7 +168,26 @@ async function render(msg) {
   self.postMessage({ type: "done", rgba: rgba.buffer, ids: ids.buffer, palette, cols, rows, legend: Object.entries(uniq).map(([id, hex]) => ({ id, hex })) }, [rgba.buffer, ids.buffer]);
 }
 
+// Sample the biome at a list of world points (for validating seed-map candidates).
+// Surface points use the real surface height; cave[i] points use the cave layer.
+async function samplePoints(msg) {
+  await ensureReady();
+  buildForSeed(msg.seed, msg.dim || "overworld");
+  const bs = cache.biomeSource, sampler = cache.sampler;
+  const fd = (cache.dim === "overworld") ? cache.heightFn : null;
+  const pts = msg.pts, cave = msg.cave || [], out = new Array(pts.length);
+  for (let i = 0; i < pts.length; i++) {
+    const x = pts[i][0], z = pts[i][1], qx = Math.floor(x) >> 2, qz = Math.floor(z) >> 2;
+    if (cave[i]) { out[i] = caveBiomeAt(bs, sampler, qx, qz); continue; }
+    let qy = SURFACE_QY;
+    if (fd) qy = surfaceQuartY(fd, Math.floor(x), Math.floor(z));
+    out[i] = bs.getBiome(qx, qy, qz, sampler).toString();
+  }
+  self.postMessage({ type: "points", id: msg.id, biomes: out });
+}
+
 self.onmessage = (e) => {
   const msg = e.data;
   if (msg.type === "render") render(msg).catch((err) => self.postMessage({ type: "error", message: String(err && err.message || err) }));
+  else if (msg.type === "samplePoints") samplePoints(msg).catch((err) => self.postMessage({ type: "points", id: msg.id, error: String(err && err.message || err) }));
 };

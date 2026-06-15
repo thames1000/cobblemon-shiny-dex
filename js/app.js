@@ -3751,16 +3751,23 @@ function sampleCandidateBiomes(results) {
   const w = getBiomeWorker();
   if (!w) return;
   const CAP = 4000, pts = [], cave = [], refs = [];
+  const probe = (structureProbe && structureProbe.dim === biomeState.dim) ? structureProbe : null;
   for (const r of results) {
     const under = structUnderground(r.st);
     const judgeable = r.st.biomes && r.st.biomes.length;
     for (const c of r.cands) {
       if (!judgeable) { c.match = null; continue; }
+      // A loaded probe is the authoritative (real server) surface biome — use it directly.
+      if (probe && !under) {
+        const p = probe.byKey.get(c.x + "," + c.z);
+        if (p != null) { c.biome = p; c.match = r.st.biomes.indexOf(p) >= 0; continue; }
+      }
       if (pts.length >= CAP) { c.match = null; continue; }
       c.match = null; // pending until the worker answers
       pts.push([c.x, c.z]); cave.push(under); refs.push({ c, st: r.st });
     }
   }
+  renderSeedMapResults(); // apply any probe-confirmed matches immediately
   if (!pts.length) return;
   const id = ++smSampleSeq;
   smSamplePending = { id, refs };

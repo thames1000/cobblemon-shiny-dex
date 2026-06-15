@@ -77,14 +77,20 @@ function buildForSeed(seed, dim) {
   // (elevation biomes like blooming_plateau/arid_highlands are wrong at a fixed Y).
   // initialDensityWithoutJaggedness is cheaper than finalDensity and within a few
   // blocks for height — plenty for picking the biome Y. Overworld only; defensive.
-  let heightFn = null;
-  try { heightFn = rs.router && (rs.router.initialDensityWithoutJaggedness || rs.router.finalDensity); } catch (e) { heightFn = null; }
-  cache = { seed, dim, biomeSource: C.MultiNoiseBiomeSource.fromJson(BUNDLES.biomeSourceJson[dim]), sampler: rs.sampler, heightFn };
+  // heightFn = cheap (jaggedness-free) for the fast map render; finalDensity = accurate
+  // (matches the server's getBaseHeight, incl. jaggedness) for the bounded candidate list.
+  let heightFn = null, finalDensity = null;
+  try {
+    finalDensity = rs.router && rs.router.finalDensity;
+    heightFn = rs.router && (rs.router.initialDensityWithoutJaggedness || finalDensity);
+  } catch (e) {}
+  cache = { seed, dim, biomeSource: C.MultiNoiseBiomeSource.fromJson(BUNDLES.biomeSourceJson[dim]), sampler: rs.sampler, heightFn, finalDensity };
 }
 // Highest solid quart-Y at (bx,bz) ≈ getBaseHeight(WORLD_SURFACE_WG): scan top-down
-// coarsely, then refine to ~8 blocks. Returns quart Y (block>>2).
+// coarsely, then refine (fine=8 for the map, 4 for accurate list sampling). Returns quart Y.
 const H_TOP = 256, H_BOTTOM = -60, H_COARSE = 32, H_FINE = 8, SEA_QY = 63 >> 2;
-function surfaceQuartY(fd, bx, bz) {
+function surfaceQuartY(fd, bx, bz, fine) {
+  fine = fine || H_FINE;
   const ctx = { x: bx, y: 0, z: bz };
   let found = null;
   for (let y = H_TOP; y >= H_BOTTOM; y -= H_COARSE) {
@@ -92,7 +98,7 @@ function surfaceQuartY(fd, bx, bz) {
     if (fd.compute(ctx) > 0) { found = y; break; }
   }
   if (found === null) return SEA_QY; // open column → sea level
-  for (let yy = found + H_COARSE - H_FINE; yy > found; yy -= H_FINE) {
+  for (let yy = found + H_COARSE - fine; yy > found; yy -= fine) {
     ctx.y = yy;
     if (fd.compute(ctx) > 0) return yy >> 2;
   }
@@ -174,13 +180,14 @@ async function samplePoints(msg) {
   await ensureReady();
   buildForSeed(msg.seed, msg.dim || "overworld");
   const bs = cache.biomeSource, sampler = cache.sampler;
-  const fd = (cache.dim === "overworld") ? cache.heightFn : null;
+  // Accurate height for candidates (few points): finalDensity + fine refine.
+  const fd = (cache.dim === "overworld") ? (cache.finalDensity || cache.heightFn) : null;
   const pts = msg.pts, cave = msg.cave || [], out = new Array(pts.length);
   for (let i = 0; i < pts.length; i++) {
     const x = pts[i][0], z = pts[i][1], qx = Math.floor(x) >> 2, qz = Math.floor(z) >> 2;
     if (cave[i]) { out[i] = caveBiomeAt(bs, sampler, qx, qz); continue; }
     let qy = SURFACE_QY;
-    if (fd) qy = surfaceQuartY(fd, Math.floor(x), Math.floor(z));
+    if (fd) qy = surfaceQuartY(fd, Math.floor(x), Math.floor(z), 4);
     out[i] = bs.getBiome(qx, qy, qz, sampler).toString();
   }
   self.postMessage({ type: "points", id: msg.id, biomes: out });

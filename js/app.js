@@ -3761,10 +3761,15 @@ function renderSeedMapResults() {
       `<div class="sm-cand"><span class="sm-coord">X <b>${c.x}</b>, Z <b>${c.z}</b></span>` +
       `<span class="muted">${c.dist.toLocaleString()} blocks</span>` +
       `<button class="ctrl-btn ghost sm-copy" data-xz="${c.x} ${c.z}" title="Copy coordinates">copy</button>` +
-      `<button class="ctrl-btn ghost sm-copy" data-xz="/tp @s ${c.x} ~ ${c.z}" title="Copy /tp command">/tp</button></div>`).join("");
+      `<button class="ctrl-btn ghost sm-copy" data-xz="/tp @s ${c.x} ~ ${c.z}" title="Copy /tp command">/tp</button>` +
+      (r.st.id ? `<button class="ctrl-btn ghost sm-copy" data-xz="/execute positioned ${c.x} 64 ${c.z} run locate structure ${r.st.id}" title="Copy a /locate that searches from this spot — run it in-game; if it returns these coords, the structure is confirmed here">/locate</button>` : "") +
+      `</div>`).join("");
+    const locateBtn = r.st.id
+      ? `<button class="ctrl-btn ghost sm-copy" data-xz="/execute positioned ${m.cx} 64 ${m.cz} run locate structure ${r.st.id}" title="Copy a /locate that finds the nearest one to the scan center (${m.cx}, ${m.cz}) — the game's authoritative answer">📍 /locate</button>`
+      : "";
     return `<div class="sm-res"><div class="sm-res-h"><span class="sm-dot" style="background:${col}"></span>` +
       `<b>${r.st.icon || ""} ${r.st.name}</b>${r.st.target ? ` <span class="muted">→ ${r.st.target}</span>` : ""}` +
-      `<span class="muted">${dim} · nearest ${Math.min(6, r.cands.length)} of ${r.cands.length}</span></div>${rows}</div>`;
+      `<span class="muted">${dim} · nearest ${Math.min(6, r.cands.length)} of ${r.cands.length}</span>${locateBtn}</div>${rows}</div>`;
   }).join("");
   drawSeedMapCanvas();
 }
@@ -3840,6 +3845,27 @@ function loadBiomeExport(json) {
     drawBiomeCanvas(0, 0); renderBiomeLegend(biomeState.legend);
     els.smBiomeStatus.textContent = `✓ real biomes (server export) · ${json.cols * json.step}×${json.rows * json.step} blocks · ${biomeState.legend.length} biomes`;
   });
+}
+// Authoritative biome at structure candidates, from the /probestructures mod
+// command: { dim, seed, byKey: Map "x,z" -> "biome:id" }. Used to mark candidates
+// valid/dim from the server's REAL biomes (deepslate stays the visual backdrop).
+let structureProbe = null;
+function loadStructureProbe(json) {
+  if (!json || !json.points || typeof json.points !== "object") { els.smBiomeStatus.textContent = "⚠ not a probe file (run /probestructures in the mod)"; return; }
+  const dim = DUMP_DIM[json.dimension] || "overworld";
+  const byKey = new Map(Object.entries(json.points));
+  structureProbe = { dim, seed: json.seed, byKey };
+  // The probe coords were computed from the server seed; warn if the map's seed differs.
+  let warn = "";
+  if (json.seed != null && els.smSeed && String(seedToLong(els.smSeed.value)) !== String(json.seed)) {
+    els.smSeed.value = String(json.seed); // align so candidate coords match the probe
+    seedMapCfg().seed = els.smSeed.value; save();
+    warn = " · seed set to " + json.seed;
+  }
+  document.querySelectorAll("#sm-dim .seg-btn").forEach((b) => b.classList.toggle("active", b.dataset.dim === dim));
+  biomeState.dim = dim;
+  if (biomeState.rendered) drawBiomeCanvas(0, 0);
+  els.smBiomeStatus.textContent = `🎯 probe loaded · ${byKey.size} candidate biomes (${dim})${warn} · markers now server-accurate`;
 }
 // Candidate block positions of a structure_set within a view box (reuses the
 // validated random_spread placement from the seed-map engine).
@@ -3965,11 +3991,16 @@ function drawBiomeStructures(ctx, ox, oy) {
       let n = 0;
       for (const c of structuresInView(seed, st, minX, maxX, minZ, maxZ)) {
         if (n >= PER_CAP || total >= TOTAL_CAP) break;
-        // Biome match, sampled at the chunk CORNER (what /locate reports). Off-biome
-        // candidates are dimmed, not hidden — my deepslate render isn't bit-exact to
-        // the server at every point, so a real structure can read the "wrong" biome.
+        // Biome match, sampled at the chunk CORNER (what /locate reports). A loaded
+        // probe gives the server's REAL biome here (authoritative); otherwise fall
+        // back to the deepslate render, which isn't bit-exact, so off-biome candidates
+        // are dimmed rather than hidden.
         let match = true;
-        if (st.biomes && st.biomes.length) { const wb = biomeAtWorld(c.x - 8, c.z - 8); if (wb) match = st.biomes.indexOf(wb) >= 0; }
+        if (st.biomes && st.biomes.length) {
+          const probed = (structureProbe && structureProbe.dim === biomeState.dim) ? structureProbe.byKey.get(c.x + "," + c.z) : null;
+          const wb = probed != null ? probed : biomeAtWorld(c.x - 8, c.z - 8);
+          if (wb) match = st.biomes.indexOf(wb) >= 0;
+        }
         if (!match && els.smBiomeMatch && els.smBiomeMatch.checked) continue; // "hide off-biome" mode
         const px = cv.width / 2 + (c.x - biomeState.cx) * ppb + ox;
         const py = cv.height / 2 + (c.z - biomeState.cz) * ppb + oy;
@@ -4149,6 +4180,7 @@ function grabEls() {
     smBiomeZoom: document.getElementById("sm-biome-zoom"),
     smBiomeMatch: document.getElementById("sm-biome-match"),
     smBiomeFile: document.getElementById("sm-biome-file"),
+    smProbeFile: document.getElementById("sm-probe-file"),
     smBiomeStatus: document.getElementById("sm-biome-status"),
     smBiomeCanvas: document.getElementById("sm-biome-canvas"),
     smBiomeLegend: document.getElementById("sm-biome-legend"),
@@ -4440,6 +4472,12 @@ function wire() {
       const f = e.target.files[0]; if (!f) return;
       const reader = new FileReader();
       reader.onload = () => { try { loadBiomeExport(JSON.parse(reader.result)); } catch (err) { els.smBiomeStatus.textContent = "⚠ couldn't read that file: " + err.message; } };
+      reader.readAsText(f); e.target.value = "";
+    });
+    if (els.smProbeFile) els.smProbeFile.addEventListener("change", (e) => {
+      const f = e.target.files[0]; if (!f) return;
+      const reader = new FileReader();
+      reader.onload = () => { try { loadStructureProbe(JSON.parse(reader.result)); } catch (err) { els.smBiomeStatus.textContent = "⚠ couldn't read that file: " + err.message; } };
       reader.readAsText(f); e.target.value = "";
     });
     wireBiomePan();

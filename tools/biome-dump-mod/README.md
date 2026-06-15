@@ -1,7 +1,32 @@
-# Biome Dump — server-side biome export for ShinyDex HQ
+# Biome Dump — server-side biome/structure export for ShinyDex HQ
 
 Exports your server's **real** biomes (the actual generator + Biome Replacer)
-so the seed-map biome layer is 100% accurate, not a reimplementation.
+so the seed map is accurate, not a reimplementation. Two commands:
+
+- **`/probestructures <centerX> <centerZ> <radius>`** — *recommended.* Computes
+  every structure's candidate chunks itself (same `random_spread` math the app
+  uses, seeded from the server's real seed) and samples the real biome **only at
+  those candidates** — a few hundred–few thousand points, so it's fast. The app
+  loads the result to mark structure markers valid/dim from authoritative biomes,
+  while deepslate stays the visual backdrop. This is the accurate, cheap way to
+  fix structure validation (e.g. Jirachi) without a full grid dump.
+- **`/dumpbiomes <centerX> <centerZ> <blocksAcross> <step>`** — full biome grid
+  for a 100%-accurate *visual* backdrop. Slow (every cell runs the generator).
+
+Both run across server ticks (~40ms/tick, time checked every sample) so they
+never trip the 60s watchdog.
+
+## Probe (recommended)
+1. Put the jar in `mods/` and restart.
+2. In console / as op (target the dimension for nether/end):
+   ```
+   probestructures 0 0 20000
+   ```
+   It writes `probe-overworld-0_0-r20000.json` to the server directory after a
+   few seconds (it prints progress + a final "Wrote N candidate biomes").
+3. In ShinyDex HQ → Seed Map → **🎯 Load probe**. Structure markers within the
+   radius now show solid (valid biome) or dim (wrong biome) from the real server.
+   The probe also carries the server seed and auto-aligns the map's seed field.
 
 ## Build
 Needs **JDK 21**. Use the bundled Gradle wrapper (do NOT use your system

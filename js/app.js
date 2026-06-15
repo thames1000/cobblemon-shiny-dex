@@ -4076,6 +4076,7 @@ function drawBiomeStructures(ctx, ox, oy) {
       if (total >= TOTAL_CAP) break;
       let n = 0;
       const underground = structUnderground(st);
+      if (caveLayer && !underground) continue; // cave view shows only cave structures
       for (const c of structuresInView(seed, st, minX, maxX, minZ, maxZ)) {
         if (n >= PER_CAP || total >= TOTAL_CAP) break;
         // Biome match at the chunk CENTER (where the game checks), exact against the

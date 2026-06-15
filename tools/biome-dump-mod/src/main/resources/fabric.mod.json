@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "biome_dump",
+  "version": "1.0.0",
+  "name": "Biome Dump",
+  "description": "Exports the server's real biomes to JSON for ShinyDex HQ's seed map.",
+  "environment": "server",
+  "entrypoints": { "main": ["dev.shinydex.biomedump.BiomeDump"] },
+  "depends": { "fabricloader": ">=0.16", "minecraft": "~1.21.1", "fabric-api": "*", "java": ">=21" }
+}

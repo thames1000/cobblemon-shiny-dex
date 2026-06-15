@@ -1,0 +1,27 @@
+plugins {
+    id 'fabric-loom' version '1.8-SNAPSHOT'
+}
+
+version = '1.0.0'
+group = 'dev.shinydex'
+base { archivesName = 'biome-dump' }
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:1.21.1"
+    mappings loom.officialMojangMappings()
+    modImplementation "net.fabricmc:fabric-loader:0.16.5"
+    // Matches the fabric-api shipped with COBBLEVERSE 1.7.31 (0.116.x for 1.21.1)
+    modImplementation "net.fabricmc.fabric-api:fabric-api:0.116.0+1.21.1"
+}
+
+java {
+    toolchain { languageVersion = JavaLanguageVersion.of(21) }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.release = 21
+}

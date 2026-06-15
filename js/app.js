@@ -3808,6 +3808,39 @@ function loadStructures() {
     .then((s) => { STRUCTURES = s; if (biomeState.img) drawBiomeCanvas(0, 0); })
     .catch(() => (STRUCTURES = []));
 }
+let BIOME_COLORS = null;
+function loadBiomeColors() {
+  if (BIOME_COLORS) return Promise.resolve();
+  return fetch("js/data/worldgen/biome_colors.json").then((r) => r.json()).then((c) => (BIOME_COLORS = c)).catch(() => (BIOME_COLORS = {}));
+}
+const DUMP_DIM = { "minecraft:overworld": "overworld", "minecraft:the_nether": "nether", "minecraft:the_end": "end" };
+// Load a biome-dump JSON from the Biome Dump server mod — the server's REAL
+// biomes. Renders it as the backdrop and (crucially) makes structure biome
+// validation accurate, since the grid is exactly what the world generates.
+function loadBiomeExport(json) {
+  if (!json || !Array.isArray(json.grid) || !Array.isArray(json.palette)) { els.smBiomeStatus.textContent = "⚠ not a biome-dump file"; return; }
+  loadBiomeRemap(); loadStructures();
+  loadBiomeColors().then(() => {
+    const dim = DUMP_DIM[json.dimension] || "overworld";
+    biomeState.dim = dim;
+    biomeState.cx = json.centerX | 0; biomeState.cz = json.centerZ | 0;
+    biomeState.bpp = json.step; biomeState.cols = json.cols; biomeState.rows = json.rows;
+    biomeState.palette = json.palette;
+    biomeState.grid = Uint16Array.from(json.grid);
+    biomeState.fromExport = true; biomeState.rendered = true;
+    const cache = {};
+    const col = (id) => { if (cache[id]) return cache[id]; const hex = BIOME_COLORS[id] || "#3a4a5a"; const n = parseInt(hex.slice(1), 16); return cache[id] = [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+    const rgba = new Uint8ClampedArray(json.cols * json.rows * 4);
+    for (let k = 0; k < json.grid.length; k++) { const [r, g, b] = col(json.palette[json.grid[k]]); const o = k * 4; rgba[o] = r; rgba[o + 1] = g; rgba[o + 2] = b; rgba[o + 3] = 255; }
+    biomeState.img = new ImageData(rgba, json.cols, json.rows);
+    const uniq = {}; for (const id of new Set(json.palette)) uniq[id] = BIOME_COLORS[id] || "#3a4a5a";
+    biomeState.legend = Object.entries(uniq).map(([id, hex]) => ({ id, hex }));
+    document.querySelectorAll("#sm-dim .seg-btn").forEach((b) => b.classList.toggle("active", b.dataset.dim === dim));
+    els.smCx.value = biomeState.cx; els.smCz.value = biomeState.cz;
+    drawBiomeCanvas(0, 0); renderBiomeLegend(biomeState.legend);
+    els.smBiomeStatus.textContent = `✓ real biomes (server export) · ${json.cols * json.step}×${json.rows * json.step} blocks · ${biomeState.legend.length} biomes`;
+  });
+}
 // Candidate block positions of a structure_set within a view box (reuses the
 // validated random_spread placement from the seed-map engine).
 function structuresInView(seed, st, minX, maxX, minZ, maxZ) {
@@ -3847,6 +3880,7 @@ function getBiomeWorker() {
 }
 function renderBiomeMap() {
   loadBiomeRemap(); loadStructures();
+  biomeState.fromExport = false; // leaving a loaded export → back to computed biomes
   const cv = els.smBiomeCanvas;
   const bpp = Math.max(1, Number(els.smBiomeZoom.value) || 2);
   const cols = Math.round(cv.width / 2), rows = Math.round(cv.height / 2); // half-res sample, scaled up
@@ -3979,7 +4013,7 @@ function wireBiomePan() {
   const cv = els.smBiomeCanvas;
   if (!cv) return;
   cv.addEventListener("pointerdown", (e) => {
-    if (!biomeState.rendered) return;
+    if (!biomeState.rendered || biomeState.fromExport) return; // export is a fixed snapshot
     biomeDrag = { x: e.offsetX, y: e.offsetY };
     cv.setPointerCapture(e.pointerId); cv.style.cursor = "grabbing";
   });
@@ -4006,7 +4040,7 @@ function wireBiomePan() {
   });
   // Scroll-wheel zoom, anchored on the cursor.
   cv.addEventListener("wheel", (e) => {
-    if (!biomeState.rendered) return;
+    if (!biomeState.rendered || biomeState.fromExport) return; // export is a fixed snapshot
     e.preventDefault();
     let i = BIOME_ZOOM_STEPS.indexOf(biomeState.bpp); if (i < 0) i = 1;
     const ni = Math.max(0, Math.min(BIOME_ZOOM_STEPS.length - 1, i + (e.deltaY > 0 ? 1 : -1)));
@@ -4114,6 +4148,7 @@ function grabEls() {
     smBiomeRender: document.getElementById("sm-biome-render"),
     smBiomeZoom: document.getElementById("sm-biome-zoom"),
     smBiomeMatch: document.getElementById("sm-biome-match"),
+    smBiomeFile: document.getElementById("sm-biome-file"),
     smBiomeStatus: document.getElementById("sm-biome-status"),
     smBiomeCanvas: document.getElementById("sm-biome-canvas"),
     smBiomeLegend: document.getElementById("sm-biome-legend"),
@@ -4401,6 +4436,12 @@ function wire() {
     });
     if (els.smBiomeZoom) els.smBiomeZoom.addEventListener("change", () => { if (biomeState.rendered) renderBiomeMap(); });
     if (els.smBiomeMatch) els.smBiomeMatch.addEventListener("change", () => { if (biomeState.img || biomeState.dim === "end") drawBiomeCanvas(0, 0); });
+    if (els.smBiomeFile) els.smBiomeFile.addEventListener("change", (e) => {
+      const f = e.target.files[0]; if (!f) return;
+      const reader = new FileReader();
+      reader.onload = () => { try { loadBiomeExport(JSON.parse(reader.result)); } catch (err) { els.smBiomeStatus.textContent = "⚠ couldn't read that file: " + err.message; } };
+      reader.readAsText(f); e.target.value = "";
+    });
     wireBiomePan();
   }
   // Showcase modal: close, edit origin, export.

@@ -39,13 +39,14 @@ async function init() {
   C = {
     WR: D.WorldgenRegistries, Identifier: D.Identifier, NoiseParameters: D.NoiseParameters,
     DensityFunction: D.DensityFunction, NoiseGeneratorSettings: D.NoiseGeneratorSettings,
-    RandomState: D.RandomState, MultiNoiseBiomeSource: D.MultiNoiseBiomeSource,
+    RandomState: D.RandomState, MultiNoiseBiomeSource: D.MultiNoiseBiomeSource, BiomeSource: D.BiomeSource,
   };
-  const [dfs, noises, sOW, sNether, bsOW, bsNether, colors, remap] = await Promise.all([
+  const [dfs, noises, sOW, sNether, sEnd, bsOW, bsNether, colors, remap] = await Promise.all([
     loadJson("data/worldgen/density_functions.json"),
     loadJson("data/worldgen/noises.json"),
     loadJson("data/worldgen/noise_settings.json"),
     loadJson("data/worldgen/noise_settings_nether.json"),
+    loadJson("data/worldgen/noise_settings_end.json"),
     loadJson("data/worldgen/biome_source.json"),
     loadJson("data/worldgen/biome_source_nether.json"),
     loadJson("data/worldgen/biome_colors.json"),
@@ -54,8 +55,8 @@ async function init() {
   for (const [id, j] of Object.entries(noises)) C.WR.NOISE.register(C.Identifier.parse(id), C.NoiseParameters.fromJson(j));
   for (const [id, j] of Object.entries(dfs)) C.WR.DENSITY_FUNCTION.register(C.Identifier.parse(id), C.DensityFunction.fromJson(j));
   BUNDLES = {
-    settings: { overworld: C.NoiseGeneratorSettings.fromJson(sOW), nether: C.NoiseGeneratorSettings.fromJson(sNether) },
-    biomeSourceJson: { overworld: bsOW, nether: bsNether },
+    settings: { overworld: C.NoiseGeneratorSettings.fromJson(sOW), nether: C.NoiseGeneratorSettings.fromJson(sNether), end: C.NoiseGeneratorSettings.fromJson(sEnd) },
+    biomeSourceJson: { overworld: bsOW, nether: bsNether, end: { type: "minecraft:the_end" } },
     colors, remap,
   };
 }
@@ -84,7 +85,8 @@ function buildForSeed(seed, dim) {
     finalDensity = rs.router && rs.router.finalDensity;
     heightFn = rs.router && (rs.router.initialDensityWithoutJaggedness || finalDensity);
   } catch (e) {}
-  cache = { seed, dim, biomeSource: C.MultiNoiseBiomeSource.fromJson(BUNDLES.biomeSourceJson[dim]), sampler: rs.sampler, heightFn, finalDensity };
+  // BiomeSource.fromJson dispatches by type: multi_noise (overworld/nether) or the_end.
+  cache = { seed, dim, biomeSource: C.BiomeSource.fromJson(BUNDLES.biomeSourceJson[dim]), sampler: rs.sampler, heightFn, finalDensity };
 }
 // Highest solid quart-Y at (bx,bz) ≈ getBaseHeight(WORLD_SURFACE_WG): scan top-down
 // coarsely, then refine (fine=8 for the map, 4 for accurate list sampling). Returns quart Y.
@@ -131,6 +133,7 @@ async function render(msg) {
   const { cols, rows, cx, cz, bpp } = msg;
   const bs = cache.biomeSource, sampler = cache.sampler;
   const caves = !!msg.caves && cache.dim === "overworld"; // cave-layer view
+  const isEnd = cache.dim === "end";                      // End islands view (TheEndBiomeSource)
   // Sample at the real surface height for the overworld; nether/end keep the fixed Y.
   const fd = (!caves && cache.dim === "overworld") ? cache.heightFn : null;
   // Surface height is smooth, so compute it on a coarse grid and reuse — sized so the
@@ -147,8 +150,12 @@ async function render(msg) {
     for (let px = 0; px < cols; px++) {
       const bx = cx - halfW + (px + 0.5) * bpp;
       const qx = Math.floor(bx) >> 2, qz = Math.floor(bz) >> 2;
-      let id;
-      if (caves) {
+      let id, voidCell = false;
+      if (isEnd) {
+        // TheEndBiomeSource is erosion(end_islands)-based and ~2D, so Y barely matters.
+        id = bs.getBiome(qx, 16, qz, sampler).toString();
+        voidCell = id === "minecraft:small_end_islands"; // the void between the End islands
+      } else if (caves) {
         id = caveBiomeAt(bs, sampler, qx, qz);
       } else {
         let qy = SURFACE_QY;
@@ -163,9 +170,9 @@ async function render(msg) {
       }
       let pi = pIdx[id]; if (pi === undefined) { pi = palette.length; pIdx[id] = pi; palette.push(id); }
       ids[py * cols + px] = pi;
-      const [r, g, b] = colorFor(id);
       const o = (py * cols + px) * 4;
-      rgba[o] = r; rgba[o + 1] = g; rgba[o + 2] = b; rgba[o + 3] = 255;
+      if (voidCell) { rgba[o] = 14; rgba[o + 1] = 10; rgba[o + 2] = 24; rgba[o + 3] = 255; } // End void backdrop
+      else { const [r, g, b] = colorFor(id); rgba[o] = r; rgba[o + 1] = g; rgba[o + 2] = b; rgba[o + 3] = 255; }
     }
     if ((py & 15) === 0) self.postMessage({ type: "progress", pct: Math.round((py / rows) * 100) });
   }

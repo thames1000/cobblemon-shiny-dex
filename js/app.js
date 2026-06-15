@@ -4001,14 +4001,6 @@ function renderBiomeMap() {
   const cx = Math.round(Number(els.smCx.value) || 0), cz = Math.round(Number(els.smCz.value) || 0);
   const caves = !!(els.smBiomeCaves && els.smBiomeCaves.checked) && biomeState.dim === "overworld";
   biomeState.cx = cx; biomeState.cz = cz; biomeState.bpp = bpp; biomeState.cols = cols; biomeState.rows = rows; biomeState.caves = caves;
-  // The End has no deepslate biome source — show a flat backdrop + its structures.
-  if (biomeState.dim === "end") {
-    biomeState.img = null; biomeState.grid = null; biomeState.palette = null; biomeState.rendered = true;
-    biomeState.legend = [{ id: "minecraft:the_end", hex: "#0e0a18" }];
-    drawBiomeCanvas(0, 0); renderBiomeLegend(biomeState.legend);
-    els.smBiomeStatus.textContent = `The End — flat (biomes not computed) · ${cols * bpp}×${rows * bpp} blocks`;
-    return;
-  }
   const w = getBiomeWorker();
   if (!w) { els.smBiomeStatus.textContent = "⚠ module workers unsupported in this browser"; return; }
   if (biomeState.busy) { biomeRerender = true; return; } // queue the latest pan/zoom

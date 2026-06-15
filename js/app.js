@@ -3801,7 +3801,7 @@ function renderSeedMapResults() {
   // Filter each structure's candidates to on-biome (c.match set async by
   // sampleCandidateBiomes; null = pending/unjudgeable → kept). Drop structures
   // left with zero valid candidates entirely. "Show off-biome" keeps every slot.
-  const locD = (locatedStructures && locatedStructures.dim === biomeState.dim) ? locatedStructures.byId : null;
+  const locD = locatedStructures[biomeState.dim] || null;
   const shown = results
     .map((r) => {
       const loc = locD && locD.get(r.st.id);
@@ -3941,7 +3941,7 @@ function loadStructureProbe(json) {
 // Bit-exact structure positions from vanilla /locate over RCON (tools/locate-rcon).
 // { dim, byId: Map id -> [{x,z,dist?}] }. When loaded, the seed-map list shows these
 // authoritative positions instead of the deepslate-filtered candidates.
-let locatedStructures = null;
+let locatedStructures = {}; // dim -> Map(id -> [{x,z,dist?}]); load overworld/nether/end independently
 function loadLocatedStructures(json) {
   if (!json || !json.located || typeof json.located !== "object") { els.smBiomeStatus.textContent = "⚠ not a located-structures file (run tools/locate-rcon)"; return; }
   const dim = DUMP_DIM[json.dimension] || "overworld";
@@ -3950,7 +3950,7 @@ function loadLocatedStructures(json) {
     if (Array.isArray(v)) byId.set(id, v.filter((p) => Array.isArray(p)).map(([x, z]) => ({ x, z })));
     else if (v && typeof v.x === "number") byId.set(id, [{ x: v.x, z: v.z, dist: v.dist }]);
   }
-  locatedStructures = { dim, byId };
+  locatedStructures[dim] = byId;
   renderSeedMapResults();
   els.smBiomeStatus.textContent = `📡 ${byId.size} structures located (${dim}) — exact /locate positions`;
 }

@@ -182,13 +182,15 @@ async function samplePoints(msg) {
   const bs = cache.biomeSource, sampler = cache.sampler;
   // Accurate height for candidates (few points): finalDensity + fine refine.
   const fd = (cache.dim === "overworld") ? (cache.finalDensity || cache.heightFn) : null;
+  const rm = BUNDLES.remap || {}; // Biome Replacer: report the post-replacement biome the server sees
   const pts = msg.pts, cave = msg.cave || [], out = new Array(pts.length);
   for (let i = 0; i < pts.length; i++) {
     const x = pts[i][0], z = pts[i][1], qx = Math.floor(x) >> 2, qz = Math.floor(z) >> 2;
-    if (cave[i]) { out[i] = caveBiomeAt(bs, sampler, qx, qz); continue; }
+    if (cave[i]) { const cb = caveBiomeAt(bs, sampler, qx, qz); out[i] = rm[cb] || cb; continue; }
     let qy = SURFACE_QY;
     if (fd) qy = surfaceQuartY(fd, Math.floor(x), Math.floor(z), 4);
-    out[i] = bs.getBiome(qx, qy, qz, sampler).toString();
+    const id = bs.getBiome(qx, qy, qz, sampler).toString();
+    out[i] = rm[id] || id;
   }
   self.postMessage({ type: "points", id: msg.id, biomes: out });
 }

@@ -4058,11 +4058,15 @@ function candMatch(st, x, z, probeOnly, caveLayer) {
   if (!!caveLayer !== structUnderground(st)) return null;
   let wb = null;
   if (!caveLayer && structureProbe && structureProbe.dim === biomeState.dim) {
-    const p = structureProbe.byKey.get(x + "," + z); // probe samples the surface only
+    const p = structureProbe.byKey.get(x + "," + z); // probe is already post-replacement
     if (p != null) wb = p;
   }
-  if (wb == null) { if (probeOnly) return null; wb = biomeAtWorld(x, z); }
-  if (wb == null) return null;
+  if (wb == null) {
+    if (probeOnly) return null;
+    const raw = biomeAtWorld(x, z);
+    if (raw == null) return null;
+    wb = (BIOME_REMAP && BIOME_REMAP[raw]) || raw; // apply Biome Replacer to match the server
+  }
   return st.biomes.indexOf(wb) >= 0;
 }
 function drawBiomeStructures(ctx, ox, oy) {

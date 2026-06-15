@@ -3788,11 +3788,18 @@ let smSampleSeq = 0, smSamplePending = null;
 function sampleCandidateBiomes(results) {
   const w = getBiomeWorker();
   if (!w) return;
-  const CAP = 4000, pts = [], cave = [], refs = [];
+  // Sample biomes nearest-first PER STRUCTURE (r.cands is distance-sorted). A single
+  // global cap let the dense small-spacing structures at the END of the rarest-first list
+  // (gyms, leagues, shrines — ~29 of them past slot 4000) go entirely unsampled, so they
+  // showed every placement slot as if on-biome. A per-structure budget guarantees each one
+  // validates its nearest candidates. We only display ~6 per structure, so 96 nearest is
+  // ample margin even for sparse-biome (e.g. ocean-temperature) structures.
+  const PER_CAP = 96, GLOBAL_CAP = 16000, pts = [], cave = [], refs = [];
   const probe = (structureProbe && structureProbe.dim === biomeState.dim) ? structureProbe : null;
   for (const r of results) {
     const under = structUnderground(r.st);
     const judgeable = r.st.biomes && r.st.biomes.length;
+    let checked = 0; // deepslate samples spent on THIS structure (probe hits don't count)
     for (const c of r.cands) {
       if (!judgeable) { c.match = null; continue; }
       // A loaded probe is the authoritative (real server) surface biome — use it directly.
@@ -3800,9 +3807,9 @@ function sampleCandidateBiomes(results) {
         const p = probe.byKey.get(c.x + "," + c.z);
         if (p != null) { c.biome = p; c.match = r.st.biomes.indexOf(p) >= 0; continue; }
       }
-      if (pts.length >= CAP) { c.match = null; continue; }
+      if (checked >= PER_CAP || pts.length >= GLOBAL_CAP) { c.match = null; continue; }
       c.match = null; // pending until the worker answers
-      pts.push([c.x, c.z]); cave.push(under); refs.push({ c, st: r.st });
+      pts.push([c.x, c.z]); cave.push(under); refs.push({ c, st: r.st }); checked++;
     }
   }
   renderSeedMapResults(); // apply any probe-confirmed matches immediately

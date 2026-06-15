@@ -3652,6 +3652,7 @@ class JRandom {
   setSeed(seed) { this.seed = (BigInt.asUintN(64, BigInt(seed)) ^ JR_MULT) & JR_MASK; }
   next(bits) { this.seed = (this.seed * JR_MULT + JR_ADD) & JR_MASK; return Number(BigInt.asIntN(32, this.seed >> BigInt(48 - bits))); }
   nextInt(bound) {
+    if (bound === undefined) return this.next(32); // Java Random.nextInt() — full signed int
     if (bound <= 0) return 0;
     if ((bound & -bound) === bound) return Number((BigInt(bound) * BigInt(this.next(31))) >> 31n);
     let bits, val;
@@ -3683,6 +3684,42 @@ function smCandidateChunk(seed, rx, rz, st) {
   } else { ox = rng.nextInt(d); oz = rng.nextInt(d); }
   return [rx * st.spacing + ox, rz * st.spacing + oz];
 }
+// Index for exclusion-zone lookups (other_set id -> structure). Built in loadStructures.
+let STRUCT_BY_ID = new Map();
+// Is (chx,chz) the candidate chunk its region picks? (MC isPlacementChunk)
+function smIsPlacementChunk(seed, st, chx, chz) {
+  const rx = Math.floor(chx / st.spacing), rz = Math.floor(chz / st.spacing);
+  const ch = smCandidateChunk(seed, rx, rz, st);
+  return ch[0] === chx && ch[1] === chz;
+}
+// The placement rules applied on TOP of the grid (MC isStructureChunk, minus the
+// already-checked isPlacementChunk): the frequency reducer + the exclusion zone.
+// Without these the map over-shows candidates that the server won't actually generate.
+// Bit-exact with 1.21.1 StructurePlacement (decompiled): freq<1 cobbleverse sets all
+// use the legacy_type_3 (pillager-outpost) reducer.
+function smPlacementPasses(seed, st, chx, chz) {
+  if (st.freq != null && st.freq < 1) {
+    // legacy_type_3: seed = (long)(i ^ (j<<4)) ^ worldSeed; discard one int; keep iff nextInt(1/freq)==0.
+    // (int)(1/0.75)=1 -> nextInt(1) is always 0, so freq 0.75 + legacy_type_3 never thins — a real MC quirk.
+    const i = chx >> 4, j = chz >> 4;
+    const r = new JRandom(BigInt.asIntN(64, BigInt(i ^ (j << 4))) ^ seed);
+    r.nextInt(); // discarded
+    if (r.nextInt(Math.floor(1 / st.freq)) !== 0) return false;
+  }
+  if (st.exclude) {
+    const other = STRUCT_BY_ID.get(st.exclude.set);
+    if (other) {
+      const c = st.exclude.chunks;
+      for (let dx = chx - c; dx <= chx + c; dx++)
+        for (let dz = chz - c; dz <= chz + c; dz++)
+          if (smIsStructureChunk(seed, other, dx, dz)) return false; // forbidden near other_set
+    }
+  }
+  return true;
+}
+function smIsStructureChunk(seed, st, chx, chz) {
+  return smIsPlacementChunk(seed, st, chx, chz) && smPlacementPasses(seed, st, chx, chz);
+}
 function smStructValid(st) {
   return st && st.spacing > 0 && st.separation != null && st.separation >= 0
     && st.separation < st.spacing && st.salt != null && st.salt !== "";
@@ -3697,6 +3734,7 @@ function smFindCandidates(seed, st, cx, cz, radius) {
   for (let rx = cReg - rr; rx <= cReg + rr; rx++) {
     for (let rz = cRegZ - rr; rz <= cRegZ + rr; rz++) {
       const [chx, chz] = smCandidateChunk(seed, rx, rz, st);
+      if (!smPlacementPasses(seed, st, chx, chz)) continue; // frequency/exclusion-zone gate
       const bx = chx * 16 + 8, bz = chz * 16 + 8;
       const dist = Math.round(Math.hypot(bx - cx, bz - cz));
       if (dist <= radius) out.push({ x: bx, z: bz, dist });
@@ -3880,7 +3918,7 @@ let STRUCTURES = null, biomeIconHits = [];
 function loadStructures() {
   if (STRUCTURES) return Promise.resolve();
   return fetch("js/data/worldgen/structures.json").then((r) => r.json())
-    .then((s) => { STRUCTURES = s; if (biomeState.img) drawBiomeCanvas(0, 0); })
+    .then((s) => { STRUCTURES = s; STRUCT_BY_ID = new Map(s.map((x) => [x.id, x])); if (biomeState.img) drawBiomeCanvas(0, 0); })
     .catch(() => (STRUCTURES = []));
 }
 let BIOME_COLORS = null;
@@ -3963,6 +4001,7 @@ function structuresInView(seed, st, minX, maxX, minZ, maxZ) {
   for (let rx = rMinX; rx <= rMaxX; rx++) {
     for (let rz = rMinZ; rz <= rMaxZ; rz++) {
       const ch = smCandidateChunk(seed, rx, rz, st);
+      if (!smPlacementPasses(seed, st, ch[0], ch[1])) continue; // frequency/exclusion-zone gate
       const bx = ch[0] * 16 + 8, bz = ch[1] * 16 + 8;
       if (bx >= minX && bx <= maxX && bz >= minZ && bz <= maxZ) out.push({ x: bx, z: bz });
     }

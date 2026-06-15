@@ -3793,16 +3793,25 @@ function renderSeedMapResults() {
   const out = document.getElementById("sm-results");
   const status = document.getElementById("sm-status");
   if (card) card.hidden = false;
-  if (status) status.textContent = `seed ${seedToLong(m.seed)} · ${results.length} structure${results.length === 1 ? "" : "s"} within ${m.radius.toLocaleString()} blocks of (${m.cx}, ${m.cz})`;
-  if (!results.length) { out.innerHTML = `<p class="hint">No structures within ${m.radius.toLocaleString()} blocks — try a larger radius.</p>`; drawSeedMapCanvas(); return; }
+  if (!results.length) {
+    if (status) status.textContent = `seed ${seedToLong(m.seed)} · 0 structures within ${m.radius.toLocaleString()} blocks of (${m.cx}, ${m.cz})`;
+    out.innerHTML = `<p class="hint">No structures within ${m.radius.toLocaleString()} blocks — try a larger radius.</p>`; drawSeedMapCanvas(); return;
+  }
   const showOff = !!(els.smBiomeMatch && els.smBiomeMatch.checked);
-  out.innerHTML = results.map((r) => {
+  // Filter each structure's candidates to on-biome (c.match set async by
+  // sampleCandidateBiomes; null = pending/unjudgeable → kept). Drop structures
+  // left with zero valid candidates entirely. "Show off-biome" keeps every slot.
+  const shown = results
+    .map((r) => ({ r, cands: showOff ? r.cands : r.cands.filter((c) => c.match !== false) }))
+    .filter((x) => x.cands.length > 0);
+  if (status) status.textContent = `seed ${seedToLong(m.seed)} · ${shown.length}${shown.length < results.length ? " of " + results.length : ""} structure${shown.length === 1 ? "" : "s"} within ${m.radius.toLocaleString()} blocks of (${m.cx}, ${m.cz})`;
+  if (!shown.length) {
+    out.innerHTML = `<p class="hint">All ${results.length} structure${results.length === 1 ? "" : "s"} in range are off-biome — try a larger radius${showOff ? "" : " or enable “Show off-biome”"}.</p>`;
+    drawSeedMapCanvas(); return;
+  }
+  out.innerHTML = shown.map(({ r, cands }) => {
     const col = smPackColor(r.st.pack);
     const dim = SM_DIM_LABEL[r.st.dim] ? ` · ${SM_DIM_LABEL[r.st.dim]}` : "";
-    // Default: drop candidates whose real (surface-sampled) biome is off, so the
-    // "nearest" shown is a real one. c.match is set async by sampleCandidateBiomes
-    // (null = pending/unjudgeable → kept). "Show off-biome" keeps every slot.
-    const cands = showOff ? r.cands : r.cands.filter((c) => c.match !== false);
     const hidden = r.cands.length - cands.length;
     const rows = cands.slice(0, 6).map((c) =>
       `<div class="sm-cand"><span class="sm-coord">X <b>${c.x}</b>, Z <b>${c.z}</b></span>` +
@@ -3810,8 +3819,7 @@ function renderSeedMapResults() {
       `<button class="ctrl-btn ghost sm-copy" data-xz="${c.x} ${c.z}" title="Copy coordinates">copy</button>` +
       `<button class="ctrl-btn ghost sm-copy" data-xz="/tp @s ${c.x} ~ ${c.z}" title="Copy /tp command">/tp</button>` +
       (r.st.id ? `<button class="ctrl-btn ghost sm-copy" data-xz="/execute positioned ${c.x} 64 ${c.z} run locate structure ${r.st.id}" title="Copy a /locate that searches from this spot — run it in-game; if it returns these coords, the structure is confirmed here">/locate</button>` : "") +
-      `</div>`).join("") ||
-      `<div class="sm-cand"><span class="muted">all ${r.cands.length} nearby slots are off-biome — none valid in range (enable “Show off-biome” to see them)</span></div>`;
+      `</div>`).join("");
     const locateBtn = r.st.id
       ? `<button class="ctrl-btn ghost sm-copy" data-xz="/execute positioned ${m.cx} 64 ${m.cz} run locate structure ${r.st.id}" title="Copy a /locate that finds the nearest one to the scan center (${m.cx}, ${m.cz}) — the game's authoritative answer">📍 /locate</button>`
       : "";

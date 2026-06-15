@@ -23,10 +23,19 @@ If `./gradlew` reports the wrong Java version, point it at JDK 21:
    ```
    - `8192` across at `16`/sample = a 512×512 grid (8 km² around 0,0).
    - Bigger area or finer detail = more samples (cap ~4M). Start coarse.
+   - The dump runs **across many server ticks** (a ~25ms/tick budget), so it
+     won't trip the watchdog. Expect mild lag for a few minutes; it prints
+     `…biome dump 10%…20%…` and a final "Wrote N biomes" when done.
+   - For the nether / end, target that dimension:
+     ```
+     execute in minecraft:the_nether run dumpbiomes 0 0 4096 16
+     execute in minecraft:the_end    run dumpbiomes 0 0 8192 16
+     ```
 3. It writes `biome-dump-overworld-0_0-8192-s16.json` to the server directory.
-   Run it again per dimension (stand in / target the nether or end) for those.
 4. In ShinyDex HQ → **Seed Map → Load real biomes**, pick that file. The map
    redraws with exact biomes and structures validate against them.
 
-It samples `getUncachedNoiseBiome` at each point's surface height — no chunk
-generation, so it's fast and doesn't bloat your world.
+It samples the real generator's surface height (`getBaseHeight`) and the real
+biome source (`getUncachedNoiseBiome`, Biome Replacer applied) at each point —
+no chunk generation, so it doesn't bloat your world. `getBaseHeight` is the
+expensive part, which is why the work is spread across ticks.

@@ -3991,42 +3991,14 @@ const CAVE_BIOME_RE = /(?:^|:)cave\/|caves$|lush_caves|dripstone_caves|deep_dark
 function structUnderground(st) {
   return !!(st && st.biomes && st.biomes.length && st.biomes.every((b) => CAVE_BIOME_RE.test(b)));
 }
-// STOPGAP family matching: our per-structure biome lists are incomplete (most are a
-// single biome extracted from a broader biome *tag*), so exact matching wrongly flags
-// real structures (e.g. an Articuno Altar in snowy_beach when we only list snowy_plains).
-// Until the real tags are re-extracted from the mod, accept a sampled biome that shares
-// the required biome's family — with a hard climate guard so cold never matches warm.
-function biomeFamilies(id) {
-  const p = String(id).replace(/^[a-z_]+:/, "");
-  const f = new Set();
-  if (/snow|frozen|ice|frost|glaci|grove|cold/.test(p)) f.add("cold");
-  if (/ocean/.test(p)) f.add("ocean");
-  if (/river/.test(p)) f.add("river");
-  if (/beach|shore/.test(p)) f.add("beach");
-  if (/desert/.test(p)) f.add("desert");
-  if (/badlands|mesa/.test(p)) f.add("badlands");
-  if (/savanna/.test(p)) f.add("savanna");
-  if (/jungle/.test(p)) f.add("jungle");
-  if (/swamp|mangrove/.test(p)) f.add("swamp");
-  if (/taiga/.test(p)) f.add("taiga");
-  if (/forest|wooded|birch|cherry|maple|grove|thicket|shrubland/.test(p)) f.add("forest");
-  if (/plains|meadow|prairie|field|steppe|grassland/.test(p)) f.add("plains");
-  if (/peak|slope|mountain|hill|highland|cliff|alps|spire|crag|summit/.test(p)) f.add("mountain");
-  if (/cave|dripstone|lush|deep_dark|cavern/.test(p)) f.add("cave");
-  if (/mushroom|fungal/.test(p)) f.add("mushroom");
-  return f;
-}
-function biomeFamilyMatch(reqId, gotId) {
-  if (reqId === gotId) return true;
-  const R = biomeFamilies(reqId), S = biomeFamilies(gotId);
-  if (R.has("cold") !== S.has("cold")) return false; // never cross the cold/warm line
-  for (const t of R) if (S.has(t)) return true;       // else share any family
-  return false;
-}
 // Is a candidate on its structure's biome? true / false / null (can't tell).
-// probeOnly=true uses ONLY the loaded probe (authoritative — safe to hide/exclude on).
-// probeOnly=false also consults the deepslate render (advisory — only dim, never hide,
-// since it isn't bit-exact). Underground structures are never judgeable from above.
+// The game checks the biome at the chunk CENTER (getMiddleBlockPosition = x,z),
+// so we sample there too — sampling the corner flips biomes on borders (an
+// Articuno Altar reads snowy_beach at the corner but snowy_plains at the center).
+// Cobbleverse biome lists are exact (verified against the datapacks), so we match
+// exactly. probeOnly=true uses ONLY the loaded probe (authoritative — safe to
+// hide/exclude on); else we also consult the deepslate render (advisory). Underground
+// structures (cave biomes) can't be judged from the surface at all.
 function candMatch(st, x, z, probeOnly) {
   if (structUnderground(st) || !st.biomes || !st.biomes.length) return null;
   let wb = null;
@@ -4034,9 +4006,9 @@ function candMatch(st, x, z, probeOnly) {
     const p = structureProbe.byKey.get(x + "," + z);
     if (p != null) wb = p;
   }
-  if (wb == null) { if (probeOnly) return null; wb = biomeAtWorld(x - 8, z - 8); }
+  if (wb == null) { if (probeOnly) return null; wb = biomeAtWorld(x, z); }
   if (wb == null) return null;
-  return st.biomes.some((b) => biomeFamilyMatch(b, wb));
+  return st.biomes.indexOf(wb) >= 0;
 }
 function drawBiomeStructures(ctx, ox, oy) {
   const cv = els.smBiomeCanvas;
@@ -4058,23 +4030,22 @@ function drawBiomeStructures(ctx, ox, oy) {
       const underground = structUnderground(st);
       for (const c of structuresInView(seed, st, minX, maxX, minZ, maxZ)) {
         if (n >= PER_CAP || total >= TOTAL_CAP) break;
-        // Biome match, sampled at the chunk CORNER (what /locate reports). A loaded
-        // probe is authoritative (safe to HIDE off-biome); the deepslate render isn't
-        // bit-exact, so it only DIMS. Cave structures can't be judged from the surface
-        // at all — shown with an amber "unvalidated" ring, never dimmed. Off-biome
-        // candidates are hidden by default unless "Show off-biome" is on.
-        const hardOff = candMatch(st, c.x, c.z, true) === false;   // probe-confirmed off-biome
-        const dimOff = hardOff || candMatch(st, c.x, c.z, false) === false; // + deepslate advisory
-        if (hardOff && !showOff) continue; // hide authoritatively-off unless showing them
+        // Biome match at the chunk CENTER (where the game checks), exact against the
+        // datapack-accurate biome list. Uses the loaded probe if it covers this point,
+        // else the deepslate render. Cave structures can't be judged from the surface —
+        // shown with an amber "unvalidated" ring, never off. Off-biome candidates are
+        // HIDDEN unless "Show off-biome" is on (then dimmed).
+        const off = candMatch(st, c.x, c.z, false) === false; // probe-first, deepslate fallback
+        if (off && !showOff) continue; // hide off-biome unless showing them
         const px = cv.width / 2 + (c.x - biomeState.cx) * ppb + ox;
         const py = cv.height / 2 + (c.z - biomeState.cz) * ppb + oy;
         if (px < -8 || px > cv.width + 8 || py < -8 || py > cv.height + 8) continue;
-        ctx.globalAlpha = dimOff ? 0.38 : 1;
+        ctx.globalAlpha = off ? 0.38 : 1;
         ctx.fillStyle = "rgba(0,0,0,.5)"; ctx.beginPath(); ctx.arc(px, py, 8, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = "#fff"; ctx.fillText(st.icon, px, py + 0.5);
         if (underground) { ctx.strokeStyle = "#ffd54a"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(px, py, 9.5, 0, Math.PI * 2); ctx.stroke(); }
         ctx.globalAlpha = 1;
-        if (final) biomeIconHits.push({ x: px, y: py, st, bx: c.x, bz: c.z, match: !dimOff, underground });
+        if (final) biomeIconHits.push({ x: px, y: py, st, bx: c.x, bz: c.z, match: !off, underground });
         n++; total++;
       }
     }

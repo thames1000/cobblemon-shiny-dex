@@ -118,7 +118,7 @@ public class BiomeDump implements ModInitializer {
         private final long seed;
         private final int cx, cz, radius;
         private final String[] keys;     // "centerX,centerZ" — how the app keys candidates
-        private final int[][] samples;   // {sampleX, sampleZ} (chunk corner, what /locate reports)
+        private final int[][] samples;   // {sampleX, sampleZ} = chunk center, where the game checks the biome
         private final String[] biomes;   // filled across ticks
         private long n = 0;
         private int lastBucket = -1;
@@ -146,7 +146,7 @@ public class BiomeDump implements ModInitializer {
                         int bx = ch[0] * 16 + 8, bz = ch[1] * 16 + 8;
                         if (Math.hypot(bx - cx, bz - cz) <= radius) {
                             String key = bx + "," + bz;
-                            uniq.putIfAbsent(key, new int[]{bx - 8, bz - 8});
+                            uniq.putIfAbsent(key, new int[]{bx, bz}); // sample at chunk center (game's check point)
                         }
                     }
                 }

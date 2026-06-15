@@ -3795,7 +3795,7 @@ function drawSeedMapCanvas() {
 }
 /* ---------- biome map (deepslate Terralith, in a worker) ---------- */
 let biomeWorker = null;
-let biomeState = { dim: "overworld", cx: 0, cz: 0, bpp: 2, cols: 192, rows: 192, img: null, grid: null, palette: null, legend: null, busy: false };
+let biomeState = { dim: "overworld", cx: 0, cz: 0, bpp: 2, cols: 192, rows: 192, img: null, grid: null, palette: null, legend: null, busy: false, rendered: false };
 const DIM_BG = { overworld: "#0b1322", nether: "#1a0f0c", end: "#0e0a18" };
 let biomeRerender = false, biomeRenderTimer = null;
 const BIOME_ZOOM_STEPS = [1, 2, 4, 8, 16];
@@ -3854,7 +3854,7 @@ function renderBiomeMap() {
   biomeState.cx = cx; biomeState.cz = cz; biomeState.bpp = bpp; biomeState.cols = cols; biomeState.rows = rows;
   // The End has no deepslate biome source — show a flat backdrop + its structures.
   if (biomeState.dim === "end") {
-    biomeState.img = null; biomeState.grid = null; biomeState.palette = null;
+    biomeState.img = null; biomeState.grid = null; biomeState.palette = null; biomeState.rendered = true;
     biomeState.legend = [{ id: "minecraft:the_end", hex: "#0e0a18" }];
     drawBiomeCanvas(0, 0); renderBiomeLegend(biomeState.legend);
     els.smBiomeStatus.textContent = `The End — flat (biomes not computed) · ${cols * bpp}×${rows * bpp} blocks`;
@@ -3869,6 +3869,7 @@ function renderBiomeMap() {
 }
 function onBiomeDone(m) {
   biomeState.busy = false;
+  biomeState.rendered = true;
   biomeState.img = new ImageData(new Uint8ClampedArray(m.rgba), m.cols, m.rows);
   biomeState.grid = new Uint16Array(m.ids);
   biomeState.palette = m.palette;
@@ -3978,7 +3979,7 @@ function wireBiomePan() {
   const cv = els.smBiomeCanvas;
   if (!cv) return;
   cv.addEventListener("pointerdown", (e) => {
-    if (!biomeState.img) return;
+    if (!biomeState.rendered) return;
     biomeDrag = { x: e.offsetX, y: e.offsetY };
     cv.setPointerCapture(e.pointerId); cv.style.cursor = "grabbing";
   });
@@ -4005,7 +4006,7 @@ function wireBiomePan() {
   });
   // Scroll-wheel zoom, anchored on the cursor.
   cv.addEventListener("wheel", (e) => {
-    if (!biomeState.img) return;
+    if (!biomeState.rendered) return;
     e.preventDefault();
     let i = BIOME_ZOOM_STEPS.indexOf(biomeState.bpp); if (i < 0) i = 1;
     const ni = Math.max(0, Math.min(BIOME_ZOOM_STEPS.length - 1, i + (e.deltaY > 0 ? 1 : -1)));
@@ -4398,7 +4399,7 @@ function wire() {
         return;
       }
     });
-    if (els.smBiomeZoom) els.smBiomeZoom.addEventListener("change", () => { if (biomeState.img) renderBiomeMap(); });
+    if (els.smBiomeZoom) els.smBiomeZoom.addEventListener("change", () => { if (biomeState.rendered) renderBiomeMap(); });
     if (els.smBiomeMatch) els.smBiomeMatch.addEventListener("change", () => { if (biomeState.img || biomeState.dim === "end") drawBiomeCanvas(0, 0); });
     wireBiomePan();
   }

@@ -3801,18 +3801,27 @@ function renderSeedMapResults() {
   // Filter each structure's candidates to on-biome (c.match set async by
   // sampleCandidateBiomes; null = pending/unjudgeable → kept). Drop structures
   // left with zero valid candidates entirely. "Show off-biome" keeps every slot.
+  const locD = (locatedStructures && locatedStructures.dim === biomeState.dim) ? locatedStructures.byId : null;
   const shown = results
-    .map((r) => ({ r, cands: showOff ? r.cands : r.cands.filter((c) => c.match !== false) }))
+    .map((r) => {
+      const loc = locD && locD.get(r.st.id);
+      if (loc && loc.length) { // bit-exact /locate positions override the deepslate guess
+        const cands = loc.map((p) => ({ x: p.x, z: p.z, dist: p.dist != null ? p.dist : Math.round(Math.hypot(p.x - m.cx, p.z - m.cz)) }))
+          .sort((a, b) => a.dist - b.dist);
+        return { r, cands, verified: true, hidden: 0 };
+      }
+      const cands = showOff ? r.cands : r.cands.filter((c) => c.match !== false);
+      return { r, cands, verified: false, hidden: r.cands.length - cands.length };
+    })
     .filter((x) => x.cands.length > 0);
   if (status) status.textContent = `seed ${seedToLong(m.seed)} · ${shown.length}${shown.length < results.length ? " of " + results.length : ""} structure${shown.length === 1 ? "" : "s"} within ${m.radius.toLocaleString()} blocks of (${m.cx}, ${m.cz})`;
   if (!shown.length) {
     out.innerHTML = `<p class="hint">All ${results.length} structure${results.length === 1 ? "" : "s"} in range are off-biome — try a larger radius${showOff ? "" : " or enable “Show off-biome”"}.</p>`;
     drawSeedMapCanvas(); return;
   }
-  out.innerHTML = shown.map(({ r, cands }) => {
+  out.innerHTML = shown.map(({ r, cands, verified, hidden }) => {
     const col = smPackColor(r.st.pack);
     const dim = SM_DIM_LABEL[r.st.dim] ? ` · ${SM_DIM_LABEL[r.st.dim]}` : "";
-    const hidden = r.cands.length - cands.length;
     const rows = cands.slice(0, 6).map((c) =>
       `<div class="sm-cand"><span class="sm-coord">X <b>${c.x}</b>, Z <b>${c.z}</b></span>` +
       `<span class="muted">${c.dist.toLocaleString()} blocks</span>` +
@@ -3823,12 +3832,13 @@ function renderSeedMapResults() {
     const locateBtn = r.st.id
       ? `<button class="ctrl-btn ghost sm-copy" data-xz="/execute positioned ${m.cx} 64 ${m.cz} run locate structure ${r.st.id}" title="Copy a /locate that finds the nearest one to the scan center (${m.cx}, ${m.cz}) — the game's authoritative answer">📍 /locate</button>`
       : "";
-    const caveNote = structUnderground(r.st)
+    const caveNote = (structUnderground(r.st) && !verified)
       ? `<span class="muted" title="This structure's biome (${r.st.biomes.join(", ")}) only exists underground, so the biome map can't tell which slots are real. The coords below are raw placement slots — use /locate to find the actual one.">⛏ underground biome · coords are slots, use /locate</span>`
       : "";
-    const offNote = hidden > 0 ? ` · ${hidden} off-biome hidden` : "";
+    const offNote = verified ? "" : (hidden > 0 ? ` · ${hidden} off-biome hidden` : "");
+    const verifiedBadge = verified ? ` <span style="color:#4ade80;font-size:.8em" title="Bit-exact positions from the server's own /locate (via RCON) — no deepslate guessing">✅ verified</span>` : "";
     return `<div class="sm-res"><div class="sm-res-h"><span class="sm-dot" style="background:${col}"></span>` +
-      `<b>${r.st.icon || ""} ${r.st.name}</b>${r.st.target ? ` <span class="muted">→ ${r.st.target}</span>` : ""}` +
+      `<b>${r.st.icon || ""} ${r.st.name}</b>${r.st.target ? ` <span class="muted">→ ${r.st.target}</span>` : ""}${verifiedBadge}` +
       `<span class="muted">${dim} · nearest ${Math.min(6, cands.length)} of ${cands.length}${offNote}</span>${locateBtn}${caveNote}</div>${rows}</div>`;
   }).join("");
   drawSeedMapCanvas();
@@ -3927,6 +3937,22 @@ function loadStructureProbe(json) {
   if (biomeState.rendered) drawBiomeCanvas(0, 0);
   renderSeedMapResults(); // list now filters off-biome candidates authoritatively
   els.smBiomeStatus.textContent = `🎯 probe loaded · ${byKey.size} candidate biomes (${dim})${warn} · markers now server-accurate`;
+}
+// Bit-exact structure positions from vanilla /locate over RCON (tools/locate-rcon).
+// { dim, byId: Map id -> [{x,z,dist?}] }. When loaded, the seed-map list shows these
+// authoritative positions instead of the deepslate-filtered candidates.
+let locatedStructures = null;
+function loadLocatedStructures(json) {
+  if (!json || !json.located || typeof json.located !== "object") { els.smBiomeStatus.textContent = "⚠ not a located-structures file (run tools/locate-rcon)"; return; }
+  const dim = DUMP_DIM[json.dimension] || "overworld";
+  const byId = new Map();
+  for (const [id, v] of Object.entries(json.located)) {
+    if (Array.isArray(v)) byId.set(id, v.filter((p) => Array.isArray(p)).map(([x, z]) => ({ x, z })));
+    else if (v && typeof v.x === "number") byId.set(id, [{ x: v.x, z: v.z, dist: v.dist }]);
+  }
+  locatedStructures = { dim, byId };
+  renderSeedMapResults();
+  els.smBiomeStatus.textContent = `📡 ${byId.size} structures located (${dim}) — exact /locate positions`;
 }
 // Candidate block positions of a structure_set within a view box (reuses the
 // validated random_spread placement from the seed-map engine).
@@ -4279,6 +4305,7 @@ function grabEls() {
     smBiomeCaves: document.getElementById("sm-biome-caves"),
     smBiomeFile: document.getElementById("sm-biome-file"),
     smProbeFile: document.getElementById("sm-probe-file"),
+    smLocatedFile: document.getElementById("sm-located-file"),
     smBiomeStatus: document.getElementById("sm-biome-status"),
     smBiomeCanvas: document.getElementById("sm-biome-canvas"),
     smBiomeLegend: document.getElementById("sm-biome-legend"),
@@ -4577,6 +4604,12 @@ function wire() {
       const f = e.target.files[0]; if (!f) return;
       const reader = new FileReader();
       reader.onload = () => { try { loadStructureProbe(JSON.parse(reader.result)); } catch (err) { els.smBiomeStatus.textContent = "⚠ couldn't read that file: " + err.message; } };
+      reader.readAsText(f); e.target.value = "";
+    });
+    if (els.smLocatedFile) els.smLocatedFile.addEventListener("change", (e) => {
+      const f = e.target.files[0]; if (!f) return;
+      const reader = new FileReader();
+      reader.onload = () => { try { loadLocatedStructures(JSON.parse(reader.result)); } catch (err) { els.smBiomeStatus.textContent = "⚠ couldn't read that file: " + err.message; } };
       reader.readAsText(f); e.target.value = "";
     });
     wireBiomePan();

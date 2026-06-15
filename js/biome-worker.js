@@ -73,7 +73,29 @@ function seedToLong(s) {
 function buildForSeed(seed, dim) {
   if (cache.seed === seed && cache.dim === dim && cache.sampler) return;
   const rs = new C.RandomState(BUNDLES.settings[dim], seedToLong(seed));
-  cache = { seed, dim, biomeSource: C.MultiNoiseBiomeSource.fromJson(BUNDLES.biomeSourceJson[dim]), sampler: rs.sampler };
+  // finalDensity lets us find the real terrain surface so biomes are sampled where
+  // the server samples them (elevation biomes like blooming_plateau/arid_highlands
+  // are wrong at a fixed Y). Overworld only; defensive in case the API shape differs.
+  let finalDensity = null;
+  try { finalDensity = rs.router && rs.router.finalDensity; } catch (e) { finalDensity = null; }
+  cache = { seed, dim, biomeSource: C.MultiNoiseBiomeSource.fromJson(BUNDLES.biomeSourceJson[dim]), sampler: rs.sampler, finalDensity };
+}
+// Highest solid quart-Y at (bx,bz) ≈ getBaseHeight(WORLD_SURFACE_WG): scan finalDensity
+// top-down coarsely, then refine to ~4 blocks. Returns quart Y (block>>2).
+const H_TOP = 320, H_BOTTOM = -60, H_COARSE = 16, SEA_QY = 63 >> 2;
+function surfaceQuartY(fd, bx, bz) {
+  const ctx = { x: bx, y: 0, z: bz };
+  let found = null;
+  for (let y = H_TOP; y >= H_BOTTOM; y -= H_COARSE) {
+    ctx.y = y;
+    if (fd.compute(ctx) > 0) { found = y; break; }
+  }
+  if (found === null) return SEA_QY; // open column → sea level
+  for (let yy = found + H_COARSE - 4; yy > found; yy -= 4) {
+    ctx.y = yy;
+    if (fd.compute(ctx) > 0) return yy >> 2;
+  }
+  return found >> 2;
 }
 function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
 const colorCache = {};
@@ -89,6 +111,9 @@ async function render(msg) {
   buildForSeed(msg.seed, msg.dim || "overworld");
   const { cols, rows, cx, cz, bpp } = msg;
   const bs = cache.biomeSource, sampler = cache.sampler;
+  // Sample at the real surface height for the overworld; nether/end keep the fixed Y.
+  const fd = (cache.dim === "overworld") ? cache.finalDensity : null;
+  const hCache = new Map(); // quart-cell → surface quart-Y (biomes are quart-res)
   const rgba = new Uint8ClampedArray(cols * rows * 4);
   const ids = new Uint16Array(cols * rows); // palette index per cell, for hover lookups
   const palette = [], pIdx = {};            // original (pre-remap) biome ids
@@ -97,7 +122,15 @@ async function render(msg) {
     const bz = cz - halfH + (py + 0.5) * bpp;
     for (let px = 0; px < cols; px++) {
       const bx = cx - halfW + (px + 0.5) * bpp;
-      const id = bs.getBiome(Math.floor(bx) >> 2, SURFACE_QY, Math.floor(bz) >> 2, sampler).toString();
+      const qx = Math.floor(bx) >> 2, qz = Math.floor(bz) >> 2;
+      let qy = SURFACE_QY;
+      if (fd) {
+        const key = qx + "," + qz;
+        let h = hCache.get(key);
+        if (h === undefined) { h = surfaceQuartY(fd, qx * 4 + 2, qz * 4 + 2); hCache.set(key, h); }
+        qy = h;
+      }
+      const id = bs.getBiome(qx, qy, qz, sampler).toString();
       let pi = pIdx[id]; if (pi === undefined) { pi = palette.length; pIdx[id] = pi; palette.push(id); }
       ids[py * cols + px] = pi;
       const [r, g, b] = colorFor(id);

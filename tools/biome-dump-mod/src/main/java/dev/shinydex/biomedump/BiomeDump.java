@@ -73,9 +73,12 @@ public class BiomeDump implements ModInitializer {
             return 0;
         }
         job = new Job(src, src.getLevel(), cx, cz, across, step, cols, rows);
+        // Rough ETA: ~2ms wall per sample with this generator (heavy Terralith graph).
+        long etaSec = cells * 2L / 1000L;
         src.sendSystemMessage(Component.literal(
-            "Sampling " + cols + "x" + rows + " (" + cells + ") biomes across multiple ticks. "
-            + "Expect mild lag; you'll get a message when it's written."));
+            "Sampling " + cols + "x" + rows + " (" + cells + ") biomes across multiple ticks (~"
+            + (etaSec < 90 ? etaSec + "s" : (etaSec / 60) + " min") + "). "
+            + "Expect mild lag; you'll get progress updates and a final message."));
         return 1;
     }
 
@@ -107,9 +110,14 @@ public class BiomeDump implements ModInitializer {
         int pct() { return (int) (n * 100 / total); }
 
         void tick() {
-            final long budgetNs = 25_000_000L; // ~25ms/tick — keeps the server responsive
+            // getBaseHeight builds a whole ChunkNoiseSampler + runs Terralith's huge
+            // density graph each call (~1-2ms, high variance). So check the time budget
+            // EVERY cell — a clock read is ~nanoseconds. Cap each tick at ~40ms so a tick
+            // never approaches the 60s watchdog, while still making decent progress.
+            final long budgetNs = 40_000_000L;
             final long startNs = System.nanoTime();
             while (n < total) {
+                if (System.nanoTime() - startNs > budgetNs) break;
                 int i = (int) (n % cols), j = (int) (n / cols);
                 int x = x0 + i * step, z = z0 + j * step;
                 int y = gen.getBaseHeight(x, z, Heightmap.Types.WORLD_SURFACE_WG, level, rs);
@@ -120,7 +128,6 @@ public class BiomeDump implements ModInitializer {
                 if (p == null) { p = palette.size(); idx.put(id, p); palette.add(id); }
                 grid[(int) n] = p;
                 n++;
-                if ((n & 1023) == 0 && System.nanoTime() - startNs > budgetNs) break;
             }
             int bucket = pct() / 10;
             if (bucket != lastBucket) { lastBucket = bucket; say("…biome dump " + pct() + "%"); }

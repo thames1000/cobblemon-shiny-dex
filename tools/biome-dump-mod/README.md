@@ -23,9 +23,13 @@ If `./gradlew` reports the wrong Java version, point it at JDK 21:
    ```
    - `8192` across at `16`/sample = a 512×512 grid (8 km² around 0,0).
    - Bigger area or finer detail = more samples (cap ~4M). Start coarse.
-   - The dump runs **across many server ticks** (a ~25ms/tick budget), so it
-     won't trip the watchdog. Expect mild lag for a few minutes; it prints
-     `…biome dump 10%…20%…` and a final "Wrote N biomes" when done.
+   - The dump runs **across many server ticks** (a ~40ms/tick budget, time
+     checked every sample), so it never trips the watchdog. It prints an ETA,
+     then `…biome dump 10%…20%…`, then "Wrote N biomes".
+   - It's **slow** because each sample runs the full Terralith generator
+     (~2ms each): a 512×512 dump is ~8–10 min of mild lag. **Test small first**
+     (`dumpbiomes 0 0 1024 16` ≈ a few seconds) to confirm it writes/loads,
+     then run the big one. Coarser `step` (e.g. `24`/`32`) is much faster.
    - For the nether / end, target that dimension:
      ```
      execute in minecraft:the_nether run dumpbiomes 0 0 4096 16

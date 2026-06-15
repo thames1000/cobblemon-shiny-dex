@@ -3991,6 +3991,38 @@ const CAVE_BIOME_RE = /(?:^|:)cave\/|caves$|lush_caves|dripstone_caves|deep_dark
 function structUnderground(st) {
   return !!(st && st.biomes && st.biomes.length && st.biomes.every((b) => CAVE_BIOME_RE.test(b)));
 }
+// STOPGAP family matching: our per-structure biome lists are incomplete (most are a
+// single biome extracted from a broader biome *tag*), so exact matching wrongly flags
+// real structures (e.g. an Articuno Altar in snowy_beach when we only list snowy_plains).
+// Until the real tags are re-extracted from the mod, accept a sampled biome that shares
+// the required biome's family — with a hard climate guard so cold never matches warm.
+function biomeFamilies(id) {
+  const p = String(id).replace(/^[a-z_]+:/, "");
+  const f = new Set();
+  if (/snow|frozen|ice|frost|glaci|grove|cold/.test(p)) f.add("cold");
+  if (/ocean/.test(p)) f.add("ocean");
+  if (/river/.test(p)) f.add("river");
+  if (/beach|shore/.test(p)) f.add("beach");
+  if (/desert/.test(p)) f.add("desert");
+  if (/badlands|mesa/.test(p)) f.add("badlands");
+  if (/savanna/.test(p)) f.add("savanna");
+  if (/jungle/.test(p)) f.add("jungle");
+  if (/swamp|mangrove/.test(p)) f.add("swamp");
+  if (/taiga/.test(p)) f.add("taiga");
+  if (/forest|wooded|birch|cherry|maple|grove|thicket|shrubland/.test(p)) f.add("forest");
+  if (/plains|meadow|prairie|field|steppe|grassland/.test(p)) f.add("plains");
+  if (/peak|slope|mountain|hill|highland|cliff|alps|spire|crag|summit/.test(p)) f.add("mountain");
+  if (/cave|dripstone|lush|deep_dark|cavern/.test(p)) f.add("cave");
+  if (/mushroom|fungal/.test(p)) f.add("mushroom");
+  return f;
+}
+function biomeFamilyMatch(reqId, gotId) {
+  if (reqId === gotId) return true;
+  const R = biomeFamilies(reqId), S = biomeFamilies(gotId);
+  if (R.has("cold") !== S.has("cold")) return false; // never cross the cold/warm line
+  for (const t of R) if (S.has(t)) return true;       // else share any family
+  return false;
+}
 // Is a candidate on its structure's biome? true / false / null (can't tell).
 // probeOnly=true uses ONLY the loaded probe (authoritative — safe to hide/exclude on).
 // probeOnly=false also consults the deepslate render (advisory — only dim, never hide,
@@ -4004,7 +4036,7 @@ function candMatch(st, x, z, probeOnly) {
   }
   if (wb == null) { if (probeOnly) return null; wb = biomeAtWorld(x - 8, z - 8); }
   if (wb == null) return null;
-  return st.biomes.indexOf(wb) >= 0;
+  return st.biomes.some((b) => biomeFamilyMatch(b, wb));
 }
 function drawBiomeStructures(ctx, ox, oy) {
   const cv = els.smBiomeCanvas;

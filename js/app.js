@@ -3844,12 +3844,10 @@ function renderSeedMapResults() {
     out.innerHTML = `<p class="hint">No structures within ${m.radius.toLocaleString()} blocks — try a larger radius.</p>`; drawSeedMapCanvas(); return;
   }
   const showOff = !!(els.smBiomeMatch && els.smBiomeMatch.checked);
-  // Off-biome hiding is AUTHORITATIVE-ONLY. deepslate's candidate biome is not reliable
-  // enough to hide on: at the real brock chunk it reads forested_highlands (server: plains),
-  // so hiding deepslate-"off" slots drops the true nearest while keeping phantoms. So we only
-  // hide a slot when a loaded /locate probe (c.authoritative) confirms it off-biome; deepslate
-  // estimates stay visible (nearest-first) and are merely flagged. Load 📡 /locate for exact
-  // filtering. "Show off-biome" forces every slot regardless.
+  // HIDE off-biome candidates on the deepslate estimate (user's choice — cleaner list).
+  // deepslate isn't bit-exact near spawn, so this can occasionally hide a real slot or keep a
+  // phantom; a loaded /locate probe overrides with bit-exact positions (✅ verified). "Show
+  // off-biome" keeps every slot. null match (pending/unjudgeable) is kept.
   const locD = locatedStructures[biomeState.dim] || null;
   const shown = results
     .map((r) => {
@@ -3859,7 +3857,7 @@ function renderSeedMapResults() {
           .sort((a, b) => a.dist - b.dist);
         return { r, cands, verified: true, hidden: 0 };
       }
-      const cands = showOff ? r.cands : r.cands.filter((c) => !(c.match === false && c.authoritative));
+      const cands = showOff ? r.cands : r.cands.filter((c) => c.match !== false);
       return { r, cands, verified: false, hidden: r.cands.length - cands.length };
     })
     .filter((x) => x.cands.length > 0);
@@ -3872,12 +3870,7 @@ function renderSeedMapResults() {
     const col = smPackColor(r.st.pack);
     const dim = SM_DIM_LABEL[r.st.dim] ? ` · ${SM_DIM_LABEL[r.st.dim]}` : "";
     const rows = cands.slice(0, 6).map((c) => {
-      // deepslate-estimated off-biome: shown (not hidden) but flagged ~, because the estimate
-      // is unreliable. Probe-confirmed off never reaches here (filtered above).
-      const est = (!verified && c.match === false && !c.authoritative)
-        ? ` <span class="muted" style="opacity:.7" title="deepslate reads this slot as ${c.biome ? biomeLabel(c.biome) : "off-biome"}, but it needs ${r.st.biomes.map(biomeLabel).join(" / ")}. deepslate biomes aren't reliable here — confirm with /locate before trusting or skipping it.">~?</span>`
-        : "";
-      return `<div class="sm-cand"><span class="sm-coord">X <b>${c.x}</b>, Z <b>${c.z}</b>${est}</span>` +
+      return `<div class="sm-cand"><span class="sm-coord">X <b>${c.x}</b>, Z <b>${c.z}</b></span>` +
       `<span class="muted">${c.dist.toLocaleString()} blocks</span>` +
       `<button class="ctrl-btn ghost sm-copy" data-xz="${c.x} ${c.z}" title="Copy coordinates">copy</button>` +
       `<button class="ctrl-btn ghost sm-copy" data-xz="/tp @s ${c.x} ~ ${c.z}" title="Copy /tp command">/tp</button>` +
@@ -3890,10 +3883,7 @@ function renderSeedMapResults() {
     const caveNote = (structUnderground(r.st) && !verified)
       ? `<span class="muted" title="This structure's biome (${r.st.biomes.join(", ")}) only exists underground, so the biome map can't tell which slots are real. The coords below are raw placement slots — use /locate to find the actual one.">⛏ underground biome · coords are slots, use /locate</span>`
       : "";
-    const estOff = verified ? 0 : cands.filter((c) => c.match === false && !c.authoritative).length;
-    const offNote = verified ? ""
-      : (hidden > 0 ? ` · ${hidden} off-biome hidden` : "")
-      + (estOff > 0 ? ` · ${estOff} ~est. off-biome (unverified, shown)` : "");
+    const offNote = verified ? "" : (hidden > 0 ? ` · ${hidden} off-biome hidden` : "");
     const verifiedBadge = verified ? ` <span style="color:#4ade80;font-size:.8em" title="Bit-exact positions from the server's own /locate (via RCON) — no deepslate guessing">✅ verified</span>` : "";
     return `<div class="sm-res"><div class="sm-res-h"><span class="sm-dot" style="background:${col}"></span>` +
       `<b>${r.st.icon || ""} ${r.st.name}</b>${r.st.target ? ` <span class="muted">→ ${r.st.target}</span>` : ""}${verifiedBadge}` +
@@ -4169,14 +4159,12 @@ function drawBiomeStructures(ctx, ox, oy) {
       for (const c of structuresInView(seed, st, minX, maxX, minZ, maxZ)) {
         if (n >= PER_CAP || total >= TOTAL_CAP) break;
         // Biome match at the chunk CENTER (where the game checks), exact against the
-        // datapack-accurate biome list. Off-biome HIDING is authoritative-only: only a
-        // loaded /locate probe (probeOnly=true) may hide a slot, because the deepslate
-        // render misreads biomes (e.g. it reads the real brock chunk as forested_highlands,
-        // not plains) and would hide the true structure. A deepslate-only "off" is just
-        // dimmed as an estimate, never hidden. Cave structures: amber ring, never off.
-        const probeOff = candMatch(st, c.x, c.z, true, caveLayer) === false; // probe-confirmed off
-        const off = probeOff || candMatch(st, c.x, c.z, false, caveLayer) === false; // incl. deepslate estimate
-        if (probeOff && !showOff) continue; // hide ONLY probe-confirmed off-biome
+        // datapack-accurate biome list. HIDE off-biome slots on the deepslate estimate
+        // (user's choice — cleaner map). deepslate isn't bit-exact near spawn, so this can
+        // occasionally hide a real structure or show a phantom; load 📡 /locate for the
+        // bit-exact answer when it matters. Cave structures: amber ring, never off.
+        const off = candMatch(st, c.x, c.z, false, caveLayer) === false; // probe-first, deepslate fallback
+        if (off && !showOff) continue; // hide off-biome (estimate or probe) unless "Show off-biome"
         const px = cv.width / 2 + (c.x - biomeState.cx) * ppb + ox;
         const py = cv.height / 2 + (c.z - biomeState.cz) * ppb + oy;
         if (px < -8 || px > cv.width + 8 || py < -8 || py > cv.height + 8) continue;

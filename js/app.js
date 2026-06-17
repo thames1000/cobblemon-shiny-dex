@@ -2250,13 +2250,13 @@ function huntSuggestions(biome, limit = 8) {
   const hasShiny = (st) => st === "shiny" || st === "boxed";
   const attr = {};          // dex -> per-roll spawn/lure odds in this biome
   const inBiome = {};       // dex -> best rarity order in this biome
-  if (biome && BIOME_INDEX[biome]) {
+  if (biome && (BIOME_INDEX[biome] || isIngameBiome(biome))) {
     for (const a of computeAttraction(biome, [], true)) attr[a.dex] = a.p;
     // Only count species that EXPLICITLY list this biome — not the "any overworld"
     // / "any biome" wildcards (biomePool folds those in). Those pseudo-spawns are
     // too generic and would put mons like Terapagos/Meltan on every biome's list.
     // (Wishlisted mons still pass the gate below regardless.)
-    for (const { dex, entry } of BIOME_INDEX[biome]) {
+    for (const { dex, entry } of biomeSpecificPool(biome)) {
       const r = RARITY_ORDER[entry.r];
       if (r == null) continue;
       if (inBiome[dex] == null || r < inBiome[dex]) inBiome[dex] = r;
@@ -2305,8 +2305,9 @@ function huntSuggestions(biome, limit = 8) {
   return out.slice(0, limit);
 }
 function defaultHuntBiome() {
+  const hb = state.config.huntBiome;
+  if (hb && (BIOME_INDEX[hb] || isIngameBiome(hb))) return hb;
   const biomes = Object.keys(BIOME_INDEX).sort();
-  if (state.config.huntBiome && BIOME_INDEX[state.config.huntBiome]) return state.config.huntBiome;
   return biomes.includes("forest") ? "forest" : biomes[0];
 }
 function renderDashNext() {
@@ -2315,13 +2316,13 @@ function renderDashNext() {
   const biomes = Object.keys(BIOME_INDEX).sort();
   if (!biomes.length) { el.innerHTML = `<h2>🎯 What should I hunt next?</h2><p class="hint">Spawn data unavailable.</p>`; return; }
   const biome = defaultHuntBiome();
-  const opts = biomes.map((b) => `<option value="${b}"${b === biome ? " selected" : ""}>${b} (${BIOME_INDEX[b].length})</option>`).join("");
+  const opts = biomeSelectOptions(biome);
   const sugg = huntSuggestions(biome, 8);
   const hotN = sugg.filter((s) => s.hot).length;
   const head = `<h2>🎯 What should I hunt next? <span class="muted">— ranked for you</span></h2>
     <label class="field" style="margin:4px 0 ${hotN ? 4 : 10}px">Your current biome
       <select id="dash-next-biome" class="select" style="width:100%">${opts}</select></label>` +
-    (hotN ? `<p class="hint" style="margin:0 0 10px">★ <strong>${hotN}</strong> of your wishlist ${hotN === 1 ? "spawns" : "spawn"} in <strong>${biome}</strong> — highlighted below.</p>` : "");
+    (hotN ? `<p class="hint" style="margin:0 0 10px">★ <strong>${hotN}</strong> of your wishlist ${hotN === 1 ? "spawns" : "spawn"} in <strong>${isIngameBiome(biome) ? biomeLabel(biome) : biome}</strong> — highlighted below.</p>` : "");
   if (!sugg.length) {
     el.innerHTML = head + `<p class="hint">No standout targets here — you've shiny'd everything that scores in this biome. Try another biome, check your ★ wishlist, or 🎲 Surprise me.</p>`;
     return;
@@ -2594,10 +2595,50 @@ function buildBiomeIndex() {
   }
 }
 // The spawn pool for a concrete biome, including overworld-/all-biome wildcards.
+// ── In-game biome bridge ──────────────────────────────────────────────────
+// Spawns key off Cobblemon biome LABELS ("temperate", "jungle"); the seed map and
+// the world use concrete biome IDS ("minecraft:forest", "terralith:steppe"). These
+// helpers let any selector/calculator accept either: a value with a ":" is an
+// in-game biome id, expanded to the labels that cover it (from BIOME_SPAWNS).
+let LABEL_BIOMES = null; // spawn label -> sorted [in-game biome ids it covers]
+function buildLabelBiomes() {
+  LABEL_BIOMES = {};
+  for (const id in (BIOME_SPAWNS || {})) for (const l of BIOME_SPAWNS[id]) (LABEL_BIOMES[l] = LABEL_BIOMES[l] || []).push(id);
+  for (const l in LABEL_BIOMES) LABEL_BIOMES[l].sort();
+}
+function isIngameBiome(sel) { return typeof sel === "string" && sel.includes(":"); }
+function ingameLabels(id) { return ((BIOME_SPAWNS && BIOME_SPAWNS[id]) || []).filter((l) => l !== "any overworld"); }
+function biomeIsOverworld(sel) { return isIngameBiome(sel) ? ((BIOME_SPAWNS && BIOME_SPAWNS[sel]) || []).includes("any overworld") : isOverworldBiome(sel); }
+// Biome-specific spawn pool (no "any overworld"/"any biome" wildcards) for a label
+// OR an in-game biome id (union of its labels, deduped by spawn entry).
+function biomeSpecificPool(sel) {
+  if (!isIngameBiome(sel)) return BIOME_INDEX[sel] || [];
+  const seen = new Set(), out = [];
+  for (const l of ingameLabels(sel)) for (const x of (BIOME_INDEX[l] || [])) {
+    if (!seen.has(x.entry)) { seen.add(x.entry); out.push(x); }
+  }
+  return out;
+}
 function biomePool(biome) {
-  let pool = (BIOME_INDEX[biome] || []).concat(PSEUDO_INDEX["any biome"] || []);
-  if (isOverworldBiome(biome)) pool = pool.concat(PSEUDO_INDEX["any overworld"] || []);
+  let pool = biomeSpecificPool(biome).concat(PSEUDO_INDEX["any biome"] || []);
+  if (biomeIsOverworld(biome)) pool = pool.concat(PSEUDO_INDEX["any overworld"] || []);
   return pool;
+}
+// <select> options for biome pickers: in-game biomes (real world) + categories (tags).
+function biomeSelectOptions(selected) {
+  const cat = Object.keys(BIOME_INDEX).sort()
+    .map((b) => `<option value="${b}"${b === selected ? " selected" : ""}>${b} (${BIOME_INDEX[b].length})</option>`).join("");
+  let ig = "";
+  if (BIOME_SPAWNS) ig = Object.keys(BIOME_SPAWNS).filter((id) => ingameLabels(id).length).sort((a, b) => biomeLabel(a).localeCompare(biomeLabel(b)))
+    .map((id) => `<option value="${id}"${id === selected ? " selected" : ""}>${biomeLabel(id)} (${biomeSpecificPool(id).length})</option>`).join("");
+  return (ig ? `<optgroup label="🌍 In-game biomes">${ig}</optgroup>` : "") + `<optgroup label="🏷 Spawn categories">${cat}</optgroup>`;
+}
+// In-game biomes a spawn entry's labels expand to (for the by-Pokémon view).
+function entryIngameBiomes(e) {
+  if (!LABEL_BIOMES) return [];
+  const s = new Set();
+  for (const b of (e.b || [])) if (!PSEUDO_BIOMES.has(b)) for (const id of (LABEL_BIOMES[b] || [])) s.add(id);
+  return [...s].sort((a, b) => biomeLabel(a).localeCompare(biomeLabel(b)));
 }
 
 function rarityChip(r) { return `<span class="r-chip r-${r}">${r}</span>`; }
@@ -2705,8 +2746,13 @@ function renderSpawnByMon(dex) {
         : e.q ? `<span class="struct-chip">🧩 Quest summon</span>`
         : `<span class="muted">special / event</span>`;
       const meta = entryDetail(e);
+      const ig = entryIngameBiomes(e); // concrete biomes these tag categories expand to
+      const igLine = ig.length
+        ? `<div class="spawn-ig" title="${ig.map(biomeLabel).join(", ")}">🌍 ${ig.slice(0, 12).map(biomeLabel).join(", ")}${ig.length > 12 ? ` +${ig.length - 12} more` : ""}</div>`
+        : "";
       return `<div class="spawn-row">
       <div class="spawn-biomes">${e.f ? formChip(e.f) : ""}${loc}</div>
+      ${igLine}
       ${meta || e.r ? `<div class="spawn-meta">${rarityChip(e.r)} <span class="muted">${meta}</span></div>` : ""}
       ${e.raid && e.b.length ? `<div class="spawn-quest">⚔ Also a Cobblemon <b>Raid Den boss</b></div>` : ""}
       ${e.q ? questHtml(e.q) : ""}
@@ -2720,7 +2766,7 @@ function renderSpawnByMon(dex) {
 }
 
 function renderSpawnByBiome(biome) {
-  const list = (BIOME_INDEX[biome] || [])
+  const list = biomeSpecificPool(biome).slice()
     .sort((a, b) => RARITY_ORDER[a.entry.r] - RARITY_ORDER[b.entry.r] || (b.entry.w || 0) - (a.entry.w || 0));
   if (!list.length) return `<div class="card"><p class="hint">Nothing indexed for that biome.</p></div>`;
   const cards = list.map(({ dex, entry }) => {
@@ -2732,7 +2778,10 @@ function renderSpawnByBiome(biome) {
       <div class="nm">${sp ? sp.name.replace(/-/g, " ") : dex}</div>
       ${entry.f ? `<div class="form-tag">✦ ${entry.f}</div>` : ""}</div>`;
   }).join("");
-  return `<div class="card"><h2 style="text-transform:capitalize">${biome} <span class="muted" style="font-weight:400">· ${list.length} spawns</span></h2></div>
+  const ow = (isIngameBiome(biome) ? biomeIsOverworld(biome) : isOverworldBiome(biome)) ? (PSEUDO_INDEX["any overworld"] || []).length : 0;
+  const title = isIngameBiome(biome) ? biomeLabel(biome) : biome;
+  const sub = `· ${list.length} biome-specific spawns${ow ? ` · +${ow} overworld-wide` : ""}${isIngameBiome(biome) ? ` · 🌍 in-game biome` : ""}`;
+  return `<div class="card"><h2 style="text-transform:capitalize">${title} <span class="muted" style="font-weight:400">${sub}</span></h2></div>
     <div class="grid" id="spawn-biome-grid">${cards}</div>`;
 }
 
@@ -2903,7 +2952,7 @@ function needsWater(e) {
 // Fraction of a biome's spawns that require water — used to default the "near
 // water" toggle ON for inherently aquatic biomes (ocean, river…).
 function biomeWaterShare(biome) {
-  const pool = BIOME_INDEX[biome] || [];
+  const pool = biomeSpecificPool(biome);
   if (!pool.length) return 0;
   return pool.filter(({ entry }) => needsWater(entry)).length / pool.length;
 }
@@ -3085,7 +3134,7 @@ function renderSnackShiny(seasonings) {
 
 // Note explaining how the "near water" placement is reshaping the pool.
 function waterNote(biome, nearWater) {
-  const pool = BIOME_INDEX[biome] || [];
+  const pool = biomeSpecificPool(biome);
   const wet = pool.filter(({ entry }) => needsWater(entry)).length;
   if (!wet) return "";
   const s = wet > 1 ? "s" : "";
@@ -4203,7 +4252,7 @@ function biomeLabel(id) { return id.replace(/^minecraft:|^terralith:/, "").repla
 let BIOME_SPAWNS = null;
 function loadBiomeSpawns() {
   if (BIOME_SPAWNS) return Promise.resolve();
-  return fetch("js/data/biome-spawns.json").then((r) => r.json()).then((j) => (BIOME_SPAWNS = j)).catch(() => (BIOME_SPAWNS = {}));
+  return fetch("js/data/biome-spawns.json").then((r) => r.json()).then((j) => { BIOME_SPAWNS = j; buildLabelBiomes(); }).catch(() => (BIOME_SPAWNS = {}));
 }
 // "What spawns here" for a clicked biome: union the species of every spawn label
 // that covers this biome (excluding the generic "any overworld" wildcard, which is
@@ -5026,7 +5075,7 @@ async function boot() {
     showAccountView();
   });
   showAccountView();
-  const [sp, fm, spawns, berries, variants, berryGuide, moves, coach, legends] = await Promise.all([
+  const [sp, fm, spawns, berries, variants, berryGuide, moves, coach, legends, biomeSpawns] = await Promise.all([
     fetch("js/data/species.json").then((r) => r.json()),
     fetch("js/data/forms.json").then((r) => r.json()),
     fetch("js/data/spawns.json").then((r) => r.json()).catch(() => ({})),
@@ -5036,7 +5085,9 @@ async function boot() {
     fetch("js/data/moves.json").then((r) => r.json()).catch(() => []),
     fetch("js/data/coach.json").then((r) => r.json()).catch(() => ({})),
     fetch("js/data/legendaries.json").then((r) => r.json()).catch(() => ({ tiers: [], list: [] })),
+    fetch("js/data/biome-spawns.json").then((r) => r.json()).catch(() => ({})),
   ]);
+  BIOME_SPAWNS = biomeSpawns;
   SPECIES = sp;
   MOVES = moves;
   MOVE_BY_NAME = {};
@@ -5057,6 +5108,7 @@ async function boot() {
   SPECIES.forEach((s) => (DEX_BY_NUM[s.dex] = s));
   sanitizeSpawns();
   buildBiomeIndex();
+  buildLabelBiomes();
   SIM = await fetch("js/data/sim-spawns.json").then((r) => r.json())
     .catch(() => ({ spawns: {}, items: [], baseBlocks: [], hitbox: {} }));
 
@@ -5070,9 +5122,8 @@ async function boot() {
   if (movesList) movesList.innerHTML = MOVES
     .map((m) => `<option value="${m.name}">${m.type} · ${m.category}</option>`).join("");
 
-  // Populate biome dropdown (sorted, with spawn counts).
-  const biomeOpts = Object.keys(BIOME_INDEX).sort()
-    .map((b) => `<option value="${b}">${b} (${BIOME_INDEX[b].length})</option>`).join("");
+  // Populate biome dropdowns: real in-game biomes (forest, steppe…) + spawn categories.
+  const biomeOpts = biomeSelectOptions();
   els.spawnBiomeSelect.innerHTML = biomeOpts;
   els.snackBiome.innerHTML = biomeOpts;
   // Default the "near water" toggle to match the initially-selected biome.

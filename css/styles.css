@@ -340,6 +340,7 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .form-tag { font-size: .64rem; font-weight: 600; line-height: 1.1; margin-top: 1px;
   color: var(--gold); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .spawn-meta { font-size: .82rem; }
+.spawn-ig { font-size: .74rem; color: var(--muted); margin: 0 0 4px; line-height: 1.3; text-transform: capitalize; }
 /* Quest-summon (legendary) / raid-boss obtain note under a spawn row. */
 .spawn-quest { margin-top: 4px; font-size: .8rem; line-height: 1.35;
   padding: 5px 8px; border-radius: 6px;

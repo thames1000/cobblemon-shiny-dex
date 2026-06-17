@@ -4313,9 +4313,10 @@ function showBiomeSpawns(biomeId, origId) {
     } else {
       const cards = list.map(({ dex, entry }) => {
         const sp = DEX_BY_NUM[dex];
-        return `<div class="mon" data-dex="${dex}" title="${entryDetail(entry)}"><span class="badge r-${entry.r}">${entry.r[0].toUpperCase()}</span>` +
-          `<img loading="lazy" src="${spriteUrl(dex)}" alt="${sp ? sp.name : dex}"/><div class="dexno">#${String(dex).padStart(4, "0")}</div>` +
-          `<div class="nm">${sp ? sp.name.replace(/-/g, " ") : dex}</div></div>`;
+        const art = spawnCardArt(dex, entry); // variant render if this entry is a variant form
+        return `<div class="mon" data-dex="${dex}" title="${entry.f ? entry.f + " · " : ""}${entryDetail(entry)}"><span class="badge r-${entry.r}">${entry.r[0].toUpperCase()}</span>` +
+          `<img loading="lazy" src="${art.src}" onerror="this.onerror=null;this.src='${art.fb}'" alt="${sp ? sp.name : dex}"/><div class="dexno">#${String(dex).padStart(4, "0")}</div>` +
+          `<div class="nm">${sp ? sp.name.replace(/-/g, " ") : dex}</div>${entry.f ? `<div class="form-tag">✦ ${entry.f}</div>` : ""}</div>`;
       }).join("");
       el.hidden = false;
       el.innerHTML = `<div class="sm-bsp-head"><b>🐾 Spawns in ${title}</b> <span class="muted">· ${list.length} biome-specific${owCount ? ` · +${owCount} overworld-wide` : ""}</span>${close}</div>` +

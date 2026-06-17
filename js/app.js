@@ -2426,12 +2426,29 @@ function findRef(f) {
   return `<b>${nm}</b> <span class="muted">(${f.count}${unit})</span> <span class="luck-chip ${b.cls}">${b.txt}</span>`;
 }
 
+// Reconcile logged finds with the Dex so OFF-HUNT catches are counted too: a shiny
+// marked straight on a Dex card never creates a find, and logRandomCatch finds are
+// flagged `random`. Total shiny catches = logged finds + shiny Dex species with no
+// find at all; off-hunt = those unlogged ones + the logged "random" finds.
+function shinyAccounting() {
+  const finds = state.hunt.finds || [];
+  const loggedDexes = new Set(finds.map((f) => f.dex));
+  let unlogged = 0;
+  for (const sp of SPECIES) {
+    const s = dexState(sp.dex);
+    if ((s === "shiny" || s === "boxed") && !loggedDexes.has(sp.dex)) unlogged++;
+  }
+  const randomN = finds.filter(isRandomFind).length;
+  return { finds, unlogged, total: finds.length + unlogged, randomN, offHunt: randomN + unlogged };
+}
+
 function renderStatsSummary() {
   const el = document.getElementById("stats-summary");
   if (!el) return;
-  const finds = state.hunt.finds;
+  const acc = shinyAccounting();
+  const finds = acc.finds;
   const c = dexCounts();
-  if (!finds.length) {
+  if (!acc.total) {
     el.innerHTML =
       `<h2>Stats</h2>` +
       `<div class="dash-stat-line">` +
@@ -2442,10 +2459,9 @@ function renderStatsSummary() {
       `<p class="hint">No shinies logged yet — log finds with ✨ Found! / 📦 Boxed! and your luck stats appear here.</p>`;
     return;
   }
-  // Averages & luck cover tracked hunts only; off-hunt "random" catches still
-  // count as logged shinies but are kept out of the encounter/luck maths.
+  // Averages & luck cover tracked hunts only; off-hunt catches (logged-random +
+  // Dex-marked) still count toward the shiny total but stay out of the encounter/luck maths.
   const tracked = finds.filter((f) => !isRandomFind(f));
-  const randomN = finds.length - tracked.length;
   const byMode = { chain: 0, breeding: 0, encounter: 0 };
   let totalEnc = 0, best = null, worst = null;
   for (const f of tracked) {
@@ -2458,7 +2474,7 @@ function renderStatsSummary() {
   }
   const avg = tracked.length ? Math.round(totalEnc / tracked.length) : 0;
   el.innerHTML =
-    `<h2>Stats <span class="muted">— ${finds.length} shiny logged${randomN ? ` · ${randomN} off-hunt` : ""}</span></h2>` +
+    `<h2>Stats <span class="muted">— ${acc.total} shiny${acc.offHunt ? ` · ${acc.offHunt} off-hunt` : ""}</span></h2>` +
     `<div class="dash-stat-line">` +
       `<span class="stat"><b>${c.shiny}</b>/${c.total} shiny</span>` +
       `<span class="stat">📦 boxed <b>${c.boxed}</b></span>` +
@@ -2468,7 +2484,7 @@ function renderStatsSummary() {
       `<span class="stat">tracked hunts <b>${tracked.length}</b></span>` +
       `<span class="stat">total enc. <b>${totalEnc.toLocaleString()}</b></span>` +
       `<span class="stat">avg / shiny <b>${avg.toLocaleString()}</b></span>` +
-      `<span class="stat">chain <b>${byMode.chain}</b> · breed <b>${byMode.breeding}</b> · enc <b>${byMode.encounter}</b></span>` +
+      `<span class="stat">chain <b>${byMode.chain}</b> · breed <b>${byMode.breeding}</b> · enc <b>${byMode.encounter}</b>${acc.offHunt ? ` · off-hunt <b title="${acc.randomN} logged random + ${acc.unlogged} marked on the Dex">${acc.offHunt}</b>` : ""}</span>` +
     `</div>` +
     (best ? `<div class="stats-luck">` +
       `<div class="luck-line">🍀 Luckiest: ${findRef(best.f)}</div>` +
@@ -2508,16 +2524,17 @@ function renderStatsMilestones() {
   if (!el) return;
   const c = dexCounts();
   const finds = state.hunt.finds;
+  const shinyN = shinyAccounting().total; // count milestones include off-hunt catches
   const tracked = finds.filter((f) => !isRandomFind(f)); // encounter/luck milestones ignore off-hunt catches
   const totalEnc = tracked.reduce((s, f) => s + (Number(f.count) || 0), 0);
   const gensComplete = Object.keys(c.genTot).filter((g) => (c.genBox[g] || 0) === c.genTot[g]).length;
   const bestLuck = tracked.reduce((m, f) => { const p = findLuckP(f); return p != null && p > m ? p : m; }, 0);
   const longest = tracked.reduce((m, f) => Math.max(m, Number(f.count) || 0), 0);
   const M = [
-    { icon: "✨", title: "First Shiny", desc: "Log your first shiny", done: finds.length >= 1, prog: `${finds.length}` },
-    { icon: "🔟", title: "Perfect Ten", desc: "10 shinies logged", done: finds.length >= 10, prog: `${finds.length}/10` },
-    { icon: "💯", title: "Centurion", desc: "100 shinies logged", done: finds.length >= 100, prog: `${finds.length}/100` },
-    { icon: "🌟", title: "Shiny Charm", desc: "250 shinies logged", done: finds.length >= 250, prog: `${finds.length}/250` },
+    { icon: "✨", title: "First Shiny", desc: "Catch your first shiny", done: shinyN >= 1, prog: `${shinyN}` },
+    { icon: "🔟", title: "Perfect Ten", desc: "10 shinies caught", done: shinyN >= 10, prog: `${shinyN}/10` },
+    { icon: "💯", title: "Centurion", desc: "100 shinies caught", done: shinyN >= 100, prog: `${shinyN}/100` },
+    { icon: "🌟", title: "Shiny Charm", desc: "250 shinies caught", done: shinyN >= 250, prog: `${shinyN}/250` },
     { icon: "📦", title: "Box Filler", desc: "100 species boxed", done: c.boxed >= 100, prog: `${c.boxed}/100` },
     { icon: "🗺️", title: "Region Master", desc: "Complete a full generation", done: gensComplete >= 1, prog: `${gensComplete} gen${gensComplete === 1 ? "" : "s"}` },
     { icon: "🏆", title: "Living Legend", desc: `Box all ${c.total}`, done: c.boxed >= c.total, prog: `${c.boxed}/${c.total}` },

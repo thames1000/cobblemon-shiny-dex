@@ -394,6 +394,16 @@ function cycleDex(dex, backwards) {
   save();
 }
 
+// Set a dex state directly (used by the per-Pokémon detail page) and sync every
+// surface that shows it: the Dex grid card, the current Box page, dashboard, stats.
+function setDexState(dex, st) {
+  if (st === "none") delete state.dex[String(dex)]; else state.dex[String(dex)] = st;
+  save();
+  syncDexCard(dex);
+  if (els.boxGrid && els.boxGrid.children.length) renderBoxes();
+  refreshDashboard(); refreshStats();
+}
+
 function monCard(sp) {
   const st = dexState(sp.dex);
   const shiny = st === "shiny" || st === "boxed";
@@ -406,6 +416,7 @@ function monCard(sp) {
     `${STATE_BADGE[st] ? `<span class="badge">${STATE_BADGE[st]}</span>` : ""}` +
     `<button class="mon-hunt" title="Start a hunt for ${nm}" aria-label="Start a hunt for ${nm}">🎯</button>` +
     `<button class="mon-star${wished ? " on" : ""}" title="${wished ? "Remove from" : "Add to"} wishlist" aria-label="${wished ? "Remove from" : "Add to"} wishlist for ${nm}">${wished ? "★" : "☆"}</button>` +
+    `<button class="mon-info" title="Details for ${nm}" aria-label="Details for ${nm}">ⓘ</button>` +
     `<img loading="lazy" src="${spriteUrl(sp.dex, shiny)}" alt="${sp.name}" />` +
     `<div class="dexno">#${String(sp.dex).padStart(4, "0")}</div>` +
     `<div class="nm">${sp.name.replace(/-/g, " ")}</div>`;
@@ -472,6 +483,7 @@ function slotCard(sp) {
   // Always show the sprite + dex number so the box doubles as a placement planner.
   // Un-boxed slots use the normal sprite (dimmed); boxed/shiny use the shiny sprite.
   el.innerHTML =
+    `<button class="slot-info" title="Details for ${sp.name.replace(/-/g, " ")}" aria-label="Details">ⓘ</button>` +
     `<img loading="lazy" src="${spriteUrl(sp.dex, shiny)}" alt="${sp.name}" />` +
     `<span class="slot-no">${String(sp.dex).padStart(4, "0")}</span>`;
   return el;
@@ -1951,6 +1963,180 @@ function startHuntFromDex(mode) {
   closeHuntStart();
   save(); renderHunt();
   showTab("hunt");
+}
+
+/* ---------- Per-Pokémon detail page (unified) ----------
+ * One modal that gathers everything the app already knows about a species: dex
+ * state, hunt history, spawn locations, best snack, forms/variants, legendary
+ * data, and the battle build. Opened by the ⓘ button on Dex cards and Box slots.
+ * Reuses the existing renderers so there's a single source of truth per section. */
+let detailDex = null;
+const DEX_STATE_LABEL = { seen: "Seen", caught: "Caught", shiny: "Shiny", boxed: "Boxed" };
+
+function mdTypeChips(sp) {
+  return (sp.types || []).map((t) => `<span class="md-type t-${String(t).toLowerCase()}">${t}</span>`).join("");
+}
+
+function detailHeaderHtml(dex) {
+  const sp = DEX_BY_NUM[dex];
+  const st = dexState(dex);
+  const shiny = st === "shiny" || st === "boxed";
+  const c = COACH[dex];
+  const wished = state.wishlist.includes(dex);
+  const fb = spriteUrl(dex, false);
+  return `<div class="md-head">
+    <img class="md-art" src="${spriteUrl(dex, shiny)}" alt="${sp.name}" onerror="this.onerror=null;this.src='${fb}'"/>
+    <div class="md-headinfo">
+      <h2>${sp.name.replace(/-/g, " ")} <span class="muted">#${String(dex).padStart(4, "0")}</span></h2>
+      <div class="md-meta">Gen ${sp.gen}${c ? ` · BST ${c.bst}` : ""}${isLegendary(dex) ? " · ✨ Legendary" : ""}</div>
+      <div class="md-types">${mdTypeChips(sp)}</div>
+      <div class="md-actions">
+        <button class="ctrl-btn good md-hunt" data-dex="${dex}">🎯 Hunt</button>
+        <button class="ctrl-btn md-star${wished ? " on" : ""}" data-dex="${dex}">${wished ? "★ Wishlisted" : "☆ Wishlist"}</button>
+        <button class="ctrl-btn md-where" data-dex="${dex}">🗺 Spawns</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function detailStateHtml(dex) {
+  const cur = dexState(dex);
+  const btns = DEX_STATES.map((s) => s === "none"
+    ? `<button class="md-st-btn${cur === "none" ? " on" : ""}" data-dex="${dex}" data-st="none">○ Unseen</button>`
+    : `<button class="md-st-btn s-${s}${cur === s ? " on" : ""}" data-dex="${dex}" data-st="${s}">${STATE_BADGE[s] || ""} ${DEX_STATE_LABEL[s]}</button>`
+  ).join("");
+  const box = Math.floor((dex - 1) / BOX_SIZE) + 1, slot = ((dex - 1) % BOX_SIZE) + 1;
+  return `<section class="md-sec"><h3>Dex state</h3>
+    <div class="md-states">${btns}</div>
+    <div class="md-box">📦 Box ${box}, slot ${slot} · <button class="link-btn md-gobox" data-dex="${dex}">go to box →</button></div>
+  </section>`;
+}
+
+function detailHuntsHtml(dex) {
+  const finds = (state.hunt.finds || []).filter((f) => f.dex === dex).sort((a, b) => b.foundAt - a.foundAt);
+  const sessions = Object.values(state.hunt.sessions || {}).filter((s) => s.dex === dex && s.count > 0);
+  if (!finds.length && !sessions.length) {
+    return `<section class="md-sec"><h3>Hunt history</h3><p class="hint">No hunts or finds logged yet. Start one with 🎯 above.</p></section>`;
+  }
+  const active = sessions.map((s) => {
+    const v = s.variant ? VARIANT_BY_ID[s.variant] : null;
+    return `<div class="md-active">🔎 In progress · ${s.mode}${v ? " · " + v.name : ""} · <b>${s.count}</b> ${s.mode === "breeding" ? "eggs" : s.mode === "chain" ? "KOs" : "encounters"}</div>`;
+  }).join("");
+  const rows = finds.map(findRowHtml).join("");
+  return `<section class="md-sec"><h3>Hunt history <span class="muted">· ${finds.length} find${finds.length !== 1 ? "s" : ""}</span></h3>
+    ${active}${rows || `<p class="hint">No shiny logged for this one yet.</p>`}</section>`;
+}
+
+function detailSpawnsHtml(dex) {
+  return `<section class="md-sec"><h3>Where it spawns</h3>${renderSpawnByMon(dex)}</section>`;
+}
+
+function detailSnackHtml(dex) {
+  if (SNACK_BLACKLIST.has(dex)) {
+    return `<section class="md-sec"><h3>Best Poké Snack</h3><p class="hint">Legendary / special — a Poké Snack can't lure this one.</p></section>`;
+  }
+  const best = bestSnackFor(dex, 0);
+  if (!best) {
+    return `<section class="md-sec"><h3>Best Poké Snack</h3><p class="hint">No natural snack-attractable spawn in base Cobblemon.</p></section>`;
+  }
+  const baseRate = state.config.baseShinyRate;
+  const eff = baseRate / best.shiny;
+  const snacks = Math.max(1, Math.ceil((eff / best.p) / SNACK_BITES));
+  return `<section class="md-sec"><h3>Best Poké Snack</h3>
+    <div class="md-snack">
+      <div class="plan-row"><span>Biome</span><b style="text-transform:capitalize">${isIngameBiome(best.biome) ? biomeLabel(best.biome) : best.biome}</b></div>
+      <div class="plan-row"><span>Snack</span><b>${fmtCombo(best.combo)}</b></div>
+      <div class="plan-row"><span>Spawn rate</span><b>${(best.p * 100).toFixed(1)}%</b></div>
+      <div class="plan-row"><span>Shiny odds</span><b>1/${Math.round(eff).toLocaleString()}</b> (✨×${best.shiny})</div>
+      <div class="plan-row"><span>Snacks to shiny</span><b>~${snacks.toLocaleString()}</b> <span class="muted">expected</span></div>
+    </div>
+    <button class="link-btn md-snackplan" data-dex="${dex}">Open in the Poké Snack planner →</button>
+  </section>`;
+}
+
+function detailFormsHtml(dex) {
+  const forms = FORMS ? [...FORMS.mega, ...FORMS.primal, ...FORMS.gmax].filter((f) => f.dex === dex) : [];
+  const vars = allVariantObjs().filter((v) => v.dex === dex);
+  if (!forms.length && !vars.length) return "";
+  let html = `<section class="md-sec"><h3>Forms & variants</h3>`;
+  if (vars.length) html += `<div class="grid md-vargrid" id="md-vargrid"></div>`;
+  if (forms.length) {
+    html += `<div class="md-forms">` + forms.map((f) =>
+      `<span class="md-form${state.forms[f.id] ? " on" : ""}">${state.forms[f.id] ? "✓ " : ""}${f.label}</span>`).join("") + `</div>`;
+  }
+  return html + `</section>`;
+}
+
+function detailLegendHtml(dex) {
+  const e = LEGEND_BY_DEX[dex];
+  if (!e) return "";
+  const tier = (LEGENDS && LEGENDS.tiers.find((t) => t.key === e.tier)) || {};
+  const struct = e.struct || [];
+  return `<section class="md-sec"><h3>Legendary</h3>
+    <div class="md-leg">
+      <div>${tier.icon || "✨"} ${tier.label || e.tier}${e.sys ? ` · <span class="muted">${e.sys}</span>` : ""}</div>
+      ${struct.length ? `<div class="md-leg-struct">${struct.map((s) => `<span class="struct-chip leg-locate" data-locate="${s}" title="Copy /locate command">🏛 ${s}</span>`).join(" ")}</div>` : ""}
+      ${e.note ? `<p class="hint" style="margin:6px 0 0">${e.note}</p>` : ""}
+    </div></section>`;
+}
+
+function detailCoachHtml(dex) {
+  const b = coachBuild(dex);
+  if (!b) return "";
+  return `<section class="md-sec"><h3>Battle build <span class="muted">· coach pick</span></h3>
+    <div class="md-coach">
+      <div class="md-coach-role"><b>${b.role}</b> · ${b.nature} nature · ${b.ability}</div>
+      <div class="cz-stats">${statBars(b.base)}</div>
+      <div class="md-moves">${b.moves.map((m) => `<span class="md-move">${m}</span>`).join("")}</div>
+      <p class="hint" style="margin:8px 0 0">${b.why}</p>
+    </div></section>`;
+}
+
+// Breeding (egg groups → Masuda compatibility) + EV yield, straight from species data.
+function detailBreedingHtml(dex) {
+  const sp = DEX_BY_NUM[dex];
+  const eg = (sp.eggGroups || []).join(", ");
+  const ev = (sp.ev || []).join(", ");
+  if (!eg && !ev) return "";
+  return `<section class="md-sec"><h3>Breeding & training</h3>
+    <div class="md-kv">
+      ${eg ? `<div><span class="muted">Egg groups</span> ${eg}</div>` : ""}
+      ${ev ? `<div><span class="muted">EV yield</span> ${ev}</div>` : ""}
+    </div></section>`;
+}
+
+function monDetailHtml(dex) {
+  return detailHeaderHtml(dex)
+    + detailStateHtml(dex)
+    + detailHuntsHtml(dex)
+    + detailSpawnsHtml(dex)
+    + detailSnackHtml(dex)
+    + detailFormsHtml(dex)
+    + detailLegendHtml(dex)
+    + detailCoachHtml(dex)
+    + detailBreedingHtml(dex);
+}
+
+function renderMonDetail() {
+  if (detailDex == null) return;
+  const body = document.getElementById("mon-detail-body");
+  if (!body) return;
+  body.innerHTML = monDetailHtml(detailDex);
+  const vg = body.querySelector("#md-vargrid");
+  if (vg) allVariantObjs().filter((v) => v.dex === detailDex).forEach((v) => vg.appendChild(variantCard(v)));
+  body.scrollTop = 0;
+}
+
+function openMonDetail(dex) {
+  if (!DEX_BY_NUM[dex]) return;
+  detailDex = dex;
+  renderMonDetail();
+  document.getElementById("mon-detail-modal").hidden = false;
+}
+function closeMonDetail() {
+  const m = document.getElementById("mon-detail-modal");
+  if (m) m.hidden = true;
+  detailDex = null;
 }
 
 /* ---------- luck (#6) ---------- */
@@ -4813,6 +4999,8 @@ function wire() {
 
   // Dex grid: 🎯 starts a hunt; otherwise click cycles forward, right-click back.
   els.dexGrid.addEventListener("click", (e) => {
+    const infoBtn = e.target.closest(".mon-info");
+    if (infoBtn) { e.stopPropagation(); openMonDetail(Number(infoBtn.closest(".mon").dataset.dex)); return; }
     const huntBtn = e.target.closest(".mon-hunt");
     if (huntBtn) { e.stopPropagation(); openHuntStart(Number(huntBtn.closest(".mon").dataset.dex)); return; }
     const starBtn = e.target.closest(".mon-star");
@@ -4940,6 +5128,8 @@ function wire() {
     const hsm = document.getElementById("hunt-start-modal");
     if (hsm && !hsm.hidden) closeHuntStart();
     if (els.showcaseModal && !els.showcaseModal.hidden) els.showcaseModal.hidden = true;
+    const dm = document.getElementById("mon-detail-modal");
+    if (dm && !dm.hidden) closeMonDetail();
   });
 
   els.dexSearch.addEventListener("input", renderDex);
@@ -4952,6 +5142,59 @@ function wire() {
     if (e.target === huntStartModal || e.target.closest("[data-close]")) { closeHuntStart(); return; }
     const mb = e.target.closest("[data-hsmode]");
     if (mb) startHuntFromDex(mb.dataset.hsmode);
+  });
+
+  // Per-Pokémon detail modal: all interactions delegated so they survive each
+  // renderMonDetail() rebuild. Most actions jump to the relevant tab + close.
+  const detailModal = document.getElementById("mon-detail-modal");
+  if (detailModal) detailModal.addEventListener("click", (e) => {
+    if (e.target === detailModal || e.target.closest("[data-close]")) { closeMonDetail(); return; }
+    const dexOf = (sel) => Number(e.target.closest(sel).dataset.dex);
+    const stBtn = e.target.closest(".md-st-btn");
+    if (stBtn) { setDexState(Number(stBtn.dataset.dex), stBtn.dataset.st); renderMonDetail(); return; }
+    const star = e.target.closest(".md-star");
+    if (star) { const d = dexOf(".md-star"); toggleWishlist(d); syncDexCard(d); refreshDashboard(); renderMonDetail(); return; }
+    const hunt = e.target.closest(".md-hunt");
+    if (hunt) { const d = dexOf(".md-hunt"); closeMonDetail(); openHuntStart(d); return; }
+    // "🎯 Hunt" inside the embedded spawn card — load straight into the Hunt tab.
+    const huntLink = e.target.closest(".hunt-link");
+    if (huntLink) { const d = Number(huntLink.dataset.dex); closeMonDetail(); loadTarget(DEX_BY_NUM[d].name); showTab("hunt"); return; }
+    const where = e.target.closest(".md-where");
+    if (where) {
+      const d = dexOf(".md-where"); closeMonDetail();
+      setSpawnMode("mon"); els.spawnInput.value = DEX_BY_NUM[d].name; findSpawnByInput(els.spawnInput.value); showTab("spawns"); return;
+    }
+    const gobox = e.target.closest(".md-gobox");
+    if (gobox) { const d = dexOf(".md-gobox"); closeMonDetail(); showTab("boxes"); jumpToSpecies(DEX_BY_NUM[d]); return; }
+    const snackPlan = e.target.closest(".md-snackplan");
+    if (snackPlan) {
+      const d = Number(snackPlan.dataset.dex); closeMonDetail(); showTab("snack");
+      if (els.snackBestInput) { els.snackBestInput.value = DEX_BY_NUM[d].name; renderBestSnack(els.snackBestInput.value); }
+      return;
+    }
+    const biome = e.target.closest(".biome-chip");
+    if (biome) { closeMonDetail(); setSpawnMode("biome"); els.spawnBiomeSelect.value = biome.dataset.biome; renderSpawnResults(); showTab("spawns"); return; }
+    const locate = e.target.closest(".leg-locate");
+    if (locate) {
+      const cmd = `/locate structure ${locate.dataset.locate}`;
+      const flash = () => { const o = locate.textContent; locate.textContent = "✓ copied"; setTimeout(() => (locate.textContent = o), 1000); };
+      if (navigator.clipboard) navigator.clipboard.writeText(cmd).then(flash, flash); else flash();
+      return;
+    }
+    const vhunt = e.target.closest(".v-hunt");
+    if (vhunt) { closeMonDetail(); startHuntFromVariant(vhunt.dataset.variant); return; }
+    const vstar = e.target.closest(".v-star");
+    if (vstar) { toggleVariantWishlist(vstar.dataset.variant); renderVariants(); refreshDashboard(); renderMonDetail(); return; }
+    const vcard = e.target.closest(".mon[data-variant]");
+    if (vcard) {
+      const id = vcard.dataset.variant, cur = state.variants[id];
+      if (!cur) state.variants[id] = true; else if (cur === true) state.variants[id] = "shiny"; else delete state.variants[id];
+      save(); renderVariants(); refreshDashboard(); renderMonDetail(); return;
+    }
+    const del = e.target.closest(".find-del");
+    if (del) { deleteFind(del.dataset.find); renderMonDetail(); return; }
+    const fr = e.target.closest(".find-show");
+    if (fr) { openShowcase(fr.dataset.find); return; }
   });
 
   // Origin select: remember the user's deliberate choice for this mode session.
@@ -5043,6 +5286,8 @@ function wire() {
   els.boxSearch.addEventListener("keydown", (e) => { if (e.key === "Enter") jumpToMon(els.boxSearch.value); });
   document.getElementById("box-go").addEventListener("click", () => jumpToMon(els.boxSearch.value));
   els.boxGrid.addEventListener("click", (e) => {
+    const info = e.target.closest(".slot-info");
+    if (info) { e.stopPropagation(); openMonDetail(Number(info.closest(".slot").dataset.dex)); return; }
     const slot = e.target.closest(".slot"); if (!slot) return;
     cycleDex(Number(slot.dataset.dex), false); renderBoxes(); syncDexCard(Number(slot.dataset.dex));
   });

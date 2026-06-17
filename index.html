@@ -786,6 +786,16 @@
     </div>
   </div>
 
+  <!-- Per-Pokémon detail page — one unified view (dex state, hunts, spawns, snack,
+       forms/variants, legendary, battle build). Top-level so the ⓘ button opens it
+       from the Dex grid, Box slots, and anywhere a card appears. -->
+  <div class="modal" id="mon-detail-modal" hidden>
+    <div class="modal-box mon-detail-box">
+      <button class="modal-close" data-close title="Close">✕</button>
+      <div id="mon-detail-body"></div>
+    </div>
+  </div>
+
   <!-- Shared species autocomplete — top-level so it works on every tab (a datalist
        inside a display:none panel won't surface options). -->
   <datalist id="species-list"></datalist>

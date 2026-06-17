@@ -50,7 +50,7 @@ function defaultHunt() {
 const STATS = [["hp", "HP"], ["atk", "Atk"], ["def", "Def"], ["spa", "SpA"], ["spd", "SpD"], ["spe", "Spe"]];
 function emptyMember() {
   return {
-    dex: null, nature: "", ability: "", moves: ["", "", "", ""],
+    dex: null, nature: "", ability: "", item: "", moves: ["", "", "", ""],
     evs: { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 },
     ivs: { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 },
   };
@@ -144,6 +144,7 @@ function normalizeParty() {
         dex: Number.isFinite(m.dex) ? m.dex : null,
         nature: typeof m.nature === "string" ? m.nature : "",
         ability: typeof m.ability === "string" ? m.ability : "",
+        item: typeof m.item === "string" ? m.item : "",
         moves: [0, 1, 2, 3].map((i) => (Array.isArray(m.moves) && m.moves[i]) || ""),
         evs: Object.assign(e.evs, m.evs || {}),
         ivs: Object.assign(e.ivs, m.ivs || {}),
@@ -987,6 +988,21 @@ function natureBlurb(name) {
   return `+${STAT_LABEL[n[0]]} −${STAT_LABEL[n[1]]}`;
 }
 function clampInt(v, lo, hi) { v = Math.round(Number(v) || 0); return Math.max(lo, Math.min(hi, v)); }
+// Common competitive held items for the slot autocomplete. Not exhaustive — the
+// input is free-text, so any item the modpack adds can still be typed in.
+const HELD_ITEMS = [
+  "Leftovers", "Life Orb", "Choice Band", "Choice Specs", "Choice Scarf", "Focus Sash",
+  "Assault Vest", "Rocky Helmet", "Eviolite", "Heavy-Duty Boots", "Black Sludge",
+  "Sitrus Berry", "Lum Berry", "Expert Belt", "Muscle Band", "Wise Glasses", "Wide Lens",
+  "Scope Lens", "Light Clay", "Mental Herb", "Power Herb", "Weakness Policy", "Throat Spray",
+  "Air Balloon", "Toxic Orb", "Flame Orb", "Safety Goggles", "Red Card", "Eject Button",
+  "Shell Bell", "Big Root", "Quick Claw", "King's Rock", "Bright Powder", "Loaded Dice",
+  "Covert Cloak", "Clear Amulet", "Booster Energy", "Mirror Herb", "Punching Glove",
+  "Metronome", "Berry Juice", "Razor Claw",
+];
+// The coach's one-item pick for a computed build: walls want passive recovery,
+// attackers want a flat damage boost.
+function recommendedItem(role) { return /wall/.test(role) ? "Leftovers" : "Life Orb"; }
 function movepool(dex) { return (COACH[dex] && COACH[dex].moves) || []; }
 // The coach's recommended ability (hidden, else the first) — auto-applied on add.
 function recommendedAbility(dex) { const c = COACH[dex]; return c ? (c.hidden || c.abilities[0] || "") : ""; }
@@ -1035,6 +1051,8 @@ function memberCardHtml(m, slot) {
       `<select class="pm-nature" data-slot="${slot}" data-k="nature">${natOpts}</select>` +
       `<select class="pm-ability" data-slot="${slot}" data-k="ability">${abilOpts}</select>` +
     `</div>` +
+    `<input class="pm-item" list="held-items-list" data-slot="${slot}" data-k="item" ` +
+      `value="${(m.item || "").replace(/"/g, "&quot;")}" placeholder="🎁 Held item…" />` +
     `<div class="pm-moves">${moves}</div>${poolList}` +
     `<div class="pm-block">` +
       `<div class="pm-block-h">EVs <span class="pm-evtotal${total > EV_TOTAL ? " over" : ""}" data-slot="${slot}">${total}/510</span>` +
@@ -1103,6 +1121,7 @@ function partyEdit(slot, k, payload) {
   if (k === "species") { const sp = findSpecies(payload); const d = sp ? sp.dex : null; if (d !== m.dex) m.ability = d ? recommendedAbility(d) : ""; m.dex = d; }
   else if (k === "nature") m.nature = payload;
   else if (k === "ability") m.ability = payload;
+  else if (k === "item") m.item = payload;
   else if (k === "move") m.moves[payload.i] = payload.value;
   else if (k === "ev") m.evs[payload.stat] = clampInt(payload.value, 0, EV_CAP);
   else if (k === "iv") m.ivs[payload.stat] = clampInt(payload.value, 0, IV_MAX);
@@ -1172,6 +1191,7 @@ function randomMemberFrom(sp) {
   return {
     dex: sp.dex, nature: pick(NATURE_NAMES),
     ability: c && c.abilities.length ? pick(c.abilities) : "",
+    item: (coachBuild(sp.dex) || {}).item || "Leftovers",
     moves: randomMovesFor(sp),
     evs: randomEvs(), ivs: { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 },
   };
@@ -1356,7 +1376,7 @@ function coachBuild(dex) {
   for (const m of damaging(meta, offCat).sort((a, b2) => effPower(b2) - effPower(a))) { if (picks.length >= 4) break; add(m.name); }
 
   const ability = c.hidden || c.abilities[0] || "";
-  return { role, nature, evs, ivs, moves: picks.slice(0, 4), ability, why, base: b, bst: c.bst, abilities: c.abilities, hidden: c.hidden };
+  return { role, nature, evs, ivs, moves: picks.slice(0, 4), ability, item: recommendedItem(role), why, base: b, bst: c.bst, abilities: c.abilities, hidden: c.hidden };
 }
 function statBars(b) {
   return STATS.map(([k, lbl]) => {
@@ -1394,6 +1414,7 @@ function openCoach(slot) {
     `<div class="cz-grid">` +
       `<div><b>Nature</b><br>${build.nature} <span class="muted">(${natureBlurb(build.nature)})</span></div>` +
       `<div><b>Ability</b><br>${build.ability || "—"}${build.hidden && build.ability === build.hidden ? ` <span class="muted">(hidden)</span>` : ""}</div>` +
+      `<div><b>Held item</b><br>🎁 ${build.item}</div>` +
       `<div><b>EVs</b><br>${evStr}</div>` +
       `<div><b>IVs</b><br>${build.ivs.atk === 0 ? "0 Atk, rest 31" : build.ivs.spa === 0 ? "0 SpA, rest 31" : "All 31"}</div>` +
     `</div>` +
@@ -1414,6 +1435,7 @@ function applyCoach() {
   if (!build) return;
   m.nature = build.nature;
   m.ability = build.ability;
+  m.item = build.item;
   m.evs = Object.assign({}, build.evs);
   m.ivs = Object.assign({}, build.ivs);
   m.moves = [0, 1, 2, 3].map((i) => build.moves[i] || "");
@@ -5826,6 +5848,10 @@ async function boot() {
   const movesList = document.getElementById("moves-list");
   if (movesList) movesList.innerHTML = MOVES
     .map((m) => `<option value="${m.name}">${m.type} · ${m.category}</option>`).join("");
+
+  // Held-item autocomplete for the party planner.
+  const itemsList = document.getElementById("held-items-list");
+  if (itemsList) itemsList.innerHTML = HELD_ITEMS.map((i) => `<option value="${i}">`).join("");
 
   // Populate biome dropdowns: real in-game biomes (forest, steppe…) + spawn categories.
   const biomeOpts = biomeSelectOptions();

@@ -595,6 +595,8 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .pm-clear:hover { color: var(--danger); border-color: var(--danger); }
 .pm-nature { width: 100%; background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
   border-radius: 7px; padding: 6px 8px; font-size: .85rem; margin-bottom: 8px; }
+.pm-item { width: 100%; background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+  border-radius: 7px; padding: 6px 8px; font-size: .85rem; margin-bottom: 8px; }
 .pm-moves { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
 .pm-move { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 7px;
   padding: 5px 7px; font-size: .8rem; min-width: 0; }

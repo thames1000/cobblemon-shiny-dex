@@ -608,6 +608,39 @@ function variantArt(v, shiny) {
   if (v.slug) return { src: `${shiny ? SHOWDOWN_SHINY_BASE : SHOWDOWN_BASE}/${v.slug}.png`, fb };
   return { src: fb, fb };
 }
+// Match a spawn entry's form (e.g. "Galarian", "Blue-Striped") to a tracked variant
+// so the card can show that variant's art. Keyed by dex + normalized aspect/name.
+let VARIANT_BY_DEXFORM = null;
+function buildVariantLookup() {
+  VARIANT_BY_DEXFORM = {};
+  if (!VARIANTS) return;
+  const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
+  const add = (v) => {
+    for (const t of new Set([norm(v.name), ...(v.aspects || []).map(norm)])) {
+      const k = v.dex + "|" + t;
+      if (t && !(k in VARIANT_BY_DEXFORM)) VARIANT_BY_DEXFORM[k] = v;
+    }
+  };
+  for (const grp of Object.values(VARIANTS.regional || {})) (grp || []).forEach(add);
+  (VARIANTS.cosmetic || []).forEach(add);
+  (VARIANTS.unown || []).forEach(add);
+  (VARIANTS.cobblemon || []).forEach(add);
+}
+function spawnVariant(dex, form) {
+  if (!form || !VARIANT_BY_DEXFORM) return null;
+  const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
+  return VARIANT_BY_DEXFORM[dex + "|" + norm(form)]
+    || VARIANT_BY_DEXFORM[dex + "|" + norm(String(form).split(" / ")[0])] // compound "A / B" → first
+    || null;
+}
+// Card sprite for a spawn entry: the variant's render if the entry is a variant
+// form (and one is tracked), else the base sprite. Name & dex stay the base.
+function spawnCardArt(dex, entry, shiny) {
+  const v = entry && entry.f ? spawnVariant(dex, entry.f) : null;
+  if (v) return variantArt(v, !!shiny);
+  const s = spriteUrl(dex, shiny);
+  return { src: s, fb: s };
+}
 // State per variant: absent = none, true = caught, "shiny" = caught shiny.
 // Click cycles none -> caught -> shiny -> none.
 function variantCard(v) {
@@ -2771,9 +2804,10 @@ function renderSpawnByBiome(biome) {
   if (!list.length) return `<div class="card"><p class="hint">Nothing indexed for that biome.</p></div>`;
   const cards = list.map(({ dex, entry }) => {
     const sp = DEX_BY_NUM[dex];
+    const art = spawnCardArt(dex, entry); // variant render if this entry is a variant form
     return `<div class="mon" data-dex="${dex}" title="${entry.f ? entry.f + " · " : ""}${entryDetail(entry)}">
       <span class="badge r-${entry.r}">${entry.r[0].toUpperCase()}</span>
-      <img loading="lazy" src="${spriteUrl(dex)}" alt="${sp ? sp.name : dex}"/>
+      <img loading="lazy" src="${art.src}" onerror="this.onerror=null;this.src='${art.fb}'" alt="${sp ? sp.name : dex}"/>
       <div class="dexno">#${String(dex).padStart(4, "0")}</div>
       <div class="nm">${sp ? sp.name.replace(/-/g, " ") : dex}</div>
       ${entry.f ? `<div class="form-tag">✦ ${entry.f}</div>` : ""}</div>`;
@@ -5109,6 +5143,7 @@ async function boot() {
   sanitizeSpawns();
   buildBiomeIndex();
   buildLabelBiomes();
+  buildVariantLookup();
   SIM = await fetch("js/data/sim-spawns.json").then((r) => r.json())
     .catch(() => ({ spawns: {}, items: [], baseBlocks: [], hitbox: {} }));
 

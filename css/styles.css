@@ -297,6 +297,7 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .target { margin: 0 0 8px; }
 .target img { width: 96px; height: 96px; image-rendering: pixelated; visibility: hidden; }
 .target figcaption { color: var(--muted); font-size: .9rem; text-transform: capitalize; margin-top: 2px; }
+#hunt-where { margin: 2px 0 10px; }
 .counter-block { margin: 6px 0 12px; }
 .counter-label { color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .5px; }
 .counter-value { font-size: 3.2rem; font-weight: 800; line-height: 1; color: var(--gold); }

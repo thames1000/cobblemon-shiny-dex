@@ -1635,6 +1635,7 @@ function renderHunt() {
     els.huntOrigin.value = h.mode === "breeding" ? "hatched" : "self";
   }
 
+  const whereBtn = document.getElementById("hunt-where");
   const s = activeSession();
   if (!s || h.activeDex == null) {
     els.huntSprite.removeAttribute("src");
@@ -1642,7 +1643,9 @@ function renderHunt() {
     els.huntTarget.textContent = "No target selected";
     els.huntCount.textContent = "0";
     els.huntOdds.innerHTML = "";
+    if (whereBtn) whereBtn.hidden = true;
   } else {
+    if (whereBtn) whereBtn.hidden = false;
     const sp = DEX_BY_NUM[h.activeDex];
     const v = h.activeVariant ? VARIANT_BY_ID[h.activeVariant] : null;
     els.huntSprite.src = v ? variantArt(v, true).src : spriteUrl(h.activeDex, true);
@@ -5067,6 +5070,17 @@ function wire() {
   document.getElementById("hunt-boxed").addEventListener("click", () => foundShiny(true));
   document.getElementById("hunt-load").addEventListener("click", () => loadTarget(els.huntInput.value));
   document.getElementById("hunt-random").addEventListener("click", randomHuntTarget);
+  // "Where can I find this?" → the target's spawn biomes/conditions on the Spawns tab.
+  const huntWhere = document.getElementById("hunt-where");
+  if (huntWhere) huntWhere.addEventListener("click", () => {
+    const dex = state.hunt.activeDex;
+    const sp = dex != null ? DEX_BY_NUM[dex] : null;
+    if (!sp) return;
+    setSpawnMode("mon");
+    els.spawnInput.value = sp.name;
+    findSpawnByInput(els.spawnInput.value);
+    showTab("spawns");
+  });
   document.getElementById("hunt-offhunt").addEventListener("click", () => logRandomCatch(false));
   document.getElementById("hunt-offhunt-box").addEventListener("click", () => logRandomCatch(true));
   els.huntRandomScope.addEventListener("change", () => { state.config.randomScope = els.huntRandomScope.value; save(); });

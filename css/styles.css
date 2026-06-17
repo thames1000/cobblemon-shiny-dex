@@ -684,6 +684,7 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .next-reason.r-leg { color: #c084fc; border-color: #7c3aed; }
 .next-reason.r-hard, .next-reason.r-rare { color: #f6a544; border-color: color-mix(in srgb, #f6a544 40%, var(--line)); }
 .next-reason.r-fv { color: #8ab4ff; border-color: color-mix(in srgb, #8ab4ff 40%, var(--line)); }
+.next-reason.r-common { color: #4ade80; border-color: color-mix(in srgb, #4ade80 40%, var(--line)); }
 
 /* off-hunt / random-encounter find chip (excluded from averages) */
 .luck-chip.luck-random { background: var(--panel-2); border: 1px solid var(--line); color: var(--muted); }

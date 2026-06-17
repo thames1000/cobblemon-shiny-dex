@@ -2339,9 +2339,17 @@ function huntSuggestions(biome, limit = 8) {
     const fv = fvNeed(dex);
     if (fv) { score += 18; reasons.push({ i: "✦", t: `${fv} form/variant${fv > 1 ? "s" : ""} to get`, c: "r-fv" }); }
     if (isLegendary(dex)) { score += 30; reasons.push({ i: "👑", t: "Legendary", c: "r-leg" }); }
-    const br = bestR[dex];
-    if (br >= 3) { score += 18; reasons.push({ i: "💎", t: "Ultra-rare", c: "r-hard" }); }
-    else if (br === 2) { score += 10; reasons.push({ i: "💎", t: "Rare", c: "r-rare" }); }
+    // Commonness: the MORE common a spawn is, the faster it shiny-hunts, so it ranks
+    // HIGHER (replaces the old "rarer ranks higher" bonus). Weight the rarity at this
+    // spot; for a wishlist-only pick use its best rarity elsewhere at half weight.
+    const cr = here ? inBiome[dex] : bestR[dex];
+    if (cr != null) {
+      score += (here ? 1 : 0.5) * [18, 12, 6, 0][cr]; // common→+18 … ultra-rare→0
+      // here-mons already show rarity in their 📍 chip; add ⚡ for common/uncommon to
+      // surface the priority, and a 💎 only for wishlist-only picks (no 📍 chip).
+      if (here && cr <= 1) reasons.push({ i: "⚡", t: `${RARITY_NAME[cr]} — fast hunt`, c: "r-common" });
+      else if (!here && cr >= 2) reasons.push({ i: "💎", t: RARITY_NAME[cr], c: cr === 3 ? "r-hard" : "r-rare" });
+    }
     const bst = COACH[dex] && COACH[dex].bst;
     if (bst >= 600 && !isLegendary(dex)) { score += 12; reasons.push({ i: "🌟", t: "High value", c: "r-bst" }); }
 

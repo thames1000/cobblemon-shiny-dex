@@ -317,6 +317,13 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .find-row img { width: 40px; height: 40px; image-rendering: pixelated; }
 .find-name { font-weight: 700; text-transform: capitalize; }
 .find-row .muted { margin-left: auto; font-size: .8rem; text-transform: capitalize; }
+.find-del {
+  flex: 0 0 auto; background: none; border: 0; color: var(--muted); cursor: pointer;
+  font-size: .85rem; line-height: 1; padding: 4px 7px; border-radius: 6px; opacity: .5;
+  transition: opacity .1s, color .1s, background .1s;
+}
+.find-row:hover .find-del { opacity: 1; }
+.find-del:hover, .find-del:focus { color: #ef4444; background: rgba(239,68,68,.12); opacity: 1; }
 .active-hunt { cursor: pointer; border-radius: 8px; padding: 6px 8px; border-bottom: none; }
 .active-hunt:hover, .active-hunt:focus-visible { background: var(--panel-2, rgba(255,255,255,.06)); outline: none; }
 .active-hunt.current { box-shadow: inset 0 0 0 1px var(--accent, #6cf); }

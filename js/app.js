@@ -1942,17 +1942,30 @@ function findRowHtml(f) {
     `<img src="${spriteUrl(f.dex, true)}" alt="" />` +
     `<span class="find-name">${(f.name || "").replace(/-/g, " ")}</span>` +
     `<span class="origin-chip" title="How you got it">${o.icon} ${o.label}</span>`;
+  const del = `<button class="find-del" data-find="${f.id}" title="Delete this log (the Dex shiny stays)" aria-label="Delete this log">✕</button>`;
   if (isRandomFind(f)) {
     return head +
       `<span class="luck-chip luck-random" title="Off-hunt catch — kept out of the encounter &amp; luck averages">🎲 Random</span>` +
-      `<span class="muted">off-hunt · ${date}</span></div>`;
+      `<span class="muted">off-hunt · ${date}</span>${del}</div>`;
   }
   const unit = f.mode === "breeding" ? " eggs" : f.mode === "chain" ? " KOs" : "";
   const p = findLuckP(f);
   const b = luckBadge(p);
   return head +
     `<span class="luck-chip ${b.cls}" title="Luckier than ${Math.round(p * 100)}% of equivalent hunts">${b.txt}</span>` +
-    `<span class="muted">${f.mode} · ${f.count}${unit} · ${date}</span></div>`;
+    `<span class="muted">${f.mode} · ${f.count}${unit} · ${date}</span>${del}</div>`;
+}
+// Remove a mis-logged find (e.g. wrong mode/origin). Keeps the Dex shiny — only the
+// log record is deleted, so the user can re-log it correctly.
+function deleteFind(id) {
+  const finds = state.hunt.finds || [];
+  const f = finds.find((x) => x.id === id);
+  if (!f) return;
+  const nm = (f.name || "").replace(/-/g, " ");
+  const what = isRandomFind(f) ? "off-hunt catch" : `${f.mode} · ${f.count}`;
+  if (!confirm(`Delete this log?\n\n${nm} — ${what}\n\nThis removes the log record only; the Dex shiny stays. You can re-log it correctly afterward.`)) return;
+  state.hunt.finds = finds.filter((x) => x.id !== id);
+  save(); renderHunt(); refreshDashboard(); refreshStats(); renderLog();
 }
 
 /* ---------- shiny showcase card (#3/#4) ---------- */
@@ -4783,8 +4796,11 @@ function wire() {
   // Origin select: remember the user's deliberate choice for this mode session.
   if (els.huntOrigin) els.huntOrigin.addEventListener("change", () => { els.huntOrigin.dataset.touched = "1"; });
 
-  // Tapping any logged find (Hunt / Home / Log) opens its shareable showcase card.
+  // Tapping any logged find (Hunt / Home / Log) opens its shareable showcase card;
+  // the ✕ deletes the log instead (and must not also open the showcase).
   document.addEventListener("click", (e) => {
+    const del = e.target.closest(".find-del[data-find]");
+    if (del) { e.stopPropagation(); deleteFind(del.dataset.find); return; }
     const row = e.target.closest(".find-show[data-find]");
     if (row) openShowcase(row.dataset.find);
   });

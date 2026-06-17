@@ -44,7 +44,7 @@ function defaultConfig() {
   };
 }
 function defaultHunt() {
-  return { mode: "chain", activeDex: null, sessions: {}, finds: [] };
+  return { mode: "chain", activeDex: null, activeVariant: null, sessions: {}, finds: [] };
 }
 // ---- Party builder state ----
 const STATS = [["hp", "HP"], ["atk", "Atk"], ["def", "Def"], ["spa", "SpA"], ["spd", "SpD"], ["spe", "Spe"]];
@@ -61,7 +61,7 @@ function newParty(name) {
 }
 function defaultParty() { const p = newParty("Party 1"); return { active: p.id, list: [p] }; }
 function freshState() {
-  return { dex: {}, forms: {}, variants: {}, legendaries: {}, berries: {}, wishlist: [], party: defaultParty(), config: defaultConfig(), hunt: defaultHunt() };
+  return { dex: {}, forms: {}, variants: {}, legendaries: {}, berries: {}, wishlist: [], variantWishlist: [], party: defaultParty(), config: defaultConfig(), hunt: defaultHunt() };
 }
 let state = freshState();
 
@@ -76,6 +76,10 @@ function normalize() {
   const rawWish = Array.isArray(state.wishlist) ? state.wishlist : [];
   const seenWish = new Set();
   state.wishlist = rawWish.map(Number).filter((d) => Number.isFinite(d) && !seenWish.has(d) && seenWish.add(d));
+  // Variant wishlist: unique non-empty string ids (validated against VARIANT_BY_ID later).
+  const rawVW = Array.isArray(state.variantWishlist) ? state.variantWishlist : [];
+  const seenVW = new Set();
+  state.variantWishlist = rawVW.filter((id) => typeof id === "string" && id && !seenVW.has(id) && seenVW.add(id));
   normalizeParty();
   state.config = Object.assign(defaultConfig(), state.config || {});
   if (typeof state.config.huntHotkey !== "string") state.config.huntHotkey = "Space";
@@ -92,8 +96,9 @@ function normalize() {
       const dex = Number(s.dex);
       const mode = typeof s.mode === "string" ? s.mode : (String(k).split(":")[0] || "chain");
       if (!Number.isFinite(dex)) continue;
-      cleanSessions[huntKey(mode, dex)] = {
-        mode, dex,
+      const variant = typeof s.variant === "string" && s.variant ? s.variant : null;
+      cleanSessions[huntKey(mode, dex, variant)] = {
+        mode, dex, variant,
         count: Number.isFinite(s.count) ? Math.max(0, Math.floor(s.count)) : 0,
         startedAt: Number.isFinite(s.startedAt) ? s.startedAt : Date.now(),
       };
@@ -110,6 +115,7 @@ function normalize() {
     }
   });
   if (state.hunt.activeDex != null && !Number.isFinite(Number(state.hunt.activeDex))) state.hunt.activeDex = null;
+  if (typeof state.hunt.activeVariant !== "string" || !state.hunt.activeVariant) state.hunt.activeVariant = null;
 }
 function normalizeParty() {
   const p = state.party;
@@ -610,10 +616,16 @@ function variantArt(v, shiny) {
 }
 // Match a spawn entry's form (e.g. "Galarian", "Blue-Striped") to a tracked variant
 // so the card can show that variant's art. Keyed by dex + normalized aspect/name.
-let VARIANT_BY_DEXFORM = null;
+let VARIANT_BY_DEXFORM = null, VARIANT_BY_ID = {};
+function allVariantObjs() {
+  if (!VARIANTS) return [];
+  return [...Object.values(VARIANTS.regional || {}).flat(), ...(VARIANTS.cosmetic || []), ...(VARIANTS.unown || []), ...(VARIANTS.cobblemon || [])];
+}
 function buildVariantLookup() {
   VARIANT_BY_DEXFORM = {};
+  VARIANT_BY_ID = {};
   if (!VARIANTS) return;
+  for (const v of allVariantObjs()) VARIANT_BY_ID[v.id] = v;
   const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
   const add = (v) => {
     for (const t of new Set([norm(v.name), ...(v.aspects || []).map(norm)])) {
@@ -652,8 +664,11 @@ function variantCard(v) {
   el.dataset.variant = v.id;
   el.title = `${v.base} · ${v.name}`;
   const { src, fb } = variantArt(v, shiny);
+  const wished = (state.variantWishlist || []).includes(v.id);
   el.innerHTML =
     `${have ? `<span class="badge">${shiny ? "✨" : "✓"}</span>` : ""}` +
+    `<button class="mon-hunt v-hunt" data-variant="${v.id}" title="Start a hunt for ${v.base} ${v.name}">🎯 Hunt</button>` +
+    `<button class="mon-star v-star${wished ? " on" : ""}" data-variant="${v.id}" title="${wished ? "Remove from" : "Add to"} wishlist" aria-label="${wished ? "Remove from" : "Add to"} wishlist">${wished ? "★" : "☆"}</button>` +
     `<img loading="lazy" src="${src}" onerror="this.onerror=null;this.src='${fb}'" alt="${v.base} ${v.name}" />` +
     `<div class="dexno">#${String(v.dex).padStart(4, "0")}</div>` +
     `<div class="nm">${v.base.replace(/-/g, " ")}</div>` +
@@ -1540,16 +1555,17 @@ const MODE_DESC = {
 };
 const COUNT_LABEL = { chain: "KO streak", breeding: "Eggs checked", encounter: "Encounters" };
 
-function huntKey(mode, dex) { return `${mode}:${dex}`; }
+function huntKey(mode, dex, variant) { return `${mode}:${dex}${variant ? ":" + variant : ""}`; }
 function activeSession() {
   const h = state.hunt;
   if (h.activeDex == null) return null;
-  return h.sessions[huntKey(h.mode, h.activeDex)] || null;
+  return h.sessions[huntKey(h.mode, h.activeDex, h.activeVariant)] || null;
 }
-function ensureSession(mode, dex) {
-  const k = huntKey(mode, dex);
+function ensureSession(mode, dex, variant) {
+  variant = variant || null;
+  const k = huntKey(mode, dex, variant);
   if (!state.hunt.sessions[k]) {
-    state.hunt.sessions[k] = { mode, dex, count: 0, startedAt: Date.now() };
+    state.hunt.sessions[k] = { mode, dex, variant, count: 0, startedAt: Date.now() };
   }
   return state.hunt.sessions[k];
 }
@@ -1628,10 +1644,13 @@ function renderHunt() {
     els.huntOdds.innerHTML = "";
   } else {
     const sp = DEX_BY_NUM[h.activeDex];
-    els.huntSprite.src = spriteUrl(h.activeDex, true);
+    const v = h.activeVariant ? VARIANT_BY_ID[h.activeVariant] : null;
+    els.huntSprite.src = v ? variantArt(v, true).src : spriteUrl(h.activeDex, true);
     els.huntSprite.style.visibility = "visible";
     els.huntSprite.alt = sp ? sp.name : "";
-    els.huntTarget.textContent = sp ? `${sp.name.replace(/-/g, " ")} · #${String(sp.dex).padStart(4, "0")}` : "";
+    els.huntTarget.textContent = v
+      ? `${v.base.replace(/-/g, " ")} · ${v.name} · #${String(v.dex).padStart(4, "0")}`
+      : (sp ? `${sp.name.replace(/-/g, " ")} · #${String(sp.dex).padStart(4, "0")}` : "");
     els.huntCount.textContent = String(s.count);
     els.huntOdds.innerHTML = huntOddsLine(s);
   }
@@ -1653,27 +1672,34 @@ function renderActiveHunts() {
   const unit = { chain: "KOs", breeding: "eggs", encounter: "enc." };
   wrap.innerHTML = active.map((s) => {
     const sp = DEX_BY_NUM[s.dex];
-    const name = sp ? sp.name.replace(/-/g, " ") : String(s.dex);
-    const isActive = h.mode === s.mode && h.activeDex === s.dex;
-    return `<div class="find-row active-hunt${isActive ? " current" : ""}" data-mode="${s.mode}" data-dex="${s.dex}" role="button" tabindex="0" title="Resume this hunt">
-      <img src="${spriteUrl(s.dex, true)}" alt="" />
+    const v = s.variant ? VARIANT_BY_ID[s.variant] : null;
+    const name = v ? `${v.base.replace(/-/g, " ")} <span class="muted">${v.name}</span>` : (sp ? sp.name.replace(/-/g, " ") : String(s.dex));
+    const img = v ? variantArt(v, true).src : spriteUrl(s.dex, true);
+    const isActive = h.mode === s.mode && h.activeDex === s.dex && (h.activeVariant || null) === (s.variant || null);
+    const va = s.variant ? ` data-variant="${s.variant}"` : "";
+    return `<div class="find-row active-hunt${isActive ? " current" : ""}" data-mode="${s.mode}" data-dex="${s.dex}"${va} role="button" tabindex="0" title="Resume this hunt">
+      <img src="${img}" alt="" />
       <span class="find-name">${name}</span>
       <span class="muted">${s.mode} · ${s.count} ${unit[s.mode] || ""}${isActive ? " · current" : ""}</span>
-      <button class="ctrl-btn ah-drop" data-mode="${s.mode}" data-dex="${s.dex}" title="Give up this hunt">✕</button>
+      <button class="ctrl-btn ah-drop" data-mode="${s.mode}" data-dex="${s.dex}"${va} title="Give up this hunt">✕</button>
     </div>`;
   }).join("");
 }
 
-function resumeHunt(mode, dex) {
+function resumeHunt(mode, dex, variant) {
+  variant = variant || null;
   state.hunt.mode = mode;
   state.hunt.activeDex = dex;
-  ensureSession(mode, dex);
+  state.hunt.activeVariant = variant;
+  ensureSession(mode, dex, variant);
   save(); renderHunt();
 }
-function dropHunt(mode, dex) {
-  const k = huntKey(mode, dex);
-  delete state.hunt.sessions[k];
-  if (state.hunt.mode === mode && state.hunt.activeDex === dex) state.hunt.activeDex = null;
+function dropHunt(mode, dex, variant) {
+  variant = variant || null;
+  delete state.hunt.sessions[huntKey(mode, dex, variant)];
+  if (state.hunt.mode === mode && state.hunt.activeDex === dex && (state.hunt.activeVariant || null) === variant) {
+    state.hunt.activeDex = null; state.hunt.activeVariant = null;
+  }
   save(); renderHunt();
 }
 
@@ -1729,7 +1755,7 @@ function setMode(mode) {
 function bumpCount(delta) {
   const h = state.hunt;
   if (h.activeDex == null) return;
-  const s = ensureSession(h.mode, h.activeDex);
+  const s = ensureSession(h.mode, h.activeDex, h.activeVariant);
   s.count = Math.max(0, s.count + delta);
   save(); renderHunt(); refreshDashboard();
 }
@@ -1741,8 +1767,18 @@ function loadTarget(raw) {
   if (!sp) sp = SPECIES.find((s) => s.name.startsWith(q));
   if (!sp) { alert(`No species matching "${raw}".`); return; }
   state.hunt.activeDex = sp.dex;
+  state.hunt.activeVariant = null;
   ensureSession(state.hunt.mode, sp.dex);
   save(); renderHunt();
+}
+// Start (or resume) a hunt for a specific variant — e.g. Galarian Meowth.
+function startHuntFromVariant(variantId) {
+  const v = VARIANT_BY_ID[variantId];
+  if (!v) return;
+  state.hunt.activeDex = v.dex;
+  state.hunt.activeVariant = v.id;
+  ensureSession(state.hunt.mode, v.dex, v.id);
+  save(); renderHunt(); showTab("hunt");
 }
 // Begin hunting a species straight away (used by the "What to hunt next" card):
 // set it as the active target, optionally switch mode, and jump to the Hunt tab.
@@ -1751,6 +1787,7 @@ function startHuntFor(dex, mode) {
   if (!sp) return;
   if (mode) state.hunt.mode = mode;
   state.hunt.activeDex = dex;
+  state.hunt.activeVariant = null;
   ensureSession(state.hunt.mode, dex);
   if (els.huntInput) els.huntInput.value = sp.name;
   if (els.huntOrigin) delete els.huntOrigin.dataset.touched; // re-default origin for the new mode
@@ -1761,29 +1798,39 @@ function startHuntFor(dex, mode) {
 //  smart    – wishlist (un-caught) → not-yet-shiny → anything  (the default)
 //  unshiny  – anything you haven't shiny-caught yet
 //  all      – literally any species
+// Pool of TARGETS — species ({dex,name}) and variants ({dex,name,variant:id}).
+function variantShiny(id) { return state.variants[id] === "shiny"; }
 function randomPool(scope) {
   const hasShiny = (st) => st === "shiny" || st === "boxed";
+  const spT = (sp) => ({ dex: sp.dex, name: sp.name });
+  const vT = (v) => ({ dex: v.dex, name: `${v.base} (${v.name})`, variant: v.id });
+  const vars = allVariantObjs();
   switch (scope) {
-    case "unshiny": return SPECIES.filter((sp) => !hasShiny(dexState(sp.dex)));
-    case "all": return SPECIES.slice();
+    case "unshiny":
+      return SPECIES.filter((sp) => !hasShiny(dexState(sp.dex))).map(spT)
+        .concat(vars.filter((v) => !variantShiny(v.id)).map(vT));
+    case "all":
+      return SPECIES.map(spT).concat(vars.map(vT));
     case "smart":
     default: {
       const notDone = (sp) => !hasShiny(dexState(sp.dex));
-      const wished = state.wishlist.map((d) => DEX_BY_NUM[d]).filter((sp) => sp && notDone(sp));
+      const wished = state.wishlist.map((d) => DEX_BY_NUM[d]).filter((sp) => sp && notDone(sp)).map(spT)
+        .concat((state.variantWishlist || []).map((id) => VARIANT_BY_ID[id]).filter((v) => v && !variantShiny(v.id)).map(vT));
       if (wished.length) return wished;
-      const fresh = SPECIES.filter(notDone);
-      return fresh.length ? fresh : SPECIES.slice();
+      const fresh = SPECIES.filter(notDone).map(spT);
+      return fresh.length ? fresh : SPECIES.map(spT);
     }
   }
 }
-// Bored? Roll a random target from the chosen scope.
+// Bored? Roll a random target (species or variant) from the chosen scope.
 function randomHuntTarget() {
   const pool = randomPool(state.config.randomScope || "smart");
   if (!pool.length) { alert("Nothing matches that random filter yet — try a different one."); return; }
-  const sp = pool[Math.floor(Math.random() * pool.length)];
-  state.hunt.activeDex = sp.dex;
-  ensureSession(state.hunt.mode, sp.dex);
-  els.huntInput.value = sp.name;
+  const t = pool[Math.floor(Math.random() * pool.length)];
+  state.hunt.activeDex = t.dex;
+  state.hunt.activeVariant = t.variant || null;
+  ensureSession(state.hunt.mode, t.dex, t.variant || null);
+  els.huntInput.value = DEX_BY_NUM[t.dex] ? DEX_BY_NUM[t.dex].name : "";
   save(); renderHunt();
   const card = els.huntInput.closest(".card");
   if (card) { card.classList.remove("flash"); void card.offsetWidth; card.classList.add("flash"); }
@@ -1795,7 +1842,8 @@ function foundShiny(boxed) {
   const h = state.hunt;
   if (h.activeDex == null) { alert("Load a target first."); return; }
   const sp = DEX_BY_NUM[h.activeDex];
-  const s = ensureSession(h.mode, h.activeDex);
+  const v = h.activeVariant ? VARIANT_BY_ID[h.activeVariant] : null;
+  const s = ensureSession(h.mode, h.activeDex, h.activeVariant);
   // Stamp the luck (vs the odds in effect right now) so it stays accurate even
   // if the pack's odds settings change later.
   const luck = computeLuck(h.mode, s.count).p;
@@ -1805,14 +1853,18 @@ function foundShiny(boxed) {
     id: "f" + now.toString(36) + Math.floor(Math.random() * 1e4).toString(36),
     dex: h.activeDex, name: sp ? sp.name : String(h.activeDex), mode: h.mode, count: s.count,
     startedAt: s.startedAt || now, foundAt: now, luck, origin,
+    variant: v ? v.id : null, vname: v ? v.name : null,
   };
   state.hunt.finds.push(find);
-  if (boxed) state.dex[String(h.activeDex)] = "boxed";
+  if (v) {
+    // A hunted variant updates the Variants page (caught → shiny on a found shiny).
+    state.variants[v.id] = "shiny";
+  } else if (boxed) state.dex[String(h.activeDex)] = "boxed";
   else if (dexState(h.activeDex) !== "boxed") state.dex[String(h.activeDex)] = "shiny";
   // Reset this session's count AND clock for a fresh hunt.
   s.count = 0;
   s.startedAt = now;
-  save(); renderHunt(); renderDex(); renderBoxes(); refreshDashboard(); refreshStats(); renderLog();
+  save(); renderHunt(); renderDex(); renderBoxes(); refreshDashboard(); refreshStats(); renderLog(); renderVariants();
   // Celebrate immediately: pop the shareable showcase for the catch you just logged,
   // so you never have to dig through Recent finds to generate it.
   openShowcase(find.id);
@@ -1867,6 +1919,7 @@ function startHuntFromDex(mode) {
   if (huntStartDex == null) return;
   state.hunt.mode = mode;
   state.hunt.activeDex = huntStartDex;
+  state.hunt.activeVariant = null;
   ensureSession(mode, huntStartDex);
   closeHuntStart();
   save(); renderHunt();
@@ -1938,9 +1991,11 @@ const COUNT_UNIT = { breeding: "eggs", chain: "KOs", encounter: "enc." };
 function findRowHtml(f) {
   const date = fmtDate(f.foundAt);
   const o = ORIGINS[findOrigin(f)];
+  const v = f.variant ? VARIANT_BY_ID[f.variant] : null;
+  const vtag = v ? ` <span class="muted">${v.name}</span>` : (f.vname ? ` <span class="muted">${f.vname}</span>` : "");
   const head = `<div class="find-row find-show" data-find="${f.id}" role="button" tabindex="0" title="Open shareable showcase card">` +
-    `<img src="${spriteUrl(f.dex, true)}" alt="" />` +
-    `<span class="find-name">${(f.name || "").replace(/-/g, " ")}</span>` +
+    `<img src="${v ? variantArt(v, true).src : spriteUrl(f.dex, true)}" alt="" />` +
+    `<span class="find-name">${(f.name || "").replace(/-/g, " ")}${vtag}</span>` +
     `<span class="origin-chip" title="How you got it">${o.icon} ${o.label}</span>`;
   const del = `<button class="find-del" data-find="${f.id}" title="Delete this log (the Dex shiny stays)" aria-label="Delete this log">✕</button>`;
   if (isRandomFind(f)) {
@@ -2109,6 +2164,12 @@ function toggleWishlist(dex) {
   if (i >= 0) state.wishlist.splice(i, 1); else state.wishlist.push(dex);
   save();
 }
+function toggleVariantWishlist(id) {
+  if (!Array.isArray(state.variantWishlist)) state.variantWishlist = [];
+  const i = state.variantWishlist.indexOf(id);
+  if (i >= 0) state.variantWishlist.splice(i, 1); else state.variantWishlist.push(id);
+  save();
+}
 
 /* ---------- home / dashboard ---------- */
 const MODE_NAME = { chain: "KO-Chain", breeding: "Breeding", encounter: "Encounter" };
@@ -2133,25 +2194,39 @@ function renderDashWishlist() {
   const el = document.getElementById("dash-wishlist");
   if (!el) return;
   const list = state.wishlist.map((d) => DEX_BY_NUM[d]).filter(Boolean);
-  if (!list.length) {
-    el.innerHTML = `<h2>★ Wishlist</h2><p class="hint">Star Pokémon on the Dex (tap ☆) to pin your hunt goals here. 🎲 Surprise me favours them.</p>`;
+  const vlist = (state.variantWishlist || []).map((id) => VARIANT_BY_ID[id]).filter(Boolean);
+  if (!list.length && !vlist.length) {
+    el.innerHTML = `<h2>★ Wishlist</h2><p class="hint">Star Pokémon on the Dex (tap ☆) or variants on the Variants tab to pin your hunt goals here. 🎲 Surprise me favours them.</p>`;
     return;
   }
+  const spCards = list.map((sp) => {
+    const st = dexState(sp.dex);
+    const done = st === "shiny" || st === "boxed";
+    const nm = sp.name.replace(/-/g, " ");
+    return `<div class="dash-gap${done ? " wl-done" : ""}" data-dex="${sp.dex}" role="button" tabindex="0" title="Jump to ${nm} in Boxes">` +
+      `<button class="dash-gap-hunt" data-dex="${sp.dex}" title="Start a hunt for ${nm}">🎯</button>` +
+      `<button class="dash-wl-star" data-dex="${sp.dex}" title="Remove ${nm} from wishlist">★</button>` +
+      `<img loading="lazy" src="${spriteUrl(sp.dex, true)}" alt="${sp.name}" />` +
+      `<span class="dash-gap-no">#${String(sp.dex).padStart(4, "0")}</span>` +
+      `<span class="dash-gap-nm">${nm}</span>` +
+      `${done ? `<span class="wl-badge">${st === "boxed" ? "📦" : "✨"}</span>` : ""}` +
+    `</div>`;
+  });
+  const vCards = vlist.map((v) => {
+    const done = variantShiny(v.id);
+    const nm = `${v.base.replace(/-/g, " ")} ${v.name}`;
+    return `<div class="dash-gap${done ? " wl-done" : ""}" data-variant="${v.id}" role="button" tabindex="0" title="Start a hunt for ${nm}">` +
+      `<button class="dash-gap-hunt" data-variant="${v.id}" title="Start a hunt for ${nm}">🎯</button>` +
+      `<button class="dash-wl-star" data-variant="${v.id}" title="Remove ${nm} from wishlist">★</button>` +
+      `<img loading="lazy" src="${variantArt(v, done).src}" alt="${nm}" />` +
+      `<span class="dash-gap-no">#${String(v.dex).padStart(4, "0")}</span>` +
+      `<span class="dash-gap-nm">${v.base.replace(/-/g, " ")} <span class="muted">${v.name}</span></span>` +
+      `${done ? `<span class="wl-badge">✨</span>` : ""}` +
+    `</div>`;
+  });
   el.innerHTML =
-    `<h2>★ Wishlist <span class="muted">— ${list.length}</span></h2>` +
-    `<div class="dash-gaps-row">` + list.map((sp) => {
-      const st = dexState(sp.dex);
-      const done = st === "shiny" || st === "boxed";
-      const nm = sp.name.replace(/-/g, " ");
-      return `<div class="dash-gap${done ? " wl-done" : ""}" data-dex="${sp.dex}" role="button" tabindex="0" title="Jump to ${nm} in Boxes">` +
-        `<button class="dash-gap-hunt" data-dex="${sp.dex}" title="Start a hunt for ${nm}">🎯</button>` +
-        `<button class="dash-wl-star" data-dex="${sp.dex}" title="Remove ${nm} from wishlist">★</button>` +
-        `<img loading="lazy" src="${spriteUrl(sp.dex, true)}" alt="${sp.name}" />` +
-        `<span class="dash-gap-no">#${String(sp.dex).padStart(4, "0")}</span>` +
-        `<span class="dash-gap-nm">${nm}</span>` +
-        `${done ? `<span class="wl-badge">${st === "boxed" ? "📦" : "✨"}</span>` : ""}` +
-      `</div>`;
-    }).join("") + `</div>`;
+    `<h2>★ Wishlist <span class="muted">— ${list.length + vlist.length}</span></h2>` +
+    `<div class="dash-gaps-row">` + spCards.concat(vCards).join("") + `</div>`;
 }
 
 function renderDashHunt() {
@@ -4649,11 +4724,18 @@ function wire() {
       const nextHunt = e.target.closest(".next-hunt");
       if (nextHunt) { e.stopPropagation(); startHuntFor(Number(nextHunt.dataset.dex), "encounter"); return; }
       const gapHunt = e.target.closest(".dash-gap-hunt");
-      if (gapHunt) { e.stopPropagation(); openHuntStart(Number(gapHunt.dataset.dex)); return; }
+      if (gapHunt) { e.stopPropagation(); if (gapHunt.dataset.variant) startHuntFromVariant(gapHunt.dataset.variant); else openHuntStart(Number(gapHunt.dataset.dex)); return; }
       const gapBox = e.target.closest(".dash-gap-box");
       if (gapBox) { e.stopPropagation(); markBoxed(Number(gapBox.dataset.dex)); return; }
       const wlStar = e.target.closest(".dash-wl-star");
-      if (wlStar) { e.stopPropagation(); toggleWishlist(Number(wlStar.dataset.dex)); renderDex(); refreshDashboard(); return; }
+      if (wlStar) {
+        e.stopPropagation();
+        if (wlStar.dataset.variant) { toggleVariantWishlist(wlStar.dataset.variant); renderVariants(); }
+        else { toggleWishlist(Number(wlStar.dataset.dex)); renderDex(); }
+        refreshDashboard(); return;
+      }
+      const vgap = e.target.closest(".dash-gap[data-variant]");
+      if (vgap) { startHuntFromVariant(vgap.dataset.variant); return; }
       const gap = e.target.closest(".dash-gap[data-dex]");
       if (gap) { showTab("boxes"); jumpToSpecies(DEX_BY_NUM[Number(gap.dataset.dex)]); return; }
     });
@@ -4706,6 +4788,17 @@ function wire() {
 
   // Variants grid: toggle caught (in-place so a tap doesn't rebuild 270 cards).
   document.getElementById("panel-variants").addEventListener("click", (e) => {
+    const huntBtn = e.target.closest(".v-hunt");
+    if (huntBtn) { e.stopPropagation(); startHuntFromVariant(huntBtn.dataset.variant); return; }
+    const starBtn = e.target.closest(".v-star");
+    if (starBtn) {
+      e.stopPropagation();
+      toggleVariantWishlist(starBtn.dataset.variant);
+      const v = VARIANT_BY_ID[starBtn.dataset.variant];
+      if (v) starBtn.closest(".mon").replaceWith(variantCard(v));
+      refreshDashboard();
+      return;
+    }
     const card = e.target.closest(".mon");
     if (!card || !card.dataset.variant) return;
     const id = card.dataset.variant;
@@ -4922,14 +5015,14 @@ function wire() {
   els.huntRandomScope.addEventListener("change", () => { state.config.randomScope = els.huntRandomScope.value; save(); });
   els.huntActive.addEventListener("click", (e) => {
     const drop = e.target.closest(".ah-drop");
-    if (drop) { e.stopPropagation(); dropHunt(drop.dataset.mode, Number(drop.dataset.dex)); return; }
+    if (drop) { e.stopPropagation(); dropHunt(drop.dataset.mode, Number(drop.dataset.dex), drop.dataset.variant || null); return; }
     const row = e.target.closest(".active-hunt");
-    if (row) resumeHunt(row.dataset.mode, Number(row.dataset.dex));
+    if (row) resumeHunt(row.dataset.mode, Number(row.dataset.dex), row.dataset.variant || null);
   });
   els.huntActive.addEventListener("keydown", (e) => {
     if (e.key !== "Enter" && e.key !== " ") return;
     const row = e.target.closest(".active-hunt");
-    if (row) { e.preventDefault(); resumeHunt(row.dataset.mode, Number(row.dataset.dex)); }
+    if (row) { e.preventDefault(); resumeHunt(row.dataset.mode, Number(row.dataset.dex), row.dataset.variant || null); }
   });
   els.huntInput.addEventListener("keydown", (e) => { if (e.key === "Enter") loadTarget(els.huntInput.value); });
   document.getElementById("cfg-save").addEventListener("click", applyConfigInputs);

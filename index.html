@@ -224,7 +224,7 @@
 
       <div class="card">
         <h2>Target</h2>
-        <input list="species-list" id="hunt-input" class="search" placeholder="Type a name or #dex, then Load…" />
+        <input list="hunt-target-list" id="hunt-input" class="search" placeholder="Name, #dex, or variant (e.g. galarian meowth), then Load…" />
         <div class="controls" style="margin-top:8px">
           <button id="hunt-load" class="ctrl-btn">Load target</button>
           <button id="hunt-random" class="ctrl-btn good" title="Pick a random target to hunt">🎲 Surprise me</button>
@@ -788,6 +788,7 @@
   <!-- Shared species autocomplete — top-level so it works on every tab (a datalist
        inside a display:none panel won't surface options). -->
   <datalist id="species-list"></datalist>
+  <datalist id="hunt-target-list"></datalist>
   <datalist id="moves-list"></datalist>
 
   <script src="js/app.js"></script>

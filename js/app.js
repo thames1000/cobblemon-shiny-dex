@@ -1762,14 +1762,38 @@ function bumpCount(delta) {
 function loadTarget(raw) {
   const q = String(raw || "").trim().toLowerCase().replace(/^#/, "");
   if (!q) return;
+  // Exact species first (so "meowth" loads the species, not a variant).
   let sp = SPECIES.find((s) => s.name === q);
   if (!sp && /^\d+$/.test(q)) sp = DEX_BY_NUM[Number(q)];
-  if (!sp) sp = SPECIES.find((s) => s.name.startsWith(q));
-  if (!sp) { alert(`No species matching "${raw}".`); return; }
+  if (sp) { state.hunt.activeDex = sp.dex; state.hunt.activeVariant = null; ensureSession(state.hunt.mode, sp.dex); save(); renderHunt(); return; }
+  // Variant query ("galarian meowth", "alolan vulpix", "rainy castform").
+  const v = findVariantByQuery(raw);
+  if (v) { state.hunt.activeDex = v.dex; state.hunt.activeVariant = v.id; ensureSession(state.hunt.mode, v.dex, v.id); save(); renderHunt(); return; }
+  // Species prefix.
+  sp = SPECIES.find((s) => s.name.startsWith(q));
+  if (!sp) { alert(`No species or variant matching "${raw}".`); return; }
   state.hunt.activeDex = sp.dex;
   state.hunt.activeVariant = null;
   ensureSession(state.hunt.mode, sp.dex);
   save(); renderHunt();
+}
+// Resolve a free-text query to a tracked variant: the base species name AND a form
+// token (regional adjective / aspect / form name) must both appear.
+function findVariantByQuery(raw) {
+  const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
+  const nq = norm(raw);
+  if (!nq) return null;
+  let best = null, bestScore = 0;
+  for (const v of allVariantObjs()) {
+    const baseN = norm(v.base);
+    if (!baseN || !nq.includes(baseN)) continue;             // base species must appear
+    const forms = [norm(v.name), ...(v.aspects || []).map(norm)].filter(Boolean);
+    const hit = forms.filter((f) => nq.includes(f));
+    if (!hit.length) continue;                               // a form token must appear
+    const score = baseN.length + hit.reduce((a, f) => a + f.length, 0);
+    if (score > bestScore) { bestScore = score; best = v; }
+  }
+  return best;
 }
 // Start (or resume) a hunt for a specific variant — e.g. Galarian Meowth.
 function startHuntFromVariant(variantId) {
@@ -1817,7 +1841,7 @@ function randomPool(scope) {
       const wished = state.wishlist.map((d) => DEX_BY_NUM[d]).filter((sp) => sp && notDone(sp)).map(spT)
         .concat((state.variantWishlist || []).map((id) => VARIANT_BY_ID[id]).filter((v) => v && !variantShiny(v.id)).map(vT));
       if (wished.length) return wished;
-      const fresh = SPECIES.filter(notDone).map(spT);
+      const fresh = SPECIES.filter(notDone).map(spT).concat(vars.filter((v) => !variantShiny(v.id)).map(vT));
       return fresh.length ? fresh : SPECIES.map(spT);
     }
   }
@@ -5348,6 +5372,17 @@ async function boot() {
   // that filter suggestions by the label (not the value) still match name typing.
   els.speciesList.innerHTML = SPECIES
     .map((s) => `<option value="${s.name}">#${String(s.dex).padStart(4, "0")} ${s.name}</option>`).join("");
+  // Hunt-target autocomplete: species + variants (so "galarian meowth" suggests).
+  const huntList = document.getElementById("hunt-target-list");
+  if (huntList) {
+    const ADJ = { galarian: "Galarian", alolan: "Alolan", hisuian: "Hisuian", paldean: "Paldean" };
+    const vOpts = allVariantObjs().map((v) => {
+      const reg = (v.aspects || []).map((a) => String(a).toLowerCase()).find((a) => ADJ[a]);
+      const label = reg ? `${ADJ[reg]} ${v.base}` : `${v.base} ${v.name}`;
+      return `<option value="${label.replace(/"/g, "")}">✦ ${v.base} · ${v.name}</option>`;
+    }).join("");
+    huntList.innerHTML = els.speciesList.innerHTML + vOpts;
+  }
 
   // Party builder move autocomplete (name + type/category label).
   const movesList = document.getElementById("moves-list");

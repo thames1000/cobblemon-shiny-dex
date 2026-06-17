@@ -813,3 +813,28 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
   background: var(--panel-2); }
 .md-kv { display: grid; gap: 4px; font-size: .84rem; }
 .md-kv .muted { margin-right: 4px; }
+
+/* ---------- progress goals (dashboard) ---------- */
+.dash-goals-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.dash-goals-head h2 { margin: 0; flex: 1 1 auto; }
+.dash-goals-head .ctrl-btn { flex: 0 0 auto; padding: 4px 10px; }
+.goal-list { display: grid; gap: 12px; }
+.goal-row { display: grid; gap: 5px; }
+.goal-top { display: flex; align-items: baseline; gap: 8px; }
+.goal-name { font-weight: 600; flex: 1 1 auto; min-width: 0; }
+.goal-cnt { font-size: .8rem; color: var(--muted); flex: 0 0 auto; }
+.goal-del {
+  flex: 0 0 auto; width: 22px; height: 22px; padding: 0; line-height: 18px; cursor: pointer;
+  background: var(--panel-2); color: var(--muted); border: 1px solid var(--line); border-radius: 6px; font-size: .8rem;
+}
+.goal-del:hover { border-color: var(--bad, #e26d6d); color: var(--bad, #e26d6d); }
+.goal-pct { font-size: .72rem; color: var(--muted); text-align: right; margin-top: -2px; }
+.goal-done .goal-name { color: var(--boxed); }
+.goal-done .bar > i { background: var(--boxed); }
+.goal-done .goal-cnt { color: var(--boxed); font-weight: 700; }
+/* add-goal modal */
+.goal-box { max-width: 460px; }
+.goal-preview { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--panel-2); font-size: .86rem; line-height: 1.45; }
+.goal-exists { color: var(--gold); font-size: .8rem; }
+#goal-add[disabled] { opacity: .5; cursor: not-allowed; }

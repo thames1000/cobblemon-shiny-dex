@@ -46,6 +46,7 @@
         <div class="card dash-hunt" id="dash-hunt"></div>
         <div class="card" id="dash-progress"></div>
       </div>
+      <div class="card" id="dash-goals"></div>
       <div class="card" id="dash-next"></div>
       <div class="card" id="dash-wishlist"></div>
       <div class="card" id="dash-gaps"></div>
@@ -783,6 +784,52 @@
         <button id="showcase-copy" class="ctrl-btn">📋 Copy text</button>
       </div>
       <p class="hint" style="margin:8px 0 0">Drop the PNG in your server chat or Discord to flex the catch. ✨</p>
+    </div>
+  </div>
+
+  <!-- Add-a-goal chooser — top-level so it opens from the dashboard Goals card. -->
+  <div class="modal" id="goal-modal" hidden>
+    <div class="modal-box goal-box">
+      <button class="modal-close" data-close title="Close">✕</button>
+      <h2>Add a goal</h2>
+      <label class="field">Goal
+        <select id="goal-type" class="select">
+          <optgroup label="Shiny dex">
+            <option value="gen-shiny">Complete a generation's shiny dex</option>
+            <option value="dex-shiny">Complete the full shiny dex</option>
+          </optgroup>
+          <optgroup label="Living dex (boxed)">
+            <option value="count-boxed">Box your first N shinies</option>
+            <option value="gen-boxed">Box an entire generation</option>
+            <option value="dex-boxed">Box the whole living dex</option>
+          </optgroup>
+          <optgroup label="Collections">
+            <option value="starters">Shiny all starters</option>
+            <option value="legendary-shiny">Shiny all legendaries</option>
+            <option value="variants-shiny">Shiny all variants</option>
+            <option value="wishlist-shiny">Clear your wishlist (all shiny)</option>
+          </optgroup>
+          <optgroup label="Milestones">
+            <option value="count-shiny">Catch N shinies</option>
+          </optgroup>
+        </select>
+      </label>
+      <label class="field" id="goal-gen-field" hidden>Generation
+        <select id="goal-gen" class="select">
+          <option value="1">Gen 1</option><option value="2">Gen 2</option>
+          <option value="3">Gen 3</option><option value="4">Gen 4</option>
+          <option value="5">Gen 5</option><option value="6">Gen 6</option>
+          <option value="7">Gen 7</option><option value="8">Gen 8</option>
+          <option value="9">Gen 9</option>
+        </select>
+      </label>
+      <label class="field" id="goal-target-field" hidden>Target count
+        <input id="goal-target" type="number" min="1" step="1" value="100" class="search" />
+      </label>
+      <div id="goal-preview" class="goal-preview"></div>
+      <div class="controls" style="margin-top:12px">
+        <button class="ctrl-btn good" id="goal-add">Add goal</button>
+      </div>
     </div>
   </div>
 

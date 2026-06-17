@@ -61,7 +61,7 @@ function newParty(name) {
 }
 function defaultParty() { const p = newParty("Party 1"); return { active: p.id, list: [p] }; }
 function freshState() {
-  return { dex: {}, forms: {}, variants: {}, legendaries: {}, berries: {}, wishlist: [], variantWishlist: [], party: defaultParty(), config: defaultConfig(), hunt: defaultHunt() };
+  return { dex: {}, forms: {}, variants: {}, legendaries: {}, berries: {}, wishlist: [], variantWishlist: [], goals: [], party: defaultParty(), config: defaultConfig(), hunt: defaultHunt() };
 }
 let state = freshState();
 
@@ -80,6 +80,18 @@ function normalize() {
   const rawVW = Array.isArray(state.variantWishlist) ? state.variantWishlist : [];
   const seenVW = new Set();
   state.variantWishlist = rawVW.filter((id) => typeof id === "string" && id && !seenVW.has(id) && seenVW.add(id));
+  // Progress goals: keep only well-formed entries with a known type; drop dup signatures.
+  const rawGoals = Array.isArray(state.goals) ? state.goals : [];
+  const seenGoals = new Set();
+  state.goals = rawGoals.filter((g) => {
+    if (!g || typeof g !== "object" || !GOAL_TYPES[g.type]) return false;
+    const sig = goalSig(g);
+    if (seenGoals.has(sig)) return false;
+    seenGoals.add(sig);
+    if (!g.id) g.id = "g" + (g.createdAt || 0).toString(36) + Math.floor(Math.random() * 1e6).toString(36);
+    if (!Number.isFinite(g.createdAt)) g.createdAt = Date.now();
+    return true;
+  });
   normalizeParty();
   state.config = Object.assign(defaultConfig(), state.config || {});
   if (typeof state.config.huntHotkey !== "string") state.config.huntHotkey = "Space";
@@ -2397,6 +2409,7 @@ function refreshDashboard() {
 function renderDashboard() {
   renderDashHunt();
   renderDashProgress();
+  renderDashGoals();
   renderDashNext();
   renderDashWishlist();
   renderDashGaps();
@@ -2535,6 +2548,120 @@ function renderDashGaps() {
       `</div>`;
     }).join("") + `</div>`;
 }
+
+/* ---------- Progress goals (user-defined targets) ----------
+ * Each goal is a small typed record in state.goals; GOAL_TYPES says how to label
+ * it and how to compute {have, need} live from the dex/collection state, so a goal
+ * never stores a stale count — it always reflects current progress. */
+const STARTER_DEX = [1, 4, 7, 152, 155, 158, 252, 255, 258, 387, 390, 393,
+  495, 498, 501, 650, 653, 656, 722, 725, 728, 810, 813, 816, 906, 909, 912];
+
+function isShinyDex(dex) { const s = dexState(dex); return s === "shiny" || s === "boxed"; }
+function isBoxedDex(dex) { return dexState(dex) === "boxed"; }
+function speciesInGen(gen) { return SPECIES.filter((s) => s.gen === gen); }
+
+const GOAL_TYPES = {
+  "dex-shiny": { icon: "✨", label: () => "Full shiny dex",
+    eval: () => ({ have: SPECIES.filter((s) => isShinyDex(s.dex)).length, need: SPECIES.length }) },
+  "gen-shiny": { icon: "✨", needsGen: true, label: (g) => `Gen ${g.gen} shiny dex`,
+    eval: (g) => { const l = speciesInGen(g.gen); return { have: l.filter((s) => isShinyDex(s.dex)).length, need: l.length }; } },
+  "dex-boxed": { icon: "📦", label: () => "Box the living dex",
+    eval: () => ({ have: SPECIES.filter((s) => isBoxedDex(s.dex)).length, need: SPECIES.length }) },
+  "gen-boxed": { icon: "📦", needsGen: true, label: (g) => `Box all of Gen ${g.gen}`,
+    eval: (g) => { const l = speciesInGen(g.gen); return { have: l.filter((s) => isBoxedDex(s.dex)).length, need: l.length }; } },
+  "count-boxed": { icon: "📦", needsTarget: true, label: (g) => `Box ${g.target} shinies`,
+    eval: (g) => ({ have: SPECIES.filter((s) => isBoxedDex(s.dex)).length, need: g.target }) },
+  "count-shiny": { icon: "✨", needsTarget: true, label: (g) => `Catch ${g.target} shinies`,
+    eval: (g) => ({ have: SPECIES.filter((s) => isShinyDex(s.dex)).length, need: g.target }) },
+  "starters": { icon: "🌱", label: () => "Shiny all starters",
+    eval: () => ({ have: STARTER_DEX.filter(isShinyDex).length, need: STARTER_DEX.length }) },
+  "legendary-shiny": { icon: "👑", label: () => "Shiny all legendaries",
+    eval: () => { const l = (LEGENDS && LEGENDS.list) || []; return { have: l.filter((e) => state.legendaries[e.dex] === "shiny").length, need: l.length }; } },
+  "variants-shiny": { icon: "🎨", label: () => "Shiny all variants",
+    eval: () => { const l = allVariants(); return { have: l.filter((v) => state.variants[v.id] === "shiny").length, need: l.length }; } },
+  "wishlist-shiny": { icon: "★", label: () => "Clear your wishlist",
+    eval: () => {
+      const sp = state.wishlist.filter(isShinyDex).length;
+      const vw = (state.variantWishlist || []).filter((id) => state.variants[id] === "shiny").length;
+      return { have: sp + vw, need: state.wishlist.length + (state.variantWishlist || []).length };
+    } },
+};
+function goalSig(g) { return [g.type, g.gen || "", g.target || ""].join("|"); }
+function goalLabel(g) { return GOAL_TYPES[g.type].label(g); }
+function evalGoal(g) {
+  const t = GOAL_TYPES[g.type];
+  const { have, need } = t.eval(g);
+  return { icon: t.icon, have, need, done: need > 0 && have >= need, pct: need > 0 ? Math.min(100, (have / need) * 100) : 0 };
+}
+function addGoal(g) {
+  if (state.goals.some((x) => goalSig(x) === goalSig(g))) return false;
+  g.id = "g" + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
+  g.createdAt = Date.now();
+  state.goals.push(g);
+  save();
+  return true;
+}
+function removeGoal(id) { state.goals = state.goals.filter((g) => g.id !== id); save(); }
+
+function renderDashGoals() {
+  const el = document.getElementById("dash-goals");
+  if (!el) return;
+  const head = `<div class="dash-goals-head"><h2>🎯 Goals</h2>
+    <button class="ctrl-btn" id="goal-add-open">+ Add goal</button></div>`;
+  const goals = state.goals || [];
+  if (!goals.length) {
+    el.innerHTML = head + `<p class="hint">Set yourself a target — finish a gen's shiny dex, box your first 100,
+      shiny all the starters or legendaries, or clear your wishlist. Progress fills in here as you catch.</p>`;
+    return;
+  }
+  // In-progress first (fullest bar first), completed goals sink to the bottom.
+  const rows = goals.map((g) => ({ g, r: evalGoal(g) }))
+    .sort((a, b) => (a.r.done - b.r.done) || (b.r.pct - a.r.pct))
+    .map(({ g, r }) => {
+      const cnt = r.done ? "Complete!" : r.need > 0 ? `${r.have}/${r.need}` : `${r.have} · nothing queued`;
+      return `<div class="goal-row${r.done ? " goal-done" : ""}" data-goal="${g.id}">
+        <div class="goal-top">
+          <span class="goal-name">${r.done ? "✅" : r.icon} ${goalLabel(g)}</span>
+          <span class="goal-cnt">${cnt}</span>
+          <button class="goal-del" data-goal="${g.id}" title="Remove this goal" aria-label="Remove goal">✕</button>
+        </div>
+        <div class="bar"><i style="width:${r.pct}%"></i></div>
+        ${r.done || r.need <= 0 ? "" : `<div class="goal-pct">${Math.round(r.pct)}%</div>`}
+      </div>`;
+    }).join("");
+  el.innerHTML = head + `<div class="goal-list">${rows}</div>`;
+}
+
+/* Add-goal modal */
+function buildGoalFromModal() {
+  const type = document.getElementById("goal-type").value;
+  const t = GOAL_TYPES[type] || {};
+  const g = { type };
+  if (t.needsGen) g.gen = Number(document.getElementById("goal-gen").value) || 1;
+  if (t.needsTarget) g.target = Math.max(1, Math.floor(Number(document.getElementById("goal-target").value) || 0));
+  return g;
+}
+function updateGoalModalFields() {
+  const type = document.getElementById("goal-type").value;
+  const t = GOAL_TYPES[type] || {};
+  document.getElementById("goal-gen-field").hidden = !t.needsGen;
+  document.getElementById("goal-target-field").hidden = !t.needsTarget;
+  const g = buildGoalFromModal();
+  const r = evalGoal(g);
+  const exists = state.goals.some((x) => goalSig(x) === goalSig(g));
+  document.getElementById("goal-preview").innerHTML =
+    `<b>${t.icon} ${goalLabel(g)}</b> — currently ` +
+    (r.need > 0 ? `${r.have}/${r.need} (${Math.round(r.pct)}%)` : "nothing queued yet") +
+    (exists ? `<br><span class="goal-exists">⚠ Already tracking this goal.</span>` : "");
+  document.getElementById("goal-add").disabled = exists;
+}
+function openGoalModal() {
+  document.getElementById("goal-type").value = "gen-shiny";
+  document.getElementById("goal-target").value = "100";
+  updateGoalModalFields();
+  document.getElementById("goal-modal").hidden = false;
+}
+function closeGoalModal() { document.getElementById("goal-modal").hidden = true; }
 
 /* ---------- "What should I hunt next?" recommender (#12) ---------- */
 // Static id maps (forms/variants by base dex) — built once; membership in
@@ -4963,6 +5090,9 @@ function wire() {
       if (e.target.closest("#dash-found")) { foundShiny(false); return; }
       if (e.target.closest("#dash-boxed")) { foundShiny(true); return; }
       if (e.target.closest("#dash-surprise")) { randomHuntTarget(); refreshDashboard(); return; }
+      if (e.target.closest("#goal-add-open")) { openGoalModal(); return; }
+      const goalDel = e.target.closest(".goal-del");
+      if (goalDel) { e.stopPropagation(); removeGoal(goalDel.dataset.goal); renderDashGoals(); return; }
       const nextHunt = e.target.closest(".next-hunt");
       if (nextHunt) { e.stopPropagation(); startHuntFor(Number(nextHunt.dataset.dex), "encounter"); return; }
       const formsTog = e.target.closest(".next-forms-toggle");
@@ -5130,6 +5260,8 @@ function wire() {
     if (els.showcaseModal && !els.showcaseModal.hidden) els.showcaseModal.hidden = true;
     const dm = document.getElementById("mon-detail-modal");
     if (dm && !dm.hidden) closeMonDetail();
+    const gm = document.getElementById("goal-modal");
+    if (gm && !gm.hidden) closeGoalModal();
   });
 
   els.dexSearch.addEventListener("input", renderDex);
@@ -5143,6 +5275,20 @@ function wire() {
     const mb = e.target.closest("[data-hsmode]");
     if (mb) startHuntFromDex(mb.dataset.hsmode);
   });
+
+  // Add-a-goal modal.
+  const goalModal = document.getElementById("goal-modal");
+  if (goalModal) {
+    goalModal.addEventListener("click", (e) => {
+      if (e.target === goalModal || e.target.closest("[data-close]")) { closeGoalModal(); return; }
+      if (e.target.closest("#goal-add")) {
+        if (addGoal(buildGoalFromModal())) { closeGoalModal(); refreshDashboard(); }
+        else updateGoalModalFields();
+      }
+    });
+    goalModal.addEventListener("change", (e) => { if (e.target.closest("#goal-type, #goal-gen, #goal-target")) updateGoalModalFields(); });
+    goalModal.addEventListener("input", (e) => { if (e.target.closest("#goal-target")) updateGoalModalFields(); });
+  }
 
   // Per-Pokémon detail modal: all interactions delegated so they survive each
   // renderMonDetail() rebuild. Most actions jump to the relevant tab + close.

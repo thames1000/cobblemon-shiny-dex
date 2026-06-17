@@ -861,6 +861,26 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .md-kv { display: grid; gap: 4px; font-size: .84rem; }
 .md-kv .muted { margin-right: 4px; }
 
+/* ---------- backup & sync confidence ---------- */
+.dash-backup { border-color: var(--shiny); box-shadow: 0 0 0 1px var(--shiny) inset; }
+.dash-backup h2 { margin-top: 0; }
+.backup-health { margin: 0 0 12px; }
+.bk-status { font-size: .9rem; font-weight: 600; padding: 9px 12px; border-radius: 9px;
+  border: 1px solid var(--line); background: var(--panel-2); margin-bottom: 10px; }
+.bk-status.bk-ok { border-color: var(--boxed); color: #aef0d4; }
+.bk-status.bk-warn { border-color: var(--shiny); color: #ffe6a3; }
+.bk-rows { display: grid; gap: 5px; }
+.bk-row { display: flex; justify-content: space-between; gap: 12px; align-items: baseline;
+  font-size: .85rem; border-bottom: 1px dashed var(--line); padding-bottom: 4px; }
+.bk-row span { color: var(--muted); }
+.bk-summary { font-size: .8rem; margin-top: 8px; }
+/* merge preview table in the sign-in conflict dialog */
+.bk-pre { width: 100%; border-collapse: collapse; margin: 8px 0 0; font-size: .82rem; }
+.bk-pre th, .bk-pre td { padding: 4px 6px; text-align: center; border-bottom: 1px solid var(--line); }
+.bk-pre th:first-child, .bk-pre td:first-child { text-align: left; color: var(--muted); white-space: nowrap; }
+.bk-pre tbody tr:last-child td { border-bottom: 0; }
+.bk-pre-merge td { font-weight: 700; color: var(--boxed); }
+
 /* ---------- progress goals (dashboard) ---------- */
 .dash-goals-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .dash-goals-head h2 { margin: 0; flex: 1 1 auto; }

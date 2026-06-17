@@ -45,6 +45,7 @@
   <main class="app-main">
     <!-- ============ HOME / DASHBOARD ============ -->
     <section class="panel active" id="panel-home">
+      <div class="card dash-backup" id="dash-backup" hidden></div>
       <div class="dash-grid">
         <div class="card dash-hunt" id="dash-hunt"></div>
         <div class="card" id="dash-progress"></div>
@@ -724,6 +725,7 @@
               collection progress (keeps the further-along of each), keeping this device's party/settings.</p>
             <p id="conflict-local" class="muted"></p>
             <p id="conflict-cloud" class="muted"></p>
+            <div id="conflict-preview"></div>
             <div class="controls">
               <button id="conflict-keep-cloud" class="ctrl-btn">Use cloud copy</button>
               <button id="conflict-keep-local" class="ctrl-btn">Keep this device</button>
@@ -734,9 +736,11 @@
       </div>
       <div class="card">
         <h2>Backup &amp; restore</h2>
-        <p class="hint">Your progress lives only in this browser. Export regularly — it's your only backup.
-          The JSON includes <strong>everything</strong>: Dex &amp; Boxes, Mega/GMax, <strong>Variants</strong>
-          and <strong>Legendaries</strong> (incl. shinies), your <strong>Berry collection</strong>, Hunt sessions and settings.</p>
+        <div id="backup-health" class="backup-health"></div>
+        <p class="hint">Your progress lives only in this browser. Export regularly — it's your only backup
+          (cloud sync above is the other). The JSON includes <strong>everything</strong>: Dex &amp; Boxes, Mega/GMax,
+          <strong>Variants</strong> and <strong>Legendaries</strong> (incl. shinies), your <strong>Berry collection</strong>,
+          Hunt sessions and settings.</p>
         <div class="controls">
           <button id="export-btn" class="ctrl-btn good">⬇ Export JSON</button>
           <button id="import-btn" class="ctrl-btn">⬆ Import JSON</button>

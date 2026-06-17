@@ -267,6 +267,114 @@ function fmtWhen(ms) {
   if (!ms) return "unknown time";
   try { return new Date(ms).toLocaleString(); } catch (_) { return "unknown time"; }
 }
+function relTime(ms) {
+  if (!ms) return "never";
+  const d = Date.now() - ms;
+  if (d < 0) return "just now";
+  if (d < 60000) return "just now";
+  const mins = Math.floor(d / 60000); if (mins < 60) return mins + (mins === 1 ? " min ago" : " mins ago");
+  const hrs = Math.floor(d / 3600000); if (hrs < 24) return hrs + (hrs === 1 ? " hour ago" : " hours ago");
+  const days = Math.floor(d / 86400000); if (days < 30) return days + (days === 1 ? " day ago" : " days ago");
+  return fmtWhen(ms);
+}
+
+/* ---------- backup & sync confidence ----------
+ * Device-local timestamps (NOT part of the synced state) so the UI can reassure
+ * the user their progress is safe and nudge a local export when it goes stale. */
+const META = { backup: "shinydex-last-backup", sync: "shinydex-last-sync", snooze: "shinydex-backup-snooze" };
+const DAY_MS = 86400000;
+const BACKUP_STALE_DAYS = 7;
+function metaGet(k) { try { return Number(localStorage.getItem(k)) || 0; } catch (_) { return 0; } }
+function metaSet(k, v) { try { localStorage.setItem(k, String(v)); } catch (_) { /* private mode */ } }
+// Progress exists locally and has changed since the last export.
+function hasUnbackedChanges() { return localHasProgress() && (state.updatedAt || 0) > metaGet(META.backup); }
+// Stale = real unsaved-to-file progress, and it's been a while since the last export.
+function backupIsStale() {
+  return hasUnbackedChanges() && (Date.now() - metaGet(META.backup)) > BACKUP_STALE_DAYS * DAY_MS;
+}
+// Whether to show the dashboard nudge: stale, not snoozed, and not already covered
+// by an active, freshly-synced cloud backup.
+function shouldNagBackup() {
+  if (cloudActive && (lastSyncAt || metaGet(META.sync))) return false;
+  return backupIsStale() && Date.now() > metaGet(META.snooze);
+}
+function snoozeBackup() { metaSet(META.snooze, Date.now() + 3 * DAY_MS); renderDashBackup(); }
+
+// A one-line collection summary used by the merge preview and the health card.
+function collectionSummary(s) {
+  const dex = (s && s.dex) || {};
+  let caught = 0, shiny = 0, boxed = 0;
+  for (const k in dex) {
+    const v = dex[k];
+    if (v === "caught" || v === "shiny" || v === "boxed") caught++;
+    if (v === "shiny" || v === "boxed") shiny++;
+    if (v === "boxed") boxed++;
+  }
+  return {
+    caught, shiny, boxed,
+    variants: Object.values((s && s.variants) || {}).filter(Boolean).length,
+    legend: Object.values((s && s.legendaries) || {}).filter(Boolean).length,
+    finds: (((s && s.hunt) || {}).finds || []).length,
+  };
+}
+
+// Health panel in the Data tab: last save / last backup / last sync + a verdict.
+function renderBackupCard() {
+  const el = document.getElementById("backup-health");
+  if (!el) return;
+  const sm = collectionSummary(state);
+  const lastBackup = metaGet(META.backup);
+  const lastSync = lastSyncAt || metaGet(META.sync);
+  const cloudOn = !!(window.ShinyCloud && window.ShinyCloud.configured && cloudUser);
+  let status, cls;
+  if (cloudOn && cloudActive && lastSync) { status = "✓ Synced to the cloud — your progress is backed up."; cls = "ok"; }
+  else if (!localHasProgress()) { status = "No progress yet — nothing to back up."; cls = "neutral"; }
+  else if (!lastBackup) { status = "⚠ You've never exported a backup. Your progress lives only in this browser."; cls = "warn"; }
+  else if (backupIsStale()) { status = `⚠ Last backup was ${relTime(lastBackup)} and you've caught more since. Export again to be safe.`; cls = "warn"; }
+  else if (hasUnbackedChanges()) { status = "You've made changes since your last export — a fresh backup wouldn't hurt."; cls = "neutral"; }
+  else { status = "✓ Your latest progress is backed up."; cls = "ok"; }
+  el.innerHTML =
+    `<div class="bk-status bk-${cls}">${status}</div>` +
+    `<div class="bk-rows">` +
+      `<div class="bk-row"><span>Last saved on this device</span><b>${relTime(state.updatedAt || 0)}</b></div>` +
+      `<div class="bk-row"><span>Last backup downloaded</span><b>${lastBackup ? relTime(lastBackup) : "never"}</b></div>` +
+      (cloudOn ? `<div class="bk-row"><span>Last cloud sync</span><b>${lastSync ? relTime(lastSync) : "—"}</b></div>` : "") +
+    `</div>` +
+    `<div class="bk-summary muted">Tracking ✨ ${sm.shiny} shiny · 📦 ${sm.boxed} boxed · ${sm.variants} variants · ${sm.legend} legendaries · ${sm.finds} logs</div>`;
+}
+
+// Dashboard nudge — only appears when a local-only backup has gone stale.
+function renderDashBackup() {
+  const el = document.getElementById("dash-backup");
+  if (!el) return;
+  if (!shouldNagBackup()) { el.hidden = true; el.innerHTML = ""; return; }
+  const last = metaGet(META.backup);
+  el.hidden = false;
+  el.innerHTML =
+    `<h2>💾 Back up your progress</h2>` +
+    `<p class="hint">Your shinies live only in this browser${last ? ` — your last export was ${relTime(last)}` : " and you haven't exported a backup yet"}. ` +
+      `A cache-clear or browser reset could wipe everything. Download a backup to be safe.</p>` +
+    `<div class="controls">` +
+      `<button class="ctrl-btn good" id="dash-backup-export">⬇ Export backup</button>` +
+      `<button class="ctrl-btn" id="dash-backup-snooze">Remind me later</button>` +
+    `</div>`;
+}
+
+// Merge preview in the sign-in conflict dialog: what each copy holds and what a
+// merge would produce, so "Merge both" is a confident click.
+function renderConflictPreview(remoteJson) {
+  const el = document.getElementById("conflict-preview");
+  if (!el) return;
+  let cloud = null;
+  try { cloud = JSON.parse(remoteJson); } catch (_) { /* leave null */ }
+  const merged = mergeRemote(remoteJson);
+  const L = collectionSummary(state), C = collectionSummary(cloud || {}), M = collectionSummary(merged || state);
+  const row = (lbl, s, hl) => `<tr${hl ? ' class="bk-pre-merge"' : ""}><td>${lbl}</td><td>${s.shiny}</td><td>${s.boxed}</td><td>${s.caught}</td><td>${s.variants}</td><td>${s.legend}</td><td>${s.finds}</td></tr>`;
+  el.innerHTML =
+    `<table class="bk-pre"><thead><tr><th></th><th title="Shiny">✨</th><th title="Boxed">📦</th><th>Caught</th><th>Var</th><th>Leg</th><th>Logs</th></tr></thead>` +
+    `<tbody>${row("This device", L)}${row("Cloud", C)}${row("After merge", M, true)}</tbody></table>` +
+    `<p class="hint" style="margin:6px 0 0">Merge keeps the further-along of each — it only ever <b>adds</b> progress, never removes it.</p>`;
+}
 
 // Reacts to a Firebase auth change relayed by cloud.js.
 async function onCloudAuth(user) {
@@ -302,6 +410,7 @@ function resolveConflict(remote) {
   const cloudAt = remote.updatedAt || 0;
   if (els.conflictLocal) els.conflictLocal.textContent = "This device — updated " + fmtWhen(localAt);
   if (els.conflictCloud) els.conflictCloud.textContent = "Cloud — updated " + fmtWhen(cloudAt);
+  renderConflictPreview(remote.json);
   if (els.accountConflict) els.accountConflict.hidden = false;
   setSyncBadge(""); // paused until the user decides
 }
@@ -2429,6 +2538,7 @@ function refreshDashboard() {
   if (home && home.classList.contains("active")) renderDashboard();
 }
 function renderDashboard() {
+  renderDashBackup();
   renderDashHunt();
   renderDashProgress();
   renderDashGoals();
@@ -4930,6 +5040,7 @@ function showTab(name) {
   if (name === "home") renderDashboard();
   if (name === "stats") renderStats();
   if (name === "sim") renderSim();
+  if (name === "data") renderBackupCard();
   location.hash = name;
 }
 
@@ -4941,6 +5052,11 @@ function exportData() {
   a.download = "shinydex-hq-backup.json";
   a.click();
   URL.revokeObjectURL(a.href);
+  // Record that the current state is now safely on disk, and clear any nudge.
+  metaSet(META.backup, Date.now());
+  metaSet(META.snooze, 0);
+  renderBackupCard();
+  refreshDashboard();
 }
 function importData(file) {
   const reader = new FileReader();
@@ -4951,9 +5067,13 @@ function importData(file) {
       state = Object.assign(freshState(), d);
       normalize();
       save();
+      // The imported file is itself a backup the user holds, so treat the restored
+      // state as backed up (don't immediately nag for an export).
+      metaSet(META.backup, Date.now());
+      metaSet(META.snooze, 0);
       renderDex(); renderForms(); renderVariants(); renderLegendary(); renderBerries(); renderParty();
       fillConfigInputs(); renderHunt(); renderBoxes(); renderSnack();
-      renderDashboard(); renderStats(); renderLog();
+      renderDashboard(); renderStats(); renderLog(); renderBackupCard();
       const dexN = Object.keys(state.dex).length;
       const varN = Object.keys(state.variants).length;
       const berryN = Object.keys(state.berries).length;
@@ -5144,6 +5264,8 @@ function wire() {
       if (e.target.closest("#dash-found")) { foundShiny(false); return; }
       if (e.target.closest("#dash-boxed")) { foundShiny(true); return; }
       if (e.target.closest("#dash-surprise")) { randomHuntTarget(); refreshDashboard(); return; }
+      if (e.target.closest("#dash-backup-export")) { exportData(); return; }
+      if (e.target.closest("#dash-backup-snooze")) { snoozeBackup(); return; }
       if (e.target.closest("#goal-add-open")) { openGoalModal(); return; }
       const goalDel = e.target.closest(".goal-del");
       if (goalDel) { e.stopPropagation(); removeGoal(goalDel.dataset.goal); renderDashGoals(); return; }
@@ -5721,6 +5843,7 @@ function wire() {
       state = freshState();
       save(); renderDex(); renderForms(); renderVariants(); renderLegendary(); renderBerries(); renderParty();
       fillConfigInputs(); renderHunt(); renderBoxes(); renderSnack(); renderDashboard(); renderStats(); renderLog();
+      renderBackupCard();
     }
   });
 
@@ -5785,7 +5908,7 @@ async function boot() {
   window.addEventListener("cloud-auth", (e) => onCloudAuth(e.detail && e.detail.user));
   window.addEventListener("cloud-status", (e) => {
     const d = e.detail || {};
-    if (d.state === "synced" && d.at) lastSyncAt = d.at;
+    if (d.state === "synced" && d.at) { lastSyncAt = d.at; metaSet(META.sync, d.at); renderBackupCard(); refreshDashboard(); }
     setSyncBadge(d.state, d.message);
     showAccountView();
   });

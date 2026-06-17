@@ -25,7 +25,14 @@ const OUT = path.join(__dirname, "..", "cobbleverse-spawns.csv");
 
 const COLS = ["Gen", "No.", "Pokémon", "Biome", "Excluded", "Time", "Weather",
   "Context", "Preset", "Requirements", "Bucket", "Weight", "Lv. Min", "Lv. Max", "canSeeSky",
-  "Hitbox W", "Hitbox H", "Hitbox Fixed"];
+  "Hitbox W", "Hitbox H", "Hitbox Fixed", "Datapack"];
+
+// Server-side datapack spawns (committed under research/legendary-encounters/).
+// These are NOT in the base Cobbleverse extract — they require the datapack to be
+// installed — so they're appended with the Datapack column set to the pack name.
+const DATAPACKS = [
+  { dir: path.join(__dirname, "..", "research", "legendary-encounters"), label: "Legendary Encounters" },
+];
 
 // Form-name normaliser shared with build-hitboxes.js: maps regional demonyms to
 // the species form stem ("alolan"->"alola") so spawn forms match species forms.
@@ -122,12 +129,78 @@ function csvCell(v) {
   return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
 }
 
+// Emit the CSV rows for one spawn (one per included biome). `s` is in the
+// research-extract spawn shape; `datapack` is "" for base spawns or a pack name.
+// Returns true if any row was emitted.
+function emitSpawn(rows, seen, GEN, H, dex, baseName, s, datapack) {
+  const form = formLabel(s.form);
+  const name = form ? `${baseName} (${form})` : baseName;
+  const lvl = String(s.level || "").split("-");
+  const lvMin = lvl[0] || "";
+  const lvMax = lvl[1] || lvl[0] || "";
+  const sky = s.sky && s.sky.canSeeSky === true ? "TRUE" : s.sky && s.sky.canSeeSky === false ? "FALSE" : "";
+  const hb = hitboxFor(H, dex, s.form);
+  const common = {
+    Gen: GEN[dex] || "", "No.": dex, "Pokémon": name,
+    Excluded: ((s.biomes.exclude || []).map(biomeLabel).filter(Boolean)).join(", "),
+    Time: timeLabel(s.time), Weather: weatherLabel(s.weather),
+    Context: s.position || "grounded",
+    Preset: (s.presets || []).map(presetLabel).join(", "),
+    Requirements: requirements(s),
+    Bucket: s.rarity || "", Weight: s.weight, "Lv. Min": lvMin, "Lv. Max": lvMax,
+    canSeeSky: sky,
+    "Hitbox W": hb.w, "Hitbox H": hb.h,
+    "Hitbox Fixed": hb.fixed === true ? "TRUE" : hb.fixed === false ? "FALSE" : "",
+    Datapack: datapack || "",
+  };
+  // One row per biome category (base style). No biome (summon/structure-only)
+  // still yields a single row so legendaries etc. are never dropped.
+  const biomes = [...new Set((s.biomes.include || []).map(biomeLabel).filter(Boolean))];
+  const targets = biomes.length ? biomes : [""];
+  let emitted = false;
+  for (const b of targets) {
+    const row = Object.assign({ Biome: b }, common);
+    const line = COLS.map((c) => csvCell(row[c]));
+    const dedupKey = line.join("");
+    if (seen.has(dedupKey)) continue;
+    seen.add(dedupKey);
+    rows.push(line.join(","));
+    emitted = true;
+  }
+  return emitted;
+}
+
+// Convert one raw Cobblemon spawn_pool_world spawn (datapack format) into the
+// research-extract spawn shape that emitSpawn() consumes.
+function datapackSpawnToResearch(sp) {
+  const c = sp.condition || {};
+  return {
+    form: null,
+    level: sp.level || "",
+    weight: sp.weight != null ? sp.weight : "",
+    rarity: sp.bucket || "",
+    position: sp.context || "grounded",
+    presets: sp.presets || [],
+    time: c.timeRange || null,
+    weather: c.weather ? [c.weather] : null,
+    sky: c.canSeeSky === undefined ? null : { canSeeSky: c.canSeeSky },
+    biomes: { include: c.biomes || [], exclude: c.excludedBiomes || [] },
+  };
+}
+
 function main() {
   const research = JSON.parse(fs.readFileSync(RESEARCH, "utf8")).species;
   const species = JSON.parse(fs.readFileSync(SPECIES, "utf8"));
   const H = JSON.parse(fs.readFileSync(HITBOX, "utf8"));
   const GEN = {}, NAME = {};
-  species.forEach((s) => { GEN[s.dex] = s.gen; NAME[s.dex] = s.name; });
+  const dexByNorm = {}, dexByBase = {};
+  const norm = (x) => String(x).toLowerCase().replace(/[^a-z0-9]/g, "");
+  species.forEach((s) => {
+    GEN[s.dex] = s.gen; NAME[s.dex] = s.name;
+    dexByNorm[norm(s.name)] = s.dex;
+    const base = norm(String(s.name).split("-")[0]);
+    if (!(base in dexByBase)) dexByBase[base] = s.dex;
+  });
 
   // Order by dex, then by the record's natural order.
   const keys = Object.keys(research).sort((a, b) => (research[a].dex || 0) - (research[b].dex || 0));
@@ -140,46 +213,35 @@ function main() {
     const dex = sp.dex;
     const baseName = titleWords((NAME[dex] || sp.name || String(key)).replace(/-/g, " "));
     let emittedForSpecies = false;
-
     for (const s of sp.spawns || []) {
-      const form = formLabel(s.form);
-      const name = form ? `${baseName} (${form})` : baseName;
-      const lvl = String(s.level || "").split("-");
-      const lvMin = lvl[0] || "";
-      const lvMax = lvl[1] || lvl[0] || "";
-      const sky = s.sky && s.sky.canSeeSky === true ? "TRUE" : s.sky && s.sky.canSeeSky === false ? "FALSE" : "";
-      const hb = hitboxFor(H, dex, s.form);
-      const common = {
-        Gen: GEN[dex] || "", "No.": dex, "Pokémon": name,
-        Excluded: ((s.biomes.exclude || []).map(biomeLabel).filter(Boolean)).join(", "),
-        Time: timeLabel(s.time), Weather: weatherLabel(s.weather),
-        Context: s.position || "grounded",
-        Preset: (s.presets || []).map(presetLabel).join(", "),
-        Requirements: requirements(s),
-        Bucket: s.rarity || "", Weight: s.weight, "Lv. Min": lvMin, "Lv. Max": lvMax,
-        canSeeSky: sky,
-        "Hitbox W": hb.w, "Hitbox H": hb.h,
-        "Hitbox Fixed": hb.fixed === true ? "TRUE" : hb.fixed === false ? "FALSE" : "",
-      };
-      // One row per biome category (base style). No biome (summon/structure-only)
-      // still yields a single row so legendaries etc. are never dropped.
-      const biomes = [...new Set((s.biomes.include || []).map(biomeLabel).filter(Boolean))];
-      const targets = biomes.length ? biomes : [""];
-      for (const b of targets) {
-        const row = Object.assign({ Biome: b }, common);
-        const line = COLS.map((c) => csvCell(row[c]));
-        const dedupKey = line.join("");
-        if (seen.has(dedupKey)) continue;
-        seen.add(dedupKey);
-        rows.push(line.join(","));
-        emittedForSpecies = true;
-      }
+      if (emitSpawn(rows, seen, GEN, H, dex, baseName, s, "")) emittedForSpecies = true;
     }
     if (emittedForSpecies) speciesOut++;
   }
 
+  // Append committed datapack spawns (require the datapack to be installed).
+  let dpRows = 0; const dpUnmatched = [];
+  for (const pack of DATAPACKS) {
+    if (!fs.existsSync(pack.dir)) continue;
+    for (const file of fs.readdirSync(pack.dir).filter((f) => f.endsWith(".json")).sort()) {
+      let data; try { data = JSON.parse(fs.readFileSync(path.join(pack.dir, file), "utf8")); } catch (_) { continue; }
+      if (!data.enabled || !Array.isArray(data.spawns)) continue;
+      for (const raw of data.spawns) {
+        if (raw.type && raw.type !== "pokemon") continue;
+        const nm = String(raw.pokemon || "").replace(/^[a-z0-9_.-]+:/, "");
+        const dex = dexByNorm[norm(nm)] || dexByBase[norm(nm)];
+        if (!dex) { dpUnmatched.push(raw.pokemon); continue; }
+        const baseName = titleWords((NAME[dex] || nm).replace(/-/g, " "));
+        const before = rows.length;
+        emitSpawn(rows, seen, GEN, H, dex, baseName, datapackSpawnToResearch(raw), pack.label);
+        dpRows += rows.length - before;
+      }
+    }
+  }
+
   fs.writeFileSync(OUT, COLS.map(csvCell).join(",") + "\n" + rows.join("\n") + "\n");
   console.log("Wrote", OUT);
-  console.log("  species with >=1 row:", speciesOut, "| total rows:", rows.length);
+  console.log("  species with >=1 row:", speciesOut, "| total rows:", rows.length, "| datapack rows:", dpRows);
+  if (dpUnmatched.length) console.log("  UNMATCHED datapack species:", dpUnmatched);
 }
 main();

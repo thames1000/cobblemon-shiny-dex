@@ -2737,7 +2737,14 @@ function entryConditions(e) {
 // HTML block listing the conditions to force-spawn `dex` in `biome` (matches the
 // entries the planner actually counted — those explicitly listing the biome).
 function spawnConditionsHtml(dex, biome) {
-  const entries = (SPAWNS[dex] || []).filter((e) => (e.b || []).includes(biome));
+  // For an in-game biome id, an entry applies if any of its tag labels covers the biome
+  // (or a matching wildcard); for a plain label, exact membership.
+  const ig = isIngameBiome(biome);
+  const blabels = ig ? new Set(ingameLabels(biome)) : null;
+  const owWild = ig && biomeIsOverworld(biome);
+  const entries = (SPAWNS[dex] || []).filter((e) => ig
+    ? (e.b || []).some((b) => blabels.has(b) || b === "any biome" || (owWild && b === "any overworld"))
+    : (e.b || []).includes(biome));
   if (!entries.length) return "";
   const seen = new Set(), lines = [];
   for (const e of entries) {
@@ -3260,15 +3267,37 @@ function egaNoteText(note, name) {
 function bestSnackFor(dex, egaCap) {
   const sp = DEX_BY_NUM[dex];
   if (!sp) return null;
-  let biomes = [...new Set((SPAWNS[dex] || []).flatMap((e) => e.b))];
-  // Wildcard spawns ("any overworld"/"any biome") can be lured in every concrete
-  // biome they cover, so search those as candidates too.
-  if (biomes.includes("any biome") || biomes.includes("any overworld")) {
-    const anyB = biomes.includes("any biome");
-    biomes = biomes.concat(Object.keys(BIOME_INDEX).filter((b) => anyB || isOverworldBiome(b)));
+  const labels = [...new Set((SPAWNS[dex] || []).flatMap((e) => e.b))];
+  // Search the IN-GAME biomes this species can spawn in, not the tag labels: the lure
+  // odds depend on the WHOLE pool sharing a biome (everything tagged forest + temperate +
+  // any-overworld), and a single label like "temperate" undercounts that competition, so
+  // it over-states the spawn rate. In-game biomes give the accurate pool.
+  let biomes;
+  if (LABEL_BIOMES && BIOME_SPAWNS) {
+    const set = new Set();
+    for (const l of labels) {
+      if (l === "any overworld" || l === "any biome") {
+        const all = l === "any biome";
+        for (const id in BIOME_SPAWNS) if (all || biomeIsOverworld(id)) set.add(id);
+      } else for (const id of (LABEL_BIOMES[l] || [])) set.add(id);
+    }
+    biomes = [...set];
+  } else {
+    biomes = [...new Set(labels)].filter((b) => BIOME_INDEX[b]); // fallback: label-based
+    if (labels.includes("any biome") || labels.includes("any overworld")) {
+      const anyB = labels.includes("any biome");
+      biomes = [...new Set(biomes.concat(Object.keys(BIOME_INDEX).filter((b) => anyB || isOverworldBiome(b))))];
+    }
   }
-  biomes = [...new Set(biomes)].filter((b) => BIOME_INDEX[b]); // drop pseudo + nonexistent
   if (!biomes.length) return null;
+  // Collapse biomes with an identical spawn pool (same label set) — same odds, so this
+  // avoids recomputing for the many real biomes that share a pool (e.g. any-overworld mons).
+  const bySig = new Map();
+  for (const id of biomes) {
+    const sig = isIngameBiome(id) ? ingameLabels(id).slice().sort().join("|") + (biomeIsOverworld(id) ? "#ow" : "") : id;
+    if (!bySig.has(sig)) bySig.set(sig, id);
+  }
+  biomes = [...bySig.values()];
   const combos = combosFor(sp, egaCap);
   let best = null;
   for (const biome of biomes) {
@@ -3297,7 +3326,7 @@ function planCard(title, plan, sp, baseRate) {
   const snacks = Math.max(1, Math.ceil(targetOdds / SNACK_BITES)); // expected snacks (avg)
   return `<div class="snack-plan">
     <h3>${title}</h3>
-    <div class="plan-row"><span>Biome</span><b style="text-transform:capitalize">${plan.biome}</b></div>
+    <div class="plan-row"><span>Biome</span><b style="text-transform:capitalize">${isIngameBiome(plan.biome) ? biomeLabel(plan.biome) : plan.biome}</b></div>
     <div class="plan-row"><span>Snack</span><b>${fmtCombo(plan.combo)}</b></div>
     <div class="plan-row"><span>Spawn rate</span><b>${(plan.p * 100).toFixed(1)}%</b></div>
     <div class="plan-row"><span>Shiny odds</span><b>1/${Math.round(eff).toLocaleString()}</b> (✨×${plan.shiny})</div>

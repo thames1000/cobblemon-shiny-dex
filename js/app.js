@@ -5073,11 +5073,43 @@ function grabEls() {
   });
 }
 
+/* ---------- collapsible sidebar navigation ----------
+ * Desktop: ☰ collapses the sidebar to icons (remembered per-device). Mobile
+ * (≤860px): the sidebar is an off-canvas drawer that ☰ slides open over a
+ * backdrop; picking a tab, tapping the backdrop, or Esc closes it. */
+const NAV_COLLAPSE_KEY = "shinydex-nav-collapsed";
+function navIsMobile() { return window.matchMedia("(max-width: 860px)").matches; }
+function closeNavDrawer() { document.body.classList.remove("nav-open"); }
+function setNavCollapsed(on) {
+  document.body.classList.toggle("nav-collapsed", on);
+  try { localStorage.setItem(NAV_COLLAPSE_KEY, on ? "1" : "0"); } catch (_) { /* private mode */ }
+  const t = document.getElementById("nav-toggle");
+  if (t) t.setAttribute("aria-expanded", on ? "false" : "true");
+}
+function initNav() {
+  let collapsed = false;
+  try { collapsed = localStorage.getItem(NAV_COLLAPSE_KEY) === "1"; } catch (_) { /* ignore */ }
+  document.body.classList.toggle("nav-collapsed", collapsed);
+  const toggle = document.getElementById("nav-toggle");
+  if (toggle) {
+    toggle.setAttribute("aria-expanded", collapsed && !navIsMobile() ? "false" : "true");
+    toggle.addEventListener("click", () => {
+      if (navIsMobile()) document.body.classList.toggle("nav-open");
+      else setNavCollapsed(!document.body.classList.contains("nav-collapsed"));
+    });
+  }
+  const backdrop = document.getElementById("sidebar-backdrop");
+  if (backdrop) backdrop.addEventListener("click", closeNavDrawer);
+  // Leaving mobile width with the drawer open would otherwise strand the overlay.
+  window.addEventListener("resize", () => { if (!navIsMobile()) closeNavDrawer(); });
+}
+
 function wire() {
   document.getElementById("tabs").addEventListener("click", (e) => {
     const t = e.target.closest(".tab");
-    if (t) showTab(t.dataset.tab);
+    if (t) { showTab(t.dataset.tab); if (navIsMobile()) closeNavDrawer(); }
   });
+  initNav();
 
   // Dashboard: delegated so the buttons survive each renderDashboard() rebuild.
   const homePanel = document.getElementById("panel-home");
@@ -5262,6 +5294,7 @@ function wire() {
     if (dm && !dm.hidden) closeMonDetail();
     const gm = document.getElementById("goal-modal");
     if (gm && !gm.hidden) closeGoalModal();
+    if (document.body.classList.contains("nav-open")) closeNavDrawer();
   });
 
   els.dexSearch.addEventListener("input", renderDex);

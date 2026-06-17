@@ -15,29 +15,32 @@
 </head>
 <body>
   <header class="app-header">
+    <button class="nav-toggle" id="nav-toggle" aria-label="Toggle navigation" aria-controls="tabs" aria-expanded="true">☰</button>
     <h1>✨ ShinyDex HQ</h1>
     <button id="install-btn" class="install-btn" hidden>Install</button>
   </header>
 
-  <nav class="tabs" id="tabs">
-    <button class="tab active" data-tab="home">Home</button>
-    <button class="tab" data-tab="dex">Dex</button>
-    <button class="tab" data-tab="boxes">Boxes</button>
-    <button class="tab" data-tab="party">Party</button>
-    <button class="tab" data-tab="forms">Mega/GMax</button>
-    <button class="tab" data-tab="variants">Variants</button>
-    <button class="tab" data-tab="legendary">Legendary</button>
-    <button class="tab" data-tab="hunt">Hunt</button>
-    <button class="tab" data-tab="log">Log</button>
-    <button class="tab" data-tab="stats">Stats</button>
-    <button class="tab" data-tab="spawns">Spawns</button>
-    <button class="tab" data-tab="snack">PokéSnack</button>
-    <button class="tab" data-tab="sim">Spawn Sim</button>
-    <button class="tab" data-tab="berries">Berries</button>
-    <button class="tab" data-tab="farm">Farm</button>
-    <button class="tab" data-tab="seedmap">Seed Map</button>
-    <button class="tab" data-tab="data">Data</button>
-  </nav>
+  <div class="app-shell">
+    <nav class="sidebar" id="tabs" aria-label="Sections">
+      <button class="tab active" data-tab="home" title="Home"><span class="tab-ico">🏠</span><span class="tab-lbl">Home</span></button>
+      <button class="tab" data-tab="dex" title="Dex"><span class="tab-ico">📖</span><span class="tab-lbl">Dex</span></button>
+      <button class="tab" data-tab="boxes" title="Boxes"><span class="tab-ico">📦</span><span class="tab-lbl">Boxes</span></button>
+      <button class="tab" data-tab="party" title="Party"><span class="tab-ico">🎒</span><span class="tab-lbl">Party</span></button>
+      <button class="tab" data-tab="forms" title="Mega/GMax"><span class="tab-ico">💠</span><span class="tab-lbl">Mega/GMax</span></button>
+      <button class="tab" data-tab="variants" title="Variants"><span class="tab-ico">🎨</span><span class="tab-lbl">Variants</span></button>
+      <button class="tab" data-tab="legendary" title="Legendary"><span class="tab-ico">👑</span><span class="tab-lbl">Legendary</span></button>
+      <button class="tab" data-tab="hunt" title="Hunt"><span class="tab-ico">🎯</span><span class="tab-lbl">Hunt</span></button>
+      <button class="tab" data-tab="log" title="Log"><span class="tab-ico">📜</span><span class="tab-lbl">Log</span></button>
+      <button class="tab" data-tab="stats" title="Stats"><span class="tab-ico">📊</span><span class="tab-lbl">Stats</span></button>
+      <button class="tab" data-tab="spawns" title="Spawns"><span class="tab-ico">🗺️</span><span class="tab-lbl">Spawns</span></button>
+      <button class="tab" data-tab="snack" title="PokéSnack"><span class="tab-ico">🍪</span><span class="tab-lbl">PokéSnack</span></button>
+      <button class="tab" data-tab="sim" title="Spawn Sim"><span class="tab-ico">🧪</span><span class="tab-lbl">Spawn Sim</span></button>
+      <button class="tab" data-tab="berries" title="Berries"><span class="tab-ico">🫐</span><span class="tab-lbl">Berries</span></button>
+      <button class="tab" data-tab="farm" title="Farm"><span class="tab-ico">🌾</span><span class="tab-lbl">Farm</span></button>
+      <button class="tab" data-tab="seedmap" title="Seed Map"><span class="tab-ico">🧭</span><span class="tab-lbl">Seed Map</span></button>
+      <button class="tab" data-tab="data" title="Data"><span class="tab-ico">🗄️</span><span class="tab-lbl">Data</span></button>
+    </nav>
+    <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
 
   <main class="app-main">
     <!-- ============ HOME / DASHBOARD ============ -->
@@ -751,7 +754,8 @@
           &amp; public Cobblemon data.</p>
       </div>
     </section>
-  </main>
+    </main>
+  </div><!-- /.app-shell -->
 
   <!-- Start-a-hunt chooser — top-level so it can open from any tab (a modal inside
        a display:none panel can't render). Opened from Dex cards and the dashboard. -->

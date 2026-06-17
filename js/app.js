@@ -2372,6 +2372,7 @@ function huntSuggestions(biome, limit = 8) {
   const attr = {};          // dex -> per-roll spawn/lure odds in this biome
   const inBiome = {};       // dex -> best rarity order in this biome
   const formsByDex = {};    // dex -> Set of forms that spawn here ("" = base form)
+  const dpHere = {};        // dex -> datapack id if ALL its spawns here need a datapack
   if (biome && (BIOME_INDEX[biome] || isIngameBiome(biome))) {
     for (const a of computeAttraction(biome, [], true)) attr[a.dex] = a.p;
     // Only count species that EXPLICITLY list this biome — not the "any overworld"
@@ -2383,6 +2384,8 @@ function huntSuggestions(biome, limit = 8) {
       if (r == null) continue;
       if (inBiome[dex] == null || r < inBiome[dex]) inBiome[dex] = r;
       (formsByDex[dex] = formsByDex[dex] || new Set()).add(entry.f || "");
+      if (entry.dp) { if (!(dex in dpHere)) dpHere[dex] = entry.dp; }
+      else dpHere[dex] = null; // a non-datapack spawn exists here → not gated
     }
   }
   const bestR = bestRarityByDex();
@@ -2412,6 +2415,7 @@ function huntSuggestions(biome, limit = 8) {
       score += Math.min(20, p * 200);
       const pct = p > 0 ? (p * 100).toFixed(p * 100 < 1 ? 2 : 1) + "%" : null;
       reasons.push({ i: "📍", t: `Spawns here · ${RARITY_NAME[inBiome[dex]]}${pct ? ` · 🍪 ${pct}` : ""}`, c: "r-biome" });
+      if (dpHere[dex]) reasons.push({ i: "📦", t: `needs ${dpName(dpHere[dex])}`, c: "r-dp" });
     }
     const fv = fvNeed(dex);
     if (fv) { score += 18; reasons.push({ i: "✦", t: `${fv} form/variant${fv > 1 ? "s" : ""} to get`, c: "r-fv" }); }
@@ -2827,6 +2831,13 @@ function biomeChip(b) {
 // Regional / functional form this spawn row belongs to (Galarian, East Sea, …).
 function formChip(f) { return `<span class="form-chip">✦ ${f}</span>`; }
 
+// Spawn entries that only exist because a server-side datapack adds them. The
+// `dp` flag carries which one, so the UI can warn it won't spawn without it.
+const DP_LABEL = { "legendary-encounters": "Legendary Encounters datapack" };
+function dpName(dp) { return DP_LABEL[dp] || "a server datapack"; }
+function dpNoteHtml(dp) {
+  return `<div class="dp-note" title="These spawns only exist with this datapack installed on the server.">📦 Requires the <b>${dpName(dp)}</b></div>`;
+}
 function entryDetail(e) {
   const bits = [];
   if (e.lv) bits.push(`Lv ${e.lv}`);
@@ -2924,6 +2935,7 @@ function renderSpawnByMon(dex) {
       <div class="spawn-biomes">${e.f ? formChip(e.f) : ""}${loc}</div>
       ${igLine}
       ${meta || e.r ? `<div class="spawn-meta">${rarityChip(e.r)} <span class="muted">${meta}</span></div>` : ""}
+      ${e.dp ? dpNoteHtml(e.dp) : ""}
       ${e.raid && e.b.length ? `<div class="spawn-quest">⚔ Also a Cobblemon <b>Raid Den boss</b></div>` : ""}
       ${e.q ? questHtml(e.q) : ""}
     </div>`;
@@ -2947,7 +2959,7 @@ function renderSpawnByBiome(biome) {
       <img loading="lazy" src="${art.src}" onerror="this.onerror=null;this.src='${art.fb}'" alt="${sp ? sp.name : dex}"/>
       <div class="dexno">#${String(dex).padStart(4, "0")}</div>
       <div class="nm">${sp ? sp.name.replace(/-/g, " ") : dex}</div>
-      ${entry.f ? `<div class="form-tag">✦ ${entry.f}</div>` : ""}</div>`;
+      ${entry.f ? `<div class="form-tag">✦ ${entry.f}</div>` : ""}${entry.dp ? `<div class="form-tag dp-tag" title="Requires the ${dpName(entry.dp)} on the server">📦 DP</div>` : ""}</div>`;
   }).join("");
   const ow = (isIngameBiome(biome) ? biomeIsOverworld(biome) : isOverworldBiome(biome)) ? (PSEUDO_INDEX["any overworld"] || []).length : 0;
   const title = isIngameBiome(biome) ? biomeLabel(biome) : biome;
@@ -4475,7 +4487,7 @@ function showBiomeSpawns(biomeId, origId) {
         const art = spawnCardArt(dex, entry); // variant render if this entry is a variant form
         return `<div class="mon" data-dex="${dex}" title="${entry.f ? entry.f + " · " : ""}${entryDetail(entry)}"><span class="badge r-${entry.r}">${entry.r[0].toUpperCase()}</span>` +
           `<img loading="lazy" src="${art.src}" onerror="this.onerror=null;this.src='${art.fb}'" alt="${sp ? sp.name : dex}"/><div class="dexno">#${String(dex).padStart(4, "0")}</div>` +
-          `<div class="nm">${sp ? sp.name.replace(/-/g, " ") : dex}</div>${entry.f ? `<div class="form-tag">✦ ${entry.f}</div>` : ""}</div>`;
+          `<div class="nm">${sp ? sp.name.replace(/-/g, " ") : dex}</div>${entry.f ? `<div class="form-tag">✦ ${entry.f}</div>` : ""}${entry.dp ? `<div class="form-tag dp-tag" title="Requires the ${dpName(entry.dp)} on the server">📦 DP</div>` : ""}</div>`;
       }).join("");
       el.hidden = false;
       el.innerHTML = `<div class="sm-bsp-head"><b>🐾 Spawns in ${title}</b> <span class="muted">· ${list.length} biome-specific${owCount ? ` · +${owCount} overworld-wide` : ""}</span>${close}</div>` +

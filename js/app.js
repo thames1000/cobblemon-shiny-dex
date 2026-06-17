@@ -3942,7 +3942,7 @@ const DUMP_DIM = { "minecraft:overworld": "overworld", "minecraft:the_nether": "
 // validation accurate, since the grid is exactly what the world generates.
 function loadBiomeExport(json) {
   if (!json || !Array.isArray(json.grid) || !Array.isArray(json.palette)) { els.smBiomeStatus.textContent = "⚠ not a biome-dump file"; return; }
-  loadBiomeRemap(); loadStructures();
+  loadBiomeRemap(); loadStructures(); loadBiomeSpawns();
   loadBiomeColors().then(() => {
     const dim = DUMP_DIM[json.dimension] || "overworld";
     biomeState.dim = dim;
@@ -4042,7 +4042,7 @@ function getBiomeWorker() {
   return biomeWorker;
 }
 function renderBiomeMap() {
-  loadBiomeRemap(); loadStructures();
+  loadBiomeRemap(); loadStructures(); loadBiomeSpawns();
   biomeState.fromExport = false; // leaving a loaded export → back to computed biomes
   const cv = els.smBiomeCanvas;
   const bpp = Math.max(1, Number(els.smBiomeZoom.value) || 2);
@@ -4197,18 +4197,64 @@ function drawBiomeStructures(ctx, ox, oy) {
   }
 }
 function biomeLabel(id) { return id.replace(/^minecraft:|^terralith:/, "").replace(/_/g, " "); }
+// biome id -> spawn labels that cover it (built offline from the Cobblemon biome
+// tags resolved against the server's biome set). Bridges concrete biome ids to the
+// label-keyed BIOME_INDEX so a biome click can list what spawns there.
+let BIOME_SPAWNS = null;
+function loadBiomeSpawns() {
+  if (BIOME_SPAWNS) return Promise.resolve();
+  return fetch("js/data/biome-spawns.json").then((r) => r.json()).then((j) => (BIOME_SPAWNS = j)).catch(() => (BIOME_SPAWNS = {}));
+}
+// "What spawns here" for a clicked biome: union the species of every spawn label
+// that covers this biome (excluding the generic "any overworld" wildcard, which is
+// shown only as a count), best rarity per species.
+function showBiomeSpawns(biomeId, origId) {
+  const el = els.smBiomeSpawns; if (!el) return;
+  loadBiomeSpawns().then(() => {
+    const labels = (BIOME_SPAWNS && BIOME_SPAWNS[biomeId]) || [];
+    const best = new Map();
+    for (const lbl of labels) {
+      if (lbl === "any overworld") continue;
+      for (const x of (BIOME_INDEX[lbl] || [])) {
+        const cur = best.get(x.dex);
+        if (!cur || RARITY_ORDER[x.entry.r] < RARITY_ORDER[cur.entry.r]) best.set(x.dex, x);
+      }
+    }
+    const list = [...best.values()].sort((a, b) => RARITY_ORDER[a.entry.r] - RARITY_ORDER[b.entry.r] || a.dex - b.dex);
+    const owCount = labels.includes("any overworld") ? (PSEUDO_INDEX["any overworld"] || []).length : 0;
+    const title = biomeLabel(biomeId) + (origId && origId !== biomeId ? ` <span class="muted">(Terralith: ${biomeLabel(origId)})</span>` : "");
+    const close = `<button class="ctrl-btn ghost sm-bsp-close" title="Close">✕</button>`;
+    if (!labels.length) {
+      el.hidden = false;
+      el.innerHTML = `<div class="sm-bsp-head"><b>🐾 ${title}</b>${close}</div><p class="hint">No spawn data for this biome (it may not exist in this dimension's spawn list).</p>`;
+    } else {
+      const cards = list.map(({ dex, entry }) => {
+        const sp = DEX_BY_NUM[dex];
+        return `<div class="mon" data-dex="${dex}" title="${entryDetail(entry)}"><span class="badge r-${entry.r}">${entry.r[0].toUpperCase()}</span>` +
+          `<img loading="lazy" src="${spriteUrl(dex)}" alt="${sp ? sp.name : dex}"/><div class="dexno">#${String(dex).padStart(4, "0")}</div>` +
+          `<div class="nm">${sp ? sp.name.replace(/-/g, " ") : dex}</div></div>`;
+      }).join("");
+      el.hidden = false;
+      el.innerHTML = `<div class="sm-bsp-head"><b>🐾 Spawns in ${title}</b> <span class="muted">· ${list.length} biome-specific${owCount ? ` · +${owCount} overworld-wide` : ""}</span>${close}</div>` +
+        `<div class="grid sm-bsp-grid">${cards || '<p class="hint">Only overworld-wide species spawn here.</p>'}</div>`;
+    }
+    const btn = el.querySelector(".sm-bsp-close"); if (btn) btn.onclick = () => { el.hidden = true; };
+  });
+}
 function renderBiomeLegend(legend) {
   if (!els.smBiomeLegend) return;
   els.smBiomeLegend.innerHTML = legend.slice().sort((a, b) => a.id.localeCompare(b.id))
     .map((l) => `<span class="sm-leg"><i style="background:${l.hex}"></i>${biomeLabel(l.id)}</span>`).join("");
 }
 // Drag-to-pan: shift visually while dragging, re-render centred on release.
-let biomeDrag = null;
+let biomeDrag = null, biomeDownXY = null;
 function wireBiomePan() {
   const cv = els.smBiomeCanvas;
   if (!cv) return;
   cv.addEventListener("pointerdown", (e) => {
-    if (!biomeState.rendered || biomeState.fromExport) return; // export is a fixed snapshot
+    if (!biomeState.rendered) return;
+    biomeDownXY = { x: e.offsetX, y: e.offsetY }; // tracked even for exports (no pan, but click works)
+    if (biomeState.fromExport) return; // export is a fixed snapshot — no pan
     biomeDrag = { x: e.offsetX, y: e.offsetY };
     cv.setPointerCapture(e.pointerId); cv.style.cursor = "grabbing";
   });
@@ -4224,13 +4270,19 @@ function wireBiomePan() {
   });
   cv.addEventListener("pointerleave", () => { if (els.smBiomeHover) els.smBiomeHover.textContent = ""; });
   cv.addEventListener("pointerup", (e) => {
-    if (!biomeDrag) return;
+    const start = biomeDownXY; biomeDownXY = null;
+    const wasDrag = !!biomeDrag; biomeDrag = null; cv.style.cursor = "grab";
+    if (!start) return;
+    const dx = e.offsetX - start.x, dy = e.offsetY - start.y;
+    if (Math.abs(dx) < 3 && Math.abs(dy) < 3) { // click (not a pan) → what spawns here
+      const h = biomeAtPointer(e.offsetX, e.offsetY);
+      if (h) showBiomeSpawns(h.mapped, h.orig);
+      return;
+    }
+    if (!wasDrag) return; // moved on an export → nothing to pan
     const ppb = cv.width / (biomeState.cols * biomeState.bpp);
-    const dx = e.offsetX - biomeDrag.x, dy = e.offsetY - biomeDrag.y;
-    biomeDrag = null; cv.style.cursor = "grab";
-    if (Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
-    const ncx = Math.round(biomeState.cx - dx / ppb), ncz = Math.round(biomeState.cz - dy / ppb);
-    els.smCx.value = ncx; els.smCz.value = ncz; // keep the structure finder in sync
+    els.smCx.value = Math.round(biomeState.cx - dx / ppb);
+    els.smCz.value = Math.round(biomeState.cz - dy / ppb); // keep the structure finder in sync
     renderBiomeMap();
   });
   // Scroll-wheel zoom, anchored on the cursor.
@@ -4351,6 +4403,7 @@ function grabEls() {
     smBiomeCanvas: document.getElementById("sm-biome-canvas"),
     smBiomeLegend: document.getElementById("sm-biome-legend"),
     smBiomeHover: document.getElementById("sm-biome-hover"),
+    smBiomeSpawns: document.getElementById("sm-biome-spawns"),
     huntActiveCard: document.getElementById("hunt-active-card"),
     huntActive: document.getElementById("hunt-active"),
     cfgBase: document.getElementById("cfg-base"),

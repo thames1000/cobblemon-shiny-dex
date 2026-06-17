@@ -175,6 +175,18 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
   grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
   gap: 8px;
 }
+/* "What spawns here" panel on the biome map */
+.sm-biome-spawns {
+  margin: 8px 0 4px; padding: 8px; border: 1px solid var(--line);
+  border-radius: 10px; background: var(--panel);
+}
+.sm-bsp-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
+.sm-bsp-head .sm-bsp-close { margin-left: auto; padding: 2px 8px; }
+.sm-bsp-grid {
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 6px; max-height: 320px; overflow-y: auto;
+}
+.sm-bsp-grid .mon img { width: 44px; height: 44px; }
 .mon {
   position: relative; background: var(--panel); border: 1px solid var(--line);
   border-radius: 10px; padding: 6px 4px 8px; text-align: center; cursor: pointer;

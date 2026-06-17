@@ -2371,6 +2371,7 @@ function huntSuggestions(biome, limit = 8) {
   const hasShiny = (st) => st === "shiny" || st === "boxed";
   const attr = {};          // dex -> per-roll spawn/lure odds in this biome
   const inBiome = {};       // dex -> best rarity order in this biome
+  const formsByDex = {};    // dex -> Set of forms that spawn here ("" = base form)
   if (biome && (BIOME_INDEX[biome] || isIngameBiome(biome))) {
     for (const a of computeAttraction(biome, [], true)) attr[a.dex] = a.p;
     // Only count species that EXPLICITLY list this biome — not the "any overworld"
@@ -2381,6 +2382,7 @@ function huntSuggestions(biome, limit = 8) {
       const r = RARITY_ORDER[entry.r];
       if (r == null) continue;
       if (inBiome[dex] == null || r < inBiome[dex]) inBiome[dex] = r;
+      (formsByDex[dex] = formsByDex[dex] || new Set()).add(entry.f || "");
     }
   }
   const bestR = bestRarityByDex();
@@ -2428,7 +2430,7 @@ function huntSuggestions(biome, limit = 8) {
     const bst = COACH[dex] && COACH[dex].bst;
     if (bst >= 600 && !isLegendary(dex)) { score += 12; reasons.push({ i: "🌟", t: "High value", c: "r-bst" }); }
 
-    if (score > 0) out.push({ dex, sp, score, reasons, tier, hot: wished && here });
+    if (score > 0) out.push({ dex, sp, score, reasons, tier, hot: wished && here, forms: formsByDex[dex] ? [...formsByDex[dex]] : [] });
   }
   out.sort((a, b) => b.tier - a.tier || b.score - a.score || a.dex - b.dex);
   return out.slice(0, limit);
@@ -2459,10 +2461,25 @@ function renderDashNext() {
   el.innerHTML = head + `<div class="next-list">` + sugg.map((s) => {
     const nm = s.sp.name.replace(/-/g, " ");
     const chips = s.reasons.map((r) => `<span class="next-reason ${r.c}">${r.i} ${r.t}</span>`).join("");
+    // Forms/variants that spawn here. If more than one, a clickable "+N form/variant"
+    // chip expands the list so the extra forms can be seen (and hunted, if tracked).
+    const forms = s.forms || [];
+    let formsChip = "", formsPanel = "";
+    if (forms.length > 1) {
+      formsChip = `<span class="next-reason r-fv next-forms-toggle" role="button" tabindex="0" title="Show the other forms that spawn here">✦ +${forms.length - 1} form/variant ▾</span>`;
+      formsPanel = `<div class="next-forms" hidden>` + forms.map((f) => {
+        const v = f ? spawnVariant(s.dex, f) : null;
+        const art = v ? variantArt(v, true).src : spriteUrl(s.dex, true);
+        const label = f || "Base";
+        const attrs = v ? `data-variant="${v.id}"` : `data-dex="${s.dex}"`;
+        return `<button class="next-form${v ? " huntable" : ""}" ${attrs} title="Hunt ${nm} · ${label}">` +
+          `<img loading="lazy" src="${art}" onerror="this.onerror=null;this.src='${spriteUrl(s.dex, true)}'" alt=""/><span>${label}</span></button>`;
+      }).join("") + `</div>`;
+    }
     return `<div class="find-row next-row${s.hot ? " next-hot" : ""}" data-dex="${s.dex}">` +
       `<img loading="lazy" src="${spriteUrl(s.dex, true)}" alt="${s.sp.name}" />` +
       `<div class="next-main"><div class="next-name">${nm} <span class="muted">#${String(s.dex).padStart(4, "0")}</span></div>` +
-      `<div class="next-reasons">${chips}</div></div>` +
+      `<div class="next-reasons">${chips}${formsChip}</div>${formsPanel}</div>` +
       `<button class="ctrl-btn good next-hunt" data-dex="${s.dex}" title="Start hunting ${nm}">🎯 Hunt</button>` +
     `</div>`;
   }).join("") + `</div>`;
@@ -4723,6 +4740,10 @@ function wire() {
       if (e.target.closest("#dash-surprise")) { randomHuntTarget(); refreshDashboard(); return; }
       const nextHunt = e.target.closest(".next-hunt");
       if (nextHunt) { e.stopPropagation(); startHuntFor(Number(nextHunt.dataset.dex), "encounter"); return; }
+      const formsTog = e.target.closest(".next-forms-toggle");
+      if (formsTog) { e.stopPropagation(); const p = formsTog.closest(".next-main").querySelector(".next-forms"); if (p) p.hidden = !p.hidden; return; }
+      const formBtn = e.target.closest(".next-form");
+      if (formBtn) { e.stopPropagation(); if (formBtn.dataset.variant) startHuntFromVariant(formBtn.dataset.variant); else startHuntFor(Number(formBtn.dataset.dex), "encounter"); return; }
       const gapHunt = e.target.closest(".dash-gap-hunt");
       if (gapHunt) { e.stopPropagation(); if (gapHunt.dataset.variant) startHuntFromVariant(gapHunt.dataset.variant); else openHuntStart(Number(gapHunt.dataset.dex)); return; }
       const gapBox = e.target.closest(".dash-gap-box");

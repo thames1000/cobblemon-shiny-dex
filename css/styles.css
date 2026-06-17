@@ -685,6 +685,16 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .next-reason.r-hard, .next-reason.r-rare { color: #f6a544; border-color: color-mix(in srgb, #f6a544 40%, var(--line)); }
 .next-reason.r-fv { color: #8ab4ff; border-color: color-mix(in srgb, #8ab4ff 40%, var(--line)); }
 .next-reason.r-common { color: #4ade80; border-color: color-mix(in srgb, #4ade80 40%, var(--line)); }
+.next-forms-toggle { cursor: pointer; }
+.next-forms { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; width: 100%; }
+.next-form {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+  padding: 4px 6px; cursor: default; font-size: .62rem; text-transform: capitalize; color: var(--muted);
+}
+.next-form img { width: 40px; height: 40px; image-rendering: pixelated; }
+.next-form.huntable { cursor: pointer; }
+.next-form.huntable:hover { border-color: var(--accent); color: var(--text); }
 
 /* off-hunt / random-encounter find chip (excluded from averages) */
 .luck-chip.luck-random { background: var(--panel-2); border: 1px solid var(--line); color: var(--muted); }

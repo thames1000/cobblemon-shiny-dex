@@ -863,12 +863,17 @@ function legendCard(e) {
   el.className = `mon ${have ? "f-unlocked" : "f-locked"}${shiny ? " f-shiny" : ""}`;
   el.dataset.legDex = e.dex;
   const struct = (e.struct || []).join(", ");
-  el.title = `${legName(e.dex)} — ${e.sys}${struct ? `\n🏛 ${struct}` : ""}${e.note ? `\n${e.note}` : ""}`;
+  const nm = legName(e.dex);
+  const wished = state.wishlist.includes(e.dex);
+  el.title = `${nm} — ${e.sys}${struct ? `\n🏛 ${struct}` : ""}${e.note ? `\n${e.note}` : ""}`;
   el.innerHTML =
     `${have ? `<span class="badge">${shiny ? "✨" : "✓"}</span>` : ""}` +
-    `<img loading="lazy" src="${spriteUrl(e.dex, shiny)}" alt="${legName(e.dex)}" />` +
+    `<button class="mon-hunt" title="Start a hunt for ${nm}" aria-label="Start a hunt for ${nm}">🎯</button>` +
+    `<button class="mon-star${wished ? " on" : ""}" title="${wished ? "Remove from" : "Add to"} favorites (wishlist)" aria-label="${wished ? "Remove from" : "Add to"} favorites for ${nm}">${wished ? "★" : "☆"}</button>` +
+    `<button class="mon-info" title="Details, spawns & dex state for ${nm}" aria-label="Details for ${nm}">ⓘ</button>` +
+    `<img loading="lazy" src="${spriteUrl(e.dex, shiny)}" alt="${nm}" />` +
     `<div class="dexno">#${String(e.dex).padStart(4, "0")}</div>` +
-    `<div class="nm">${legName(e.dex)}</div>`;
+    `<div class="nm">${nm}</div>`;
   return el;
 }
 function renderLegendary() {
@@ -5377,6 +5382,22 @@ function wire() {
       if (navigator.clipboard) navigator.clipboard.writeText(cmd).then(flash, flash); else flash();
       return;
     }
+    // Card action buttons (mirror the Dex cards): hunt / favorite / details.
+    const legDexOf = (btn) => Number(btn.closest(".mon").dataset.legDex);
+    const huntBtn = e.target.closest(".mon-hunt");
+    if (huntBtn) { e.stopPropagation(); openHuntStart(legDexOf(huntBtn)); return; }
+    const starBtn = e.target.closest(".mon-star");
+    if (starBtn) {
+      e.stopPropagation();
+      const d = legDexOf(starBtn);
+      toggleWishlist(d);                       // shared ★ wishlist — also shows on the Dex page & dashboard
+      const entry = LEGEND_BY_DEX[d];
+      if (entry) starBtn.closest(".mon").replaceWith(legendCard(entry));
+      syncDexCard(d); refreshDashboard();
+      return;
+    }
+    const infoBtn = e.target.closest(".mon-info");
+    if (infoBtn) { e.stopPropagation(); openMonDetail(legDexOf(infoBtn)); return; } // unified page: spawns + dex + legendary
     const card = e.target.closest(".mon");
     if (!card || !card.dataset.legDex) return;
     const dex = Number(card.dataset.legDex);

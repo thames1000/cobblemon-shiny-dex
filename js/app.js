@@ -3741,9 +3741,10 @@ const typeChip = (t) => `<span class="type-chip">${t}</span>`;
 function renderSnackSummary(seasonings) {
   const wrap = els.snackSummary;
   if (!seasonings.length) {
-    wrap.innerHTML = `<p class="hint">No seasonings yet — the list below shows the biome's <em>natural</em> spawn
-      distribution. Add a <strong>type berry</strong> (e.g. Occa → Fire) to bias attraction, or a rarity item
-      (Golden Apple, Enchanted Golden Apple…) to lure rarer Pokémon.</p>`;
+    wrap.innerHTML = `<p class="hint">No seasonings yet — the list below shows a <em>plain placed snack</em>
+      (which already biases toward rarer mons than the wild: uncommon ×2.25, rare/ultra ×5.5). Add a
+      <strong>type berry</strong> (e.g. Occa → Fire) to bias attraction, or a rarity item
+      (Golden Apple, Enchanted Golden Apple…) to push the buckets further toward rare.</p>`;
     return;
   }
   const t = snackTotals(seasonings);

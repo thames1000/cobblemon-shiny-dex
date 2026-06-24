@@ -5196,12 +5196,20 @@ function modPayload(e) {
   return e && typeof e.event === "object" && e.event ? e.event : e;
 }
 
+// Lenient truthy for flags like shiny/caught — accept boolean true, 1, or the
+// strings "true"/"1"/"yes" (but NOT "false"). Mirrors the backend's truthy().
+function flagTrue(v) {
+  if (v === true || v === 1) return true;
+  if (typeof v === "string") return ["true", "1", "yes"].includes(v.trim().toLowerCase());
+  return false;
+}
+
 // Decide the dex state a single entry implies. Returns null if it says nothing.
 function modEntryState(e) {
-  const shiny = e.shiny === true || (Array.isArray(e.aspects) && e.aspects.includes("shiny"));
+  const shiny = flagTrue(e.shiny) || (Array.isArray(e.aspects) && e.aspects.includes("shiny"));
   if (shiny) return "shiny";
-  if (e.caught === true || e.eventType === "pokemon_caught") return "caught";
-  if (e.seen === true) return "seen";
+  if (flagTrue(e.caught) || e.eventType === "pokemon_caught") return "caught";
+  if (flagTrue(e.seen)) return "seen";
   // A species named with no flags at all (e.g. a queued catch payload) is a catch.
   if ((e.species || e.displayName) && e.caught === undefined && e.seen === undefined && e.eventType === undefined) return "caught";
   return null;

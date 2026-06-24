@@ -4,7 +4,7 @@
  * repeat is reported as duplicate:false-of-change (no upgrade) without erroring.
  */
 const { db } = require("../_lib/admin");
-const { readBody, tokenOk } = require("../_lib/http");
+const { readBody, tokenOk, truthy } = require("../_lib/http");
 const { resolveDex } = require("../_lib/species");
 
 const RANK = { seen: 1, caught: 2, shiny: 3 };
@@ -15,7 +15,8 @@ module.exports = async (req, res) => {
   const body = await readBody(req);
   if (!tokenOk(body)) return res.status(401).json({ success: false, message: "Invalid server token" });
 
-  const { minecraftUuid, shiny } = body;
+  const { minecraftUuid } = body;
+  const shiny = truthy(body.shiny);
   if (!minecraftUuid) return res.status(400).json({ success: false, message: "Missing minecraftUuid" });
 
   const dex = resolveDex(body);
@@ -33,7 +34,7 @@ module.exports = async (req, res) => {
     return res.status(200).json({ success: true, duplicate: false, message: "Player not linked", updated: noChange });
   }
   const uid = link.uid;
-  const next = shiny === true ? "shiny" : "caught";
+  const next = shiny ? "shiny" : "caught";
   const ref = db.collection("modDex").doc(uid);
 
   try {

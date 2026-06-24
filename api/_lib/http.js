@@ -21,4 +21,13 @@ function tokenOk(body) {
   return !!expected && !!body && body.serverToken === expected;
 }
 
-module.exports = { readBody, tokenOk };
+// Lenient truthy check for fields like `shiny` — the mod sends a real boolean,
+// but accept "true"/"1"/"yes"/1 too so hand-written curl tests behave. Crucially,
+// the string "false" must read as false (plain !!"false" would be true).
+function truthy(v) {
+  if (v === true || v === 1) return true;
+  if (typeof v === "string") return ["true", "1", "yes"].includes(v.trim().toLowerCase());
+  return false;
+}
+
+module.exports = { readBody, tokenOk, truthy };

@@ -637,6 +637,7 @@ function matchesDexFilter(sp) {
   const f = els.dexFilter.value;
   const st = dexState(sp.dex);
   if (f === "need-shiny" && (st === "shiny" || st === "boxed")) return false;
+  if (f === "caught-not-shiny" && st !== "caught") return false;
   if (f === "shiny-not-boxed" && st !== "shiny") return false;
   if (f === "boxed" && st !== "boxed") return false;
   if (f === "missing" && st !== "none") return false;

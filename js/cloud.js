@@ -181,6 +181,20 @@ async function bootCloud() {
         updatedAt: Number(d.updatedAt) || 0,
       };
     },
+    // Read the mod-sourced berry collection for this user (written by the backend
+    // /minecraft/berries endpoint). Returns { berries:{<id>:true}, … } or null.
+    async loadModBerries() {
+      const u = auth.currentUser;
+      if (!u) return null;
+      const snap = await getDoc(doc(db, "modBerries", u.uid));
+      if (!snap.exists()) return null;
+      const d = snap.data() || {};
+      return {
+        berries: d.berries && typeof d.berries === "object" ? d.berries : {},
+        minecraftName: d.minecraftName || null,
+        updatedAt: Number(d.updatedAt) || 0,
+      };
+    },
   };
 
   emitStatus("ready");

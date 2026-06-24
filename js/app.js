@@ -498,31 +498,43 @@ async function pullModDex(opts) {
     if (!opts.silent) setModLinkStatus("Sign in (Account card above) to sync from your server.", false);
     return 0;
   }
-  let md;
-  try { md = await window.ShinyCloud.loadModDex(); }
-  catch (e) { if (!opts.silent) setModLinkStatus("Couldn't reach the server sync: " + ((e && e.message) || "error"), false); return 0; }
-  if (!md || !md.dex || !Object.keys(md.dex).length) {
-    if (!opts.silent) setModLinkStatus("No server catches yet — link a Minecraft account below, then catch something.", true);
+  let md = null, mb = null;
+  try {
+    md = await window.ShinyCloud.loadModDex();
+    if (window.ShinyCloud.loadModBerries) mb = await window.ShinyCloud.loadModBerries();
+  } catch (e) {
+    if (!opts.silent) setModLinkStatus("Couldn't reach the server sync: " + ((e && e.message) || "error"), false);
     return 0;
   }
-  let upgraded = 0;
-  for (const [k, next] of Object.entries(md.dex)) {
+  const dexMap = (md && md.dex) || {};
+  const berryMap = (mb && mb.berries) || {};
+  if (!Object.keys(dexMap).length && !Object.keys(berryMap).length) {
+    if (!opts.silent) setModLinkStatus("No server data yet — link a Minecraft account below, then catch something or run /shinydex berries.", true);
+    return 0;
+  }
+  let upgraded = 0, berriesAdded = 0;
+  for (const [k, next] of Object.entries(dexMap)) {
     const dex = Number(k);
     if (!Number.isFinite(dex) || !DEX_BY_NUM[dex]) continue;
     if (MOD_STATE_RANK[next] == null) continue;
     const cur = dexState(dex);
     if (MOD_STATE_RANK[next] > MOD_STATE_RANK[cur]) { setDexState(dex, next); upgraded++; }
   }
-  if (upgraded) {
+  // Berries are a set-only collection ("have it"); only ever add, never remove.
+  for (const id of Object.keys(berryMap)) {
+    if (!berryMap[id] || !GUIDE_BY_ID[id]) continue;
+    if (!state.berries[id]) { state.berries[id] = true; berriesAdded++; }
+  }
+  if (upgraded || berriesAdded) {
     save(); // persists locally and (since cloudActive) pushes the merged blob up
     renderDex(); renderForms(); renderVariants(); renderLegendary(); renderBerries();
     renderBoxes(); renderDashboard(); renderStats(); renderBackupCard();
   }
-  if (!opts.silent || upgraded) {
-    const who = md.minecraftName ? ` (linked to ${md.minecraftName})` : "";
-    setModLinkStatus(`Server sync — ${upgraded} updated${who}.`, true);
+  if (!opts.silent || upgraded || berriesAdded) {
+    const who = (md && md.minecraftName) || (mb && mb.minecraftName);
+    setModLinkStatus(`Server sync — ${upgraded} dex, ${berriesAdded} berries updated${who ? ` (linked to ${who})` : ""}.`, true);
   }
-  return upgraded;
+  return upgraded + berriesAdded;
 }
 
 // Create + display a one-time link code the player types in-game.

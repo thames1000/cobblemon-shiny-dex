@@ -96,6 +96,7 @@ Restart the server. Verify connectivity in-game with `/shinydex test` — it hit
 | `linkCodes` | the code | website (client) | backend (burns it) |
 | `mcLinks` | Minecraft UUID | backend | backend |
 | `modDex` | user uid | backend | website (owner) |
+| `modBerries` | user uid | backend | website (owner) |
 
 `modDex/{uid}.dex` is a plain `{ "<nationalDex>": "caught" | "shiny" }` map. The
 website never writes it; it only merges it up into your normal progress, so a
@@ -108,7 +109,12 @@ manual ✨/📦 is never overwritten by the mod.
 | `POST /minecraft/link/verify` | `api/minecraft/link/verify.js` |
 | `POST /minecraft/unlink` | `api/minecraft/unlink.js` |
 | `POST /minecraft/catches` | `api/minecraft/catches.js` |
+| `POST /minecraft/berries` | `api/minecraft/berries.js` |
 | `POST /minecraft/test-event` | `api/minecraft/test-event.js` |
+
+`/minecraft/berries` takes `{ serverToken, minecraftUuid, berries: [...] }` (or a
+single `berry`). Ids may be bare (`occa`) or full item ids (`cobblemon:occa_berry`);
+unknown ids are ignored. Berries are a set-only collection, so the scan is idempotent.
 
 All require the matching `serverToken`; catches/links resolve species by name or
 national-dex number via `js/data/species.json`.

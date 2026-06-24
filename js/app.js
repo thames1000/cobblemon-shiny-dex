@@ -3622,11 +3622,10 @@ let BERRIES = [];        // [{id,name,group,effect,type?,rarityTier?,shiny?,...}
 let BERRY_BY_ID = {};
 let BERRY_GUIDE = [];    // [{id,name,kind,biomes,mulch,source,effect,img}] — Berries tab
 
-// Rarity-bucket weights. World spawns use Cobbleverse's "Rarity Overhaul" global
-// rates (overrides base Cobblemon's 94/5/0.5/0.2 best-spawner-config). A placed
-// Poké Snack uses Cobblemon's pokeSnackBuckets (flatter, to lure rarer mons).
+// Natural world spawns use Cobbleverse's "Rarity Overhaul" global bucket weights
+// (overrides base Cobblemon's 94/5/0.5/0.2 best-spawner-config). A placed Poké
+// Snack instead follows the exact rarity-tier table below (RARITY_TIER_ODDS).
 const WORLD_BUCKETS = { common: 88.5, uncommon: 10, rare: 1.2, "ultra-rare": 0.3 };
-const SNACK_BUCKETS = { common: 83.25, uncommon: 11.25, rare: 4.125, "ultra-rare": 1.375 };
 
 // Cobbleverse server config (lumymon.json) blacklists these dex from Poké Snack
 // spawns — poke_snack_blacklist "custom" + "paradox" tags (legendaries, the
@@ -3641,18 +3640,46 @@ const ASSUME_ALL_LURABLE = true;
 const isSnackBlacklisted = (dex) => !ASSUME_ALL_LURABLE && SNACK_BLACKLIST.has(Number(dex));
 const SNACK_LURE_NOTE = "Cobbleverse blocks Poké Snack lures for this Pokémon by default (lumymon blacklist); this plan assumes that's been turned off.";
 const BUCKETS = ["common", "uncommon", "rare", "ultra-rare"];
-// Bucket probabilities matching Cobblemon's BucketNormalizingInfluence: at tier 0
-// the raw weights are used; each higher tier raises every weight to 1/(1.29 +
-// 0.2·(tier−1)) before renormalising, pulling the buckets closer together (this
-// is how lure level / rarity boosters work). Returns probs summing to 1.
-function bucketOdds(tier, base = SNACK_BUCKETS) {
-  const t = Math.max(0, Math.round(tier));
-  const w = {};
-  if (t === 0) for (const b of BUCKETS) w[b] = base[b];
-  else { const f = 1.29 + 0.2 * (t - 1); for (const b of BUCKETS) w[b] = Math.pow(base[b], 1 / f); }
-  const sum = BUCKETS.reduce((a, b) => a + w[b], 0) || 1;
+// Poké Snack rarity-tier → bucket-odds. A snack's seasonings sum a "rarity tier"
+// (each rarity item +1, each Enchanted Golden Apple +10); Cobblemon's
+// BucketNormalizingInfluence then shifts the spawn buckets by that tier. These are
+// the exact in-game percentages per tier (rows in BUCKETS order). The listed tiers
+// (0-3, 10-12, 20-21, 30) are every reachable sum across 3 snack slots, so the
+// table is complete — no real snack can land on a tier that isn't here.
+const RARITY_TIER_ODDS = {
+  0:  [86.2,  10.28, 2.51,  1.01],
+  1:  [77.1,  15.01, 5.38,  2.51],
+  2:  [67.84, 18.73, 8.84,  4.59],
+  3:  [59.37, 21.31, 12.35, 6.97],
+  10: [28.48, 24.08, 27.32, 20.13],
+  11: [26.51, 23.83, 28.36, 21.3],
+  12: [24.3,  23.56, 29.26, 22.35],
+  20: [17.29, 21.62, 33.34, 27.76],
+  21: [16.75, 21.42, 33.63, 28.2],
+  30: [13.58, 20.09, 35.33, 31],
+};
+const RARITY_TIERS = Object.keys(RARITY_TIER_ODDS).map(Number).sort((a, b) => a - b);
+// Table row for any tier: exact if listed, else linearly interpolated between the
+// two nearest tiers (clamped past the ends). Real snacks only ever hit listed
+// tiers; interpolation just keeps the function total for off-table inputs.
+function rarityTierRow(t) {
+  if (RARITY_TIER_ODDS[t]) return RARITY_TIER_ODDS[t];
+  const first = RARITY_TIERS[0], last = RARITY_TIERS[RARITY_TIERS.length - 1];
+  if (t <= first) return RARITY_TIER_ODDS[first];
+  if (t >= last) return RARITY_TIER_ODDS[last];
+  let lo = first, hi = last;
+  for (const k of RARITY_TIERS) { if (k <= t) lo = k; else { hi = k; break; } }
+  const a = RARITY_TIER_ODDS[lo], b = RARITY_TIER_ODDS[hi], f = (t - lo) / (hi - lo);
+  return a.map((v, i) => v + (b[i] - v) * f);
+}
+// Bucket probabilities (summing to 1). A placed snack uses the rarity-tier table;
+// natural world spawns use the Rarity-Overhaul world weights (always tier 0).
+function bucketOdds(tier, snack = true) {
+  const raw = snack ? rarityTierRow(Math.max(0, Math.round(tier)))
+                    : BUCKETS.map((b) => WORLD_BUCKETS[b]);
+  const sum = raw.reduce((a, b) => a + b, 0) || 1;
   const out = {};
-  for (const b of BUCKETS) out[b] = w[b] / sum;
+  BUCKETS.forEach((b, i) => { out[b] = raw[i] / sum; });
   return out;
 }
 
@@ -3768,7 +3795,7 @@ function renderSnackSummary(seasonings) {
 function computeAttraction(biome, seasonings, nearWater = true) {
   const pool = biomePool(biome);
   if (!pool.length) return [];
-  const odds = bucketOdds(seasonings.reduce((a, s) => a + (s.rarityTier || 0), 0), SNACK_BUCKETS);
+  const odds = bucketOdds(seasonings.reduce((a, s) => a + (s.rarityTier || 0), 0), true);
 
   // Bucket each spawn entry, weighted by spawn weight × type/egg multiplier.
   // EV-yield seasonings gate the pool: non-matching species are removed entirely.
@@ -4111,9 +4138,9 @@ function simPlacedItems() {
 // Which species can spawn at the described spot, ranked. Also returns a tally of
 // why entries were rejected, so the UI can nudge ("3 too tall — dig higher").
 function computeSpawns(o) {
-  // No seasonings = natural world spawn (world buckets); a snack uses snack buckets.
-  const base = o.seasonings.length ? SNACK_BUCKETS : WORLD_BUCKETS;
-  const odds = bucketOdds(o.seasonings.reduce((a, s) => a + (s.rarityTier || 0), 0), base);
+  // No seasonings = natural world spawn (world weights); a placed snack uses the rarity-tier table.
+  const snack = o.seasonings.length > 0;
+  const odds = bucketOdds(o.seasonings.reduce((a, s) => a + (s.rarityTier || 0), 0), snack);
   const evReqs = evRequirements(o.seasonings);
   const buckets = { common: [], uncommon: [], rare: [], "ultra-rare": [] };
   const excl = { tall: 0, near: 0, base: 0, y: 0, time: 0, weather: 0, sky: 0, water: 0, light: 0 };

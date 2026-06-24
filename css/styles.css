@@ -111,9 +111,13 @@ body.nav-collapsed .tab-lbl { display: none; }
 .card.todo li { margin: 6px 0; }
 .section-h { font-size: 1rem; color: var(--muted); margin: 18px 0 8px; }
 .hint { color: var(--muted); font-size: .85rem; line-height: 1.5; margin: 4px 0 12px; }
-#mod-import-status { margin: 10px 0 0; font-weight: 600; }
-#mod-import-status[data-tone="good"] { color: var(--accent); }
-#mod-import-status[data-tone="bad"] { color: var(--danger); }
+#mod-import-status, #mod-link-status { margin: 10px 0 0; font-weight: 600; }
+#mod-import-status[data-tone="good"], #mod-link-status[data-tone="good"] { color: var(--accent); }
+#mod-import-status[data-tone="bad"], #mod-link-status[data-tone="bad"] { color: var(--danger); }
+.card-sep { border: 0; border-top: 1px solid var(--line); margin: 18px 0 14px; }
+.card-subh { font-size: .95rem; margin: 0 0 6px; }
+.mod-link-code { margin: 12px 0 0; padding: 12px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; font-size: .9rem; line-height: 1.5; }
+.mod-link-code .link-code { display: inline-block; margin-top: 4px; padding: 4px 10px; background: var(--panel); border: 1px solid var(--accent); border-radius: 6px; font-size: 1.05rem; font-weight: 700; letter-spacing: .04em; color: var(--accent); user-select: all; }
 code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 
 /* Stats bar */

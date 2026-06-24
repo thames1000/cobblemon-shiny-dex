@@ -55,11 +55,31 @@ In the console → **Build → Authentication → Get started → Sign-in method
        match /users/{uid} {
          allow read, write: if request.auth != null && request.auth.uid == uid;
        }
+
+       // --- ShinyDex Link (Minecraft mod sync) — only needed if you set that up ---
+       // One-time link codes a signed-in user generates; the backend (Admin SDK,
+       // which bypasses these rules) burns them on /minecraft/link/verify.
+       match /linkCodes/{code} {
+         allow create: if request.auth != null
+                       && request.resource.data.uid == request.auth.uid;
+         allow read, delete: if request.auth != null
+                       && resource.data.uid == request.auth.uid;
+       }
+       // Mod-sourced caught/shiny, written ONLY by the backend; owner can read.
+       match /modDex/{uid} {
+         allow read: if request.auth != null && request.auth.uid == uid;
+       }
+       // Minecraft UUID → account links: backend only, no client access.
+       match /mcLinks/{uuid} {
+         allow read, write: if false;
+       }
      }
    }
    ```
 
-   This is what makes your data private — every user can only touch `users/<their own uid>`.
+   This is what makes your data private — every user can only touch `users/<their own uid>`
+   (plus reading their own mod-sync data). The `linkCodes` / `modDex` / `mcLinks` blocks are
+   only relevant if you wire up the Minecraft mod — see **[SETUP-MOD-SYNC.md](SETUP-MOD-SYNC.md)**.
 
 ## 4. Paste your config into the app
 

@@ -18,7 +18,7 @@ deploys straight to GitHub Pages. All progress is **manual** and stored in your 
 | **Hunt** | ✅ Phase 2 | Chain (Unchained), Breeding (Cobbreeding Masuda), and raw-encounter logger with editable mod odds. |
 | **Spawns** | ✅ Phase 3 | Forward (by Pokémon → biomes/rarity/time + best AFK spot) and reverse (by biome → species) lookup. Complements the in-game PokéNav. |
 | **Farm** | ✅ Phase 4 | Apricorn-farm sizing (apricorns & balls/hr, time-to-target) + encounter-farm time-to-shiny (50/90/99% counts and ETAs). Generic — no mod-specific recipes. |
-| **Data** | ✅ | Export / import / reset your progress, plus **optional** account sign-in for cloud sync across devices. |
+| **Data** | ✅ | Export / import / reset your progress, **optional** account sign-in for cloud sync, and **Minecraft mod sync** — import a **ShinyDex Link** mod export file, or link your server for **live** caught/✨shiny updates ([setup](SETUP-MOD-SYNC.md)). |
 
 ## Accounts & cloud sync (optional)
 

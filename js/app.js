@@ -398,6 +398,9 @@ async function onCloudAuth(user) {
       // Both sides have data — never auto-clobber; let the user choose.
       resolveConflict(remote);
     }
+    // Fold in any catches the Minecraft mod has synced since last time. Skipped
+    // while a conflict chooser is open — we merge after the user resolves it.
+    if (!pendingRemote) await pullModDex({ silent: true });
   } catch (e) {
     cloudActive = true; // stay signed in; saves will retry
     setSyncBadge("error", (e && e.message) || "Could not load cloud data");
@@ -428,6 +431,8 @@ function finishConflict(choice) {
   } else { // keep this device
     save();
   }
+  // Now that the conflict is settled, fold in any mod-synced catches.
+  pullModDex({ silent: true });
 }
 
 // Non-destructive merge: per key, keep whichever side is "further along" (higher
@@ -481,6 +486,70 @@ async function pullFromCloud() {
   } catch (e) {
     setSyncBadge("error", (e && e.message) || "Pull failed");
   }
+}
+
+// Merge the mod-sourced caught/shiny map (written by the ShinyDex Link backend)
+// into local state. Upgrade-only, exactly like the file import: it raises
+// none→seen→caught→✨shiny and never downgrades or disturbs a 📦 boxed mon. Safe
+// to call repeatedly. Runs automatically after sign-in; also wired to "Sync now".
+async function pullModDex(opts) {
+  opts = opts || {};
+  if (!window.ShinyCloud || !window.ShinyCloud.configured || !window.ShinyCloud.loadModDex || !cloudUser) {
+    if (!opts.silent) setModLinkStatus("Sign in (Account card above) to sync from your server.", false);
+    return 0;
+  }
+  let md;
+  try { md = await window.ShinyCloud.loadModDex(); }
+  catch (e) { if (!opts.silent) setModLinkStatus("Couldn't reach the server sync: " + ((e && e.message) || "error"), false); return 0; }
+  if (!md || !md.dex || !Object.keys(md.dex).length) {
+    if (!opts.silent) setModLinkStatus("No server catches yet — link a Minecraft account below, then catch something.", true);
+    return 0;
+  }
+  let upgraded = 0;
+  for (const [k, next] of Object.entries(md.dex)) {
+    const dex = Number(k);
+    if (!Number.isFinite(dex) || !DEX_BY_NUM[dex]) continue;
+    if (MOD_STATE_RANK[next] == null) continue;
+    const cur = dexState(dex);
+    if (MOD_STATE_RANK[next] > MOD_STATE_RANK[cur]) { setDexState(dex, next); upgraded++; }
+  }
+  if (upgraded) {
+    save(); // persists locally and (since cloudActive) pushes the merged blob up
+    renderDex(); renderForms(); renderVariants(); renderLegendary(); renderBerries();
+    renderBoxes(); renderDashboard(); renderStats(); renderBackupCard();
+  }
+  if (!opts.silent || upgraded) {
+    const who = md.minecraftName ? ` (linked to ${md.minecraftName})` : "";
+    setModLinkStatus(`Server sync — ${upgraded} updated${who}.`, true);
+  }
+  return upgraded;
+}
+
+// Create + display a one-time link code the player types in-game.
+async function generateLinkCode() {
+  if (!window.ShinyCloud || !window.ShinyCloud.configured) {
+    setModLinkStatus("Cloud sync isn't configured for this site yet.", false); return;
+  }
+  if (!cloudUser) { setModLinkStatus("Sign in (Account card above) first — the code links your server catches to your account.", false); return; }
+  setModLinkStatus("Generating…", true);
+  try {
+    const { code } = await window.ShinyCloud.createLinkCode();
+    if (els.modLinkCode) {
+      els.modLinkCode.hidden = false;
+      els.modLinkCode.innerHTML =
+        `In Minecraft, run:<br><code class="link-code">/shinydex link ${code}</code>` +
+        `<span class="hint" style="display:block;margin-top:6px">Expires in 15 minutes · one use. After linking, catches sync automatically.</span>`;
+    }
+    if (els.modLinkStatus) els.modLinkStatus.hidden = true;
+  } catch (e) { setModLinkStatus("Couldn't create a link code: " + ((e && e.message) || "error"), false); }
+}
+
+function setModLinkStatus(msg, ok) {
+  const el = els.modLinkStatus;
+  if (!el) return;
+  el.hidden = false;
+  el.textContent = msg;
+  el.dataset.tone = ok ? "good" : "bad";
 }
 
 // Run a ShinyCloud auth call, surfacing any error in the account card.
@@ -5306,6 +5375,10 @@ function grabEls() {
     modImportBtn: document.getElementById("mod-import-btn"),
     modImportFile: document.getElementById("mod-import-file"),
     modImportStatus: document.getElementById("mod-import-status"),
+    modLinkBtn: document.getElementById("mod-link-btn"),
+    modPullBtn: document.getElementById("mod-pull-btn"),
+    modLinkCode: document.getElementById("mod-link-code"),
+    modLinkStatus: document.getElementById("mod-link-status"),
     installBtn: document.getElementById("install-btn"),
     // Account / cloud sync
     accountUnconfigured: document.getElementById("account-unconfigured"),
@@ -5972,6 +6045,8 @@ function wire() {
   els.importFile.addEventListener("change", (e) => { if (e.target.files[0]) importData(e.target.files[0]); });
   if (els.modImportBtn) els.modImportBtn.addEventListener("click", () => els.modImportFile.click());
   if (els.modImportFile) els.modImportFile.addEventListener("change", (e) => { if (e.target.files[0]) { importModSync(e.target.files[0]); e.target.value = ""; } });
+  if (els.modLinkBtn) els.modLinkBtn.addEventListener("click", generateLinkCode);
+  if (els.modPullBtn) els.modPullBtn.addEventListener("click", () => pullModDex({ silent: false }));
   els.resetAll.addEventListener("click", () => {
     if (confirm("Erase ALL progress? Export first if unsure.")) {
       state = freshState();

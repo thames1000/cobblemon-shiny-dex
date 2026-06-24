@@ -46,6 +46,16 @@ function friendly(err) {
   return map[code] || (err && err.message) || "Something went wrong.";
 }
 
+// A short, unambiguous one-time link code (no 0/O/1/I) the player types in-game
+// as `/shinydex link <code>`. 32^8 space — collisions are not a concern.
+function makeLinkCode() {
+  const alpha = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes = crypto.getRandomValues(new Uint8Array(8));
+  let s = "";
+  for (let i = 0; i < 8; i++) s += alpha[bytes[i] % alpha.length];
+  return s.slice(0, 4) + "-" + s.slice(4);
+}
+
 // Not configured: stay dormant, tell the UI, and don't load the SDK at all.
 if (isPlaceholder) {
   window.ShinyCloud = { configured: false };
@@ -139,6 +149,37 @@ async function bootCloud() {
       let updatedAt = 0;
       try { updatedAt = Number(JSON.parse(json).updatedAt) || 0; } catch (_) {}
       await setDoc(userDoc(u.uid), { data: json, updatedAt, app: "shinydex-hq" });
+    },
+
+    // ---- ShinyDex Link (Minecraft mod) ----
+    // Create a one-time code tying this account to a server link. The backend
+    // (Admin SDK) burns it when the mod calls /minecraft/link/verify.
+    async createLinkCode() {
+      const u = auth.currentUser;
+      if (!u) throw new Error("Sign in first to link a server.");
+      const code = makeLinkCode();
+      const now = Date.now();
+      const expiresAt = now + 15 * 60 * 1000; // 15 minutes
+      await setDoc(doc(db, "linkCodes", code), {
+        uid: u.uid, used: false, createdAt: now, expiresAt, app: "shinydex-hq",
+        displayName: u.displayName || null, email: u.email || null,
+      });
+      return { code, expiresAt };
+    },
+    // Read the mod-sourced caught/shiny map for this user (written by the backend).
+    // Returns { dex:{<num>:state}, minecraftName, lastSyncAt, updatedAt } or null.
+    async loadModDex() {
+      const u = auth.currentUser;
+      if (!u) return null;
+      const snap = await getDoc(doc(db, "modDex", u.uid));
+      if (!snap.exists()) return null;
+      const d = snap.data() || {};
+      return {
+        dex: d.dex && typeof d.dex === "object" ? d.dex : {},
+        minecraftName: d.minecraftName || null,
+        lastSyncAt: Number(d.lastSyncAt) || 0,
+        updatedAt: Number(d.updatedAt) || 0,
+      };
     },
   };
 

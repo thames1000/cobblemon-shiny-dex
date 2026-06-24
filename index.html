@@ -758,6 +758,18 @@
           <input type="file" id="mod-import-file" accept="application/json,.json" hidden />
         </div>
         <div id="mod-import-status" class="hint" hidden></div>
+
+        <hr class="card-sep" />
+        <h3 class="card-subh">Live server sync ⚡</h3>
+        <p class="hint">Prefer hands-off? Sign in (Account &amp; cloud sync card above), then link your Minecraft
+          account once — after that every catch on the server updates this dex <strong>automatically</strong>
+          (upgrade-only, same safe merge). Generate a code here and run <code>/shinydex link &lt;code&gt;</code> in-game.</p>
+        <div class="controls">
+          <button id="mod-link-btn" class="ctrl-btn">🔑 Generate link code</button>
+          <button id="mod-pull-btn" class="ctrl-btn">↻ Sync now</button>
+        </div>
+        <div id="mod-link-code" class="mod-link-code" hidden></div>
+        <div id="mod-link-status" class="hint" hidden></div>
       </div>
       <div class="card">
         <h2>Danger zone</h2>

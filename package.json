@@ -1,0 +1,12 @@
+{
+  "name": "cobblemon-shiny-dex-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Serverless backend (Vercel functions) for ShinyDex Link — the Minecraft mod ⇄ website catch sync. The website itself stays a zero-build static PWA; only the api/ folder uses these deps.",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0"
+  }
+}

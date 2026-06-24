@@ -748,6 +748,18 @@
         </div>
       </div>
       <div class="card">
+        <h2>Minecraft mod sync 🔗</h2>
+        <p class="hint">The <strong>ShinyDex Link</strong> server mod can update your dex straight from your
+          Minecraft save — no manual tapping. In-game, export your caught/✨shiny list with the mod, then load
+          that file here. It only ever <strong>upgrades</strong> a species (Seen → Caught → ✨ Shiny); it never
+          downgrades and never touches anything you've already 📦 boxed, so re-importing is always safe.</p>
+        <div class="controls">
+          <button id="mod-import-btn" class="ctrl-btn good">🔗 Import mod export</button>
+          <input type="file" id="mod-import-file" accept="application/json,.json" hidden />
+        </div>
+        <div id="mod-import-status" class="hint" hidden></div>
+      </div>
+      <div class="card">
         <h2>Danger zone</h2>
         <button id="reset-all" class="ctrl-btn danger">Reset all progress</button>
       </div>

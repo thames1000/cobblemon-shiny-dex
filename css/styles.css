@@ -111,6 +111,9 @@ body.nav-collapsed .tab-lbl { display: none; }
 .card.todo li { margin: 6px 0; }
 .section-h { font-size: 1rem; color: var(--muted); margin: 18px 0 8px; }
 .hint { color: var(--muted); font-size: .85rem; line-height: 1.5; margin: 4px 0 12px; }
+#mod-import-status { margin: 10px 0 0; font-weight: 600; }
+#mod-import-status[data-tone="good"] { color: var(--accent); }
+#mod-import-status[data-tone="bad"] { color: var(--danger); }
 code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 
 /* Stats bar */

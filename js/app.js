@@ -5089,6 +5089,114 @@ function importData(file) {
   reader.readAsText(file);
 }
 
+/* ---------- ShinyDex Link (Minecraft mod) import ----------
+ * The ShinyDex Link server mod (../shiny-dex-site-link) reports what you've
+ * actually caught in-game. Rather than the manual JSON backup, this reads the
+ * mod's export and merges it onto your dex. It only ever UPGRADES a species'
+ * state (none → seen → caught → ✨ shiny) — it never downgrades, and it never
+ * touches a manually 📦 boxed mon (boxed is a site-only step above shiny that
+ * the mod has no concept of). So importing is always safe to repeat. */
+const MOD_STATE_RANK = { none: 0, seen: 1, caught: 2, shiny: 3, boxed: 4 };
+
+// Lazily-built normalized species-name → dex lookup. Cobblemon sends lowercase
+// names ("mareep", "nidoran-f", "mr-mime"); strip non-alphanumerics so we're
+// forgiving about separators (- _ space, etc.).
+let DEX_BY_NAME = null;
+function normSpeciesName(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
+function buildNameLookup() {
+  DEX_BY_NAME = {};
+  for (const sp of SPECIES) DEX_BY_NAME[normSpeciesName(sp.name)] = sp.dex;
+}
+
+// Pull a flat list of catch/dex entries out of whatever shape the export takes:
+// a bare array, or an object wrapping pokemon/entries/catches/events/queue.
+function modEntries(d) {
+  if (Array.isArray(d)) return d;
+  if (d && typeof d === "object") {
+    for (const k of ["pokemon", "entries", "catches", "events", "queue"]) {
+      if (Array.isArray(d[k])) return d[k];
+    }
+    if (d.event && typeof d.event === "object") return [d];
+  }
+  return null;
+}
+
+// event_queue.json holds QueuedEvent objects ({event:{…}, queuedAt, …}); unwrap
+// to the catch payload. A snapshot/catches entry is already the payload.
+function modPayload(e) {
+  return e && typeof e.event === "object" && e.event ? e.event : e;
+}
+
+// Decide the dex state a single entry implies. Returns null if it says nothing.
+function modEntryState(e) {
+  const shiny = e.shiny === true || (Array.isArray(e.aspects) && e.aspects.includes("shiny"));
+  if (shiny) return "shiny";
+  if (e.caught === true || e.eventType === "pokemon_caught") return "caught";
+  if (e.seen === true) return "seen";
+  // A species named with no flags at all (e.g. a queued catch payload) is a catch.
+  if ((e.species || e.displayName) && e.caught === undefined && e.seen === undefined && e.eventType === undefined) return "caught";
+  return null;
+}
+
+// Resolve a national-dex number from an explicit field or the species name.
+function modEntryDex(e) {
+  const direct = Number(e.dex ?? e.dexNumber ?? e.nationalDex ?? e.national_dex);
+  if (Number.isFinite(direct) && direct > 0) return direct;
+  if (!DEX_BY_NAME) buildNameLookup();
+  const key = normSpeciesName(e.species || e.displayName || e.name);
+  return key ? DEX_BY_NAME[key] : undefined;
+}
+
+function importModSync(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const status = els.modImportStatus;
+    const show = (msg, ok) => {
+      if (!status) { if (!ok) alert(msg); return; }
+      status.hidden = false;
+      status.textContent = msg;
+      status.dataset.tone = ok ? "good" : "bad";
+    };
+    try {
+      const d = JSON.parse(reader.result);
+      const entries = modEntries(d);
+      if (!entries) throw new Error("not a ShinyDex Link export (no catch list found)");
+
+      let upgraded = 0, already = 0, unknown = 0;
+      const unknownNames = new Set();
+      for (const raw of entries) {
+        const e = modPayload(raw);
+        if (!e || typeof e !== "object") continue;
+        const next = modEntryState(e);
+        if (!next) continue;
+        const dex = modEntryDex(e);
+        if (!Number.isFinite(dex) || !DEX_BY_NUM[dex]) {
+          unknown++;
+          unknownNames.add(e.species || e.displayName || e.name || String(e.dex ?? "?"));
+          continue;
+        }
+        const cur = dexState(dex);
+        if (MOD_STATE_RANK[next] > MOD_STATE_RANK[cur]) { setDexState(dex, next); upgraded++; }
+        else already++;
+      }
+
+      if (upgraded) {
+        save();
+        renderDex(); renderForms(); renderVariants(); renderLegendary(); renderBerries();
+        renderBoxes(); renderDashboard(); renderStats(); renderBackupCard();
+      }
+      const parts = [`Synced from mod — ${upgraded} updated`];
+      if (already) parts.push(`${already} already current`);
+      if (unknown) {
+        const sample = [...unknownNames].slice(0, 3).join(", ");
+        parts.push(`${unknown} unrecognized${sample ? ` (${sample}${unknownNames.size > 3 ? "…" : ""})` : ""}`);
+      }
+      show(parts.join(" · "), true);
+    } catch (e) { show("Mod import failed: " + e.message, false); }
+  };
+  reader.readAsText(file);
+}
+
 /* ---------- element refs + wiring ---------- */
 const els = {};
 function grabEls() {
@@ -5195,6 +5303,9 @@ function grabEls() {
     importBtn: document.getElementById("import-btn"),
     importFile: document.getElementById("import-file"),
     resetAll: document.getElementById("reset-all"),
+    modImportBtn: document.getElementById("mod-import-btn"),
+    modImportFile: document.getElementById("mod-import-file"),
+    modImportStatus: document.getElementById("mod-import-status"),
     installBtn: document.getElementById("install-btn"),
     // Account / cloud sync
     accountUnconfigured: document.getElementById("account-unconfigured"),
@@ -5859,6 +5970,8 @@ function wire() {
   els.exportBtn.addEventListener("click", exportData);
   els.importBtn.addEventListener("click", () => els.importFile.click());
   els.importFile.addEventListener("change", (e) => { if (e.target.files[0]) importData(e.target.files[0]); });
+  if (els.modImportBtn) els.modImportBtn.addEventListener("click", () => els.modImportFile.click());
+  if (els.modImportFile) els.modImportFile.addEventListener("change", (e) => { if (e.target.files[0]) { importModSync(e.target.files[0]); e.target.value = ""; } });
   els.resetAll.addEventListener("click", () => {
     if (confirm("Erase ALL progress? Export first if unsure.")) {
       state = freshState();

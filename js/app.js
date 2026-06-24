@@ -2263,7 +2263,7 @@ function detailSpawnsHtml(dex) {
 }
 
 function detailSnackHtml(dex) {
-  if (SNACK_BLACKLIST.has(dex)) {
+  if (isSnackBlacklisted(dex)) {
     return `<section class="md-sec"><h3>Best Poké Snack</h3><p class="hint">Legendary / special — a Poké Snack can't lure this one.</p></section>`;
   }
   const best = bestSnackFor(dex, 0);
@@ -2273,6 +2273,8 @@ function detailSnackHtml(dex) {
   const baseRate = state.config.baseShinyRate;
   const eff = baseRate / best.shiny;
   const snacks = Math.max(1, Math.ceil((eff / best.p) / SNACK_BITES));
+  const lureNote = SNACK_BLACKLIST.has(dex)
+    ? `<p class="hint" style="margin:6px 0 0">${SNACK_LURE_NOTE}</p>` : "";
   return `<section class="md-sec"><h3>Best Poké Snack</h3>
     <div class="md-snack">
       <div class="plan-row"><span>Biome</span><b style="text-transform:capitalize">${isIngameBiome(best.biome) ? biomeLabel(best.biome) : best.biome}</b></div>
@@ -2281,7 +2283,7 @@ function detailSnackHtml(dex) {
       <div class="plan-row"><span>Shiny odds</span><b>1/${Math.round(eff).toLocaleString()}</b> (✨×${best.shiny})</div>
       <div class="plan-row"><span>Snacks to shiny</span><b>~${snacks.toLocaleString()}</b> <span class="muted">expected</span></div>
     </div>
-    <button class="link-btn md-snackplan" data-dex="${dex}">Open in the Poké Snack planner →</button>
+    <button class="link-btn md-snackplan" data-dex="${dex}">Open in the Poké Snack planner →</button>${lureNote}
   </section>`;
 }
 
@@ -3629,8 +3631,15 @@ const SNACK_BUCKETS = { common: 83.25, uncommon: 11.25, rare: 4.125, "ultra-rare
 // Cobbleverse server config (lumymon.json) blacklists these dex from Poké Snack
 // spawns — poke_snack_blacklist "custom" + "paradox" tags (legendaries, the
 // treasures of ruin, Type: Null, Zygarde, and all paradox mons). They still spawn
-// naturally; they just can't be lured by a snack, so we drop them from snack calcs.
+// naturally; by default they just can't be lured by a snack.
 const SNACK_BLACKLIST = new Set([144, 145, 146, 150, 151, 243, 244, 245, 249, 250, 251, 377, 378, 379, 380, 381, 382, 383, 384, 385, 386, 480, 481, 482, 483, 484, 485, 486, 487, 488, 489, 490, 491, 492, 493, 718, 772, 890, 894, 895, 896, 897, 898, 984, 985, 986, 987, 988, 989, 990, 991, 992, 993, 994, 995, 1001, 1002, 1003, 1004, 1005, 1006, 1009, 1010, 1020, 1021, 1022, 1023]);
+// We ASSUME the blacklist has been disabled (so every Pokémon — legendaries
+// included — can be snack-lured) and compute plans for all of them. Flip this to
+// false to honour the stock blacklist instead. Mons in SNACK_BLACKLIST still get
+// a small note that luring them is off by default.
+const ASSUME_ALL_LURABLE = true;
+const isSnackBlacklisted = (dex) => !ASSUME_ALL_LURABLE && SNACK_BLACKLIST.has(Number(dex));
+const SNACK_LURE_NOTE = "Cobbleverse blocks Poké Snack lures for this Pokémon by default (lumymon blacklist); this plan assumes that's been turned off.";
 const BUCKETS = ["common", "uncommon", "rare", "ultra-rare"];
 // Bucket probabilities matching Cobblemon's BucketNormalizingInfluence: at tier 0
 // the raw weights are used; each higher tier raises every weight to 1/(1.29 +
@@ -3768,7 +3777,7 @@ function computeAttraction(biome, seasonings, nearWater = true) {
   const buckets = { common: [], uncommon: [], rare: [], "ultra-rare": [] };
   for (const { dex, entry } of pool) {
     if (!buckets[entry.r]) continue;
-    if (SNACK_BLACKLIST.has(dex)) continue;             // lumymon: can't be lured by a snack
+    if (isSnackBlacklisted(dex)) continue;              // lumymon: can't be lured by a snack (off by default — we assume all lurable)
     if (!nearWater && needsWater(entry)) continue;      // dry land — aquatic spawns can't roll
     const sp = DEX_BY_NUM[dex];
     if (!passesEvGate(sp, evReqs)) continue;            // forced out — can't be lured
@@ -4055,6 +4064,7 @@ function renderBestSnack(raw) {
     `<div class="snack-best-grid">` +
       tiers.map(([title, plan]) => planCard(title, plan, sp, baseRate)).join("") +
     `</div>${egaNoteText(note, sp.name.replace(/-/g, " "))}` +
+    (SNACK_BLACKLIST.has(sp.dex) ? `<p class="hint">${SNACK_LURE_NOTE}</p>` : "") +
     `<p class="hint">Optimised for the fewest snacks to a <em>shiny of this species</em> (spawn rate × shiny boost).
       Base shiny rate ${baseRate} (edit it in "Snacks to a shiny"). "Load into builder" fills the controls above.</p>`;
 }
@@ -4110,7 +4120,7 @@ function computeSpawns(o) {
   const ow = isOverworldBiome(o.biome); // "any overworld" spawns count here too
   const snackCtx = o.seasonings.length > 0; // a snack is placed → lumymon blacklist applies
   for (const dex in SIM.spawns) {
-    if (snackCtx && SNACK_BLACKLIST.has(Number(dex))) continue; // can't be snack-lured
+    if (snackCtx && isSnackBlacklisted(dex)) continue;          // can't be snack-lured (off by default — we assume all lurable)
     const sp = DEX_BY_NUM[dex];
     const hb = SIM.hitbox[dex];
     for (const e of SIM.spawns[dex]) {
@@ -4361,7 +4371,7 @@ function optimizeSpawn(dex, egaCap) {
   // Snack-blacklisted mons (lumymon) can't be lured, so optimise the natural spot
   // with NO seasonings; otherwise rank spots WITH the pool-shaping gate so a spot
   // that's only good once competitors are gated out isn't pruned before phase 2.
-  const blacklisted = SNACK_BLACKLIST.has(dex);
+  const blacklisted = isSnackBlacklisted(dex);
   const gate = blacklisted ? [] : gateSeasonings(sp);
   spots.forEach((s) => (s.p0 = simSpotP(dex, s, gate)));
   const top = spots.filter((s) => s.p0 > 0).sort((a, b) => b.p0 - a.p0).slice(0, 12);
@@ -4417,7 +4427,7 @@ function renderSimBest(raw) {
       Cobbleverse data (event / evolution / trade only), so there's no spot to optimize.</p>`;
     return;
   }
-  const blacklisted = SNACK_BLACKLIST.has(sp.dex);
+  const blacklisted = isSnackBlacklisted(sp.dex);
   // Blacklisted mons can't be lured, so all EGA tiers are identical (no snack).
   const { tiers, note } = blacklisted ? { tiers: [["Natural spot (no snack)", b0]], note: "" }
     : egaTiers(b0, optimizeSpawn(sp.dex, 1), optimizeSpawn(sp.dex, 3));
@@ -4426,7 +4436,8 @@ function renderSimBest(raw) {
   if (!els.simBaseRate.value) els.simBaseRate.value = state.config.baseShinyRate;
   const baseRate = Number(els.simBaseRate.value) || state.config.baseShinyRate;
   const blacklistNote = blacklisted
-    ? `<p class="hint">⛔ ${sp.name.replace(/-/g, " ")} is <b>blacklisted from Poké Snacks</b> (Cobbleverse lumymon config), so seasonings can't lure it — this is the best <em>natural</em> spot.</p>` : "";
+    ? `<p class="hint">⛔ ${sp.name.replace(/-/g, " ")} is <b>blacklisted from Poké Snacks</b> (Cobbleverse lumymon config), so seasonings can't lure it — this is the best <em>natural</em> spot.</p>`
+    : (SNACK_BLACKLIST.has(sp.dex) ? `<p class="hint">${SNACK_LURE_NOTE}</p>` : "");
   els.simBestOut.innerHTML =
     `<div class="find-row" style="border:0;padding:0 0 8px"><img src="${spriteUrl(sp.dex, true)}" alt=""/>
        <span class="find-name">Best spot · ${sp.name.replace(/-/g, " ")}</span></div>` +

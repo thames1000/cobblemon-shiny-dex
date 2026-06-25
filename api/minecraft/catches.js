@@ -50,24 +50,28 @@ module.exports = async (req, res) => {
     const result = await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
       const data = snap.exists ? snap.data() : {};
-      const map = Object.assign({}, data.dex || {});
-      const key = String(dex);
-      const cur = map[key];
-      const newDexEntry = !cur;
-      const upgraded = !cur || RANK[next] > (RANK[cur] || 0);
-      if (upgraded) map[key] = next;
-
       const write = {
-        dex: map, updatedAt: Date.now(), lastSyncAt: Date.now(),
+        updatedAt: Date.now(), lastSyncAt: Date.now(),
         minecraftName: body.minecraftName || data.minecraftName || null,
       };
-      let variantUpgraded = false;
+      let upgraded = false, newDexEntry = false, variantUpgraded = false;
       if (variant) {
+        // A regional/cosmetic/cobblemon form updates ONLY the separate Variants tab.
+        // We deliberately do NOT touch the base-dex entry, so e.g. catching a shiny
+        // Alolan Vulpix never marks the plain Vulpix dex slot shiny.
         const variants = Object.assign({}, data.variants || {});
         const vcur = variants[variant.id];
         variantUpgraded = !vcur || VRANK[next] > (VRANK[vcur] || 0);
         if (variantUpgraded) variants[variant.id] = next;
         write.variants = variants;
+      } else {
+        const map = Object.assign({}, data.dex || {});
+        const key = String(dex);
+        const cur = map[key];
+        newDexEntry = !cur;
+        upgraded = !cur || RANK[next] > (RANK[cur] || 0);
+        if (upgraded) map[key] = next;
+        write.dex = map;
       }
       tx.set(ref, write, { merge: true });
       return { upgraded, newDexEntry, variantUpgraded };
@@ -78,8 +82,9 @@ module.exports = async (req, res) => {
       duplicate: !result.upgraded && !result.variantUpgraded,
       message: "OK",
       updated: {
-        normalCaught: true,
-        shinyCaught: next === "shiny",
+        // A variant catch no longer touches the base dex, so normalCaught is false then.
+        normalCaught: !variant,
+        shinyCaught: !variant && next === "shiny",
         newDexEntry: result.newDexEntry,
         variantId: variant ? variant.id : null,
         variantCaught: !!variant,

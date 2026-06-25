@@ -532,6 +532,8 @@ async function pullModDex(opts) {
     const cur = state.variants[id];
     const curRank = cur === "shiny" ? 3 : (cur ? 2 : 0);
     if (MOD_STATE_RANK[next] > curRank) { state.variants[id] = next === "shiny" ? "shiny" : true; variantsUp++; }
+    // Back-fill a variant find-log row for every server-shiny variant (idempotent).
+    if (next === "shiny") { if (logVariantFindFromMod(id)) findsAdded++; }
   }
   // Berries are a set-only collection ("have it"); only ever add, never remove.
   for (const id of Object.keys(berryMap)) {
@@ -603,13 +605,19 @@ async function pushModDex(opts) {
     if (Object.keys(berryPatch).length && window.ShinyCloud.saveModBerries) await window.ShinyCloud.saveModBerries(berryPatch);
   } catch (e) { setModLinkStatus("Couldn't push changes: " + ((e && e.message) || "error"), false); return 0; }
 
-  // Prune now-orphaned mod-logged finds for fully-removed species.
+  // Prune now-orphaned mod-logged finds for fully-removed species/variants.
   let prunedFinds = 0;
   for (const k of Object.keys(dexPatch)) {
     if (dexPatch[k] !== null) continue;
     const dex = Number(k);
     const before = state.hunt.finds.length;
     state.hunt.finds = state.hunt.finds.filter((f) => !(f.dex === dex && f.fromMod && !f.variant));
+    prunedFinds += before - state.hunt.finds.length;
+  }
+  for (const id of Object.keys(variantPatch)) {
+    if (variantPatch[id] !== null) continue;
+    const before = state.hunt.finds.length;
+    state.hunt.finds = state.hunt.finds.filter((f) => !(f.variant === id && f.fromMod));
     prunedFinds += before - state.hunt.finds.length;
   }
   if (prunedFinds) { save(); renderLog(); refreshDashboard(); refreshStats(); }
@@ -2281,6 +2289,43 @@ function logFindFromMod(dex) {
     state.hunt.finds.push({
       id, dex, name: sp.name, mode: "random", count: 0, random: true,
       startedAt: null, foundAt: now, luck: null, origin: "self", fromMod: true,
+    });
+  }
+  return true;
+}
+
+// As logFindFromMod, but for a shiny VARIANT synced from the mod — logs a
+// variant-labelled find (sprite + form name) into the same Recent-finds list, so a
+// regional/cosmetic shiny shows up without ever touching the base-species dex slot.
+// Idempotent: skips a variant that already has a find. Honours an in-progress hunt
+// for that exact variant, else logs it off-hunt.
+function logVariantFindFromMod(variantId) {
+  const v = VARIANT_BY_ID[variantId];
+  if (!v) return false;
+  if (state.hunt.finds.some((f) => f.variant === variantId)) return false;
+  const now = Date.now();
+  const sp = DEX_BY_NUM[v.dex];
+  const name = sp ? sp.name : v.base;
+  // Most-progressed hunt session for this exact variant, if any.
+  let best = null;
+  for (const s of Object.values(state.hunt.sessions || {})) {
+    if (s && s.variant === variantId && (s.count || 0) > (best ? best.count : 0)) best = s;
+  }
+  const id = "f" + now.toString(36) + Math.floor(Math.random() * 1e4).toString(36);
+  if (best) {
+    const mode = best.mode || "encounter";
+    state.hunt.finds.push({
+      id, dex: v.dex, name, mode, count: best.count,
+      startedAt: best.startedAt || now, foundAt: now,
+      luck: computeLuck(mode, best.count).p, origin: "self",
+      variant: v.id, vname: v.name, fromMod: true,
+    });
+    best.count = 0; best.startedAt = now;
+  } else {
+    state.hunt.finds.push({
+      id, dex: v.dex, name, mode: "random", count: 0, random: true,
+      startedAt: null, foundAt: now, luck: null, origin: "self",
+      variant: v.id, vname: v.name, fromMod: true,
     });
   }
   return true;
@@ -5431,19 +5476,21 @@ function importModSync(file) {
           unknownNames.add(e.species || e.displayName || e.name || String(e.dex ?? "?"));
           continue;
         }
-        const cur = dexState(dex);
-        if (MOD_STATE_RANK[next] > MOD_STATE_RANK[cur]) { setDexState(dex, next); upgraded++; }
-        else already++;
-        // Back-fill a finds-log row for every shiny without one (idempotent).
-        if (next === "shiny" || next === "boxed") { if (logFindFromMod(dex)) findsAdded++; }
-        // Regional/cosmetic/cobblemon form → Variants tab (caught/shiny only).
-        if (next === "caught" || next === "shiny") {
-          const v = modEntryVariant(e, dex);
-          if (v) {
-            const vcur = state.variants[v.id];
-            const vRank = vcur === "shiny" ? 3 : (vcur ? 2 : 0);
-            if (MOD_STATE_RANK[next] > vRank) { state.variants[v.id] = next === "shiny" ? "shiny" : true; variantsUp++; }
-          }
+        // A regional/cosmetic/cobblemon form updates ONLY the Variants tab — never the
+        // base-dex slot — and logs a variant find. A plain catch updates the dex.
+        const v = (next === "caught" || next === "shiny") ? modEntryVariant(e, dex) : null;
+        if (v) {
+          const vcur = state.variants[v.id];
+          const vRank = vcur === "shiny" ? 3 : (vcur ? 2 : 0);
+          if (MOD_STATE_RANK[next] > vRank) { state.variants[v.id] = next === "shiny" ? "shiny" : true; variantsUp++; }
+          else already++;
+          if (next === "shiny") { if (logVariantFindFromMod(v.id)) findsAdded++; }
+        } else {
+          const cur = dexState(dex);
+          if (MOD_STATE_RANK[next] > MOD_STATE_RANK[cur]) { setDexState(dex, next); upgraded++; }
+          else already++;
+          // Back-fill a finds-log row for every shiny without one (idempotent).
+          if (next === "shiny" || next === "boxed") { if (logFindFromMod(dex)) findsAdded++; }
         }
       }
 

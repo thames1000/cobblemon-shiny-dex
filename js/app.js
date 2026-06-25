@@ -519,7 +519,11 @@ async function pullModDex(opts) {
     if (!Number.isFinite(dex) || !DEX_BY_NUM[dex]) continue;
     if (MOD_STATE_RANK[next] == null) continue;
     const cur = dexState(dex);
-    if (MOD_STATE_RANK[next] > MOD_STATE_RANK[cur]) { setDexState(dex, next); upgraded++; }
+    if (MOD_STATE_RANK[next] > MOD_STATE_RANK[cur]) {
+      const wasShiny = cur === "shiny" || cur === "boxed";
+      setDexState(dex, next); upgraded++;
+      if (!wasShiny && (next === "shiny" || next === "boxed")) logFindFromMod(dex);
+    }
   }
   // Variants: backend stores "caught"/"shiny"; state.variants uses true/"shiny".
   // Upgrade-only; variants have only caught & shiny (no seen/boxed).
@@ -537,7 +541,7 @@ async function pullModDex(opts) {
   if (upgraded || variantsUp || berriesAdded) {
     save(); // persists locally and (since cloudActive) pushes the merged blob up
     renderDex(); renderForms(); renderVariants(); renderLegendary(); renderBerries();
-    renderBoxes(); renderDashboard(); renderStats(); renderBackupCard();
+    renderBoxes(); renderDashboard(); renderStats(); renderLog(); renderBackupCard();
   }
   if (!opts.silent || upgraded || variantsUp || berriesAdded) {
     const who = (md && md.minecraftName) || (mb && mb.minecraftName);
@@ -2169,6 +2173,41 @@ function logRandomCatch(boxed) {
   else if (dexState(sp.dex) !== "boxed") state.dex[String(sp.dex)] = "shiny";
   save(); renderHunt(); renderDex(); renderBoxes(); refreshDashboard(); refreshStats(); renderLog();
   openShowcase(find.id);
+}
+
+// Drop a mod-synced shiny into the Recent-finds log so server catches show up
+// alongside hand-logged ones. Called when the mod sync first promotes a species to
+// shiny. Per the off-hunt rule: it's a random / off-hunt find UNLESS there's an
+// in-progress hunt for that species (a session with encounters logged), in which
+// case we log it against that hunt and carry its encounter count. Returns true if a
+// find was added. Idempotent: skips species that already have a (non-variant) find.
+function logFindFromMod(dex) {
+  const sp = DEX_BY_NUM[dex];
+  if (!sp) return false;
+  if (state.hunt.finds.some((f) => f.dex === dex && !f.variant)) return false;
+  const now = Date.now();
+  // Most-progressed base-species (non-variant) hunt session for this dex, if any.
+  let best = null;
+  for (const s of Object.values(state.hunt.sessions || {})) {
+    if (s && s.dex === dex && !s.variant && (s.count || 0) > (best ? best.count : 0)) best = s;
+  }
+  const id = "f" + now.toString(36) + Math.floor(Math.random() * 1e4).toString(36);
+  if (best) {
+    const mode = best.mode || "encounter";
+    state.hunt.finds.push({
+      id, dex, name: sp.name, mode, count: best.count,
+      startedAt: best.startedAt || now, foundAt: now,
+      luck: computeLuck(mode, best.count).p, origin: "self",
+      variant: null, vname: null, fromMod: true,
+    });
+    best.count = 0; best.startedAt = now; // consume the hunt, just like a manual Found!
+  } else {
+    state.hunt.finds.push({
+      id, dex, name: sp.name, mode: "random", count: 0, random: true,
+      startedAt: null, foundAt: now, luck: null, origin: "self", fromMod: true,
+    });
+  }
+  return true;
 }
 
 /* ---------- start a hunt from a Dex card ---------- */
@@ -5317,7 +5356,11 @@ function importModSync(file) {
           continue;
         }
         const cur = dexState(dex);
-        if (MOD_STATE_RANK[next] > MOD_STATE_RANK[cur]) { setDexState(dex, next); upgraded++; }
+        if (MOD_STATE_RANK[next] > MOD_STATE_RANK[cur]) {
+          const wasShiny = cur === "shiny" || cur === "boxed";
+          setDexState(dex, next); upgraded++;
+          if (!wasShiny && (next === "shiny" || next === "boxed")) logFindFromMod(dex);
+        }
         else already++;
         // Regional/cosmetic/cobblemon form → Variants tab (caught/shiny only).
         if (next === "caught" || next === "shiny") {
@@ -5333,7 +5376,7 @@ function importModSync(file) {
       if (upgraded || variantsUp) {
         save();
         renderDex(); renderForms(); renderVariants(); renderLegendary(); renderBerries();
-        renderBoxes(); renderDashboard(); renderStats(); renderBackupCard();
+        renderBoxes(); renderDashboard(); renderStats(); renderLog(); renderBackupCard();
       }
       const parts = [`Synced from mod — ${upgraded} updated`];
       if (variantsUp) parts.push(`${variantsUp} variants`);

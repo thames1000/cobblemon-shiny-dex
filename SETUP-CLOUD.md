@@ -71,9 +71,10 @@ In the console → **Build → Authentication → Get started → Sign-in method
        match /modDex/{uid} {
          allow read, write: if request.auth != null && request.auth.uid == uid;
        }
-       // Mod-sourced berry collection, written ONLY by the backend; owner can read.
+       // Mod-sourced berry collection: backend adds; owner can read and write their
+       // OWN doc to push site-side removals (set-only pull can't drop a berry otherwise).
        match /modBerries/{uid} {
-         allow read: if request.auth != null && request.auth.uid == uid;
+         allow read, write: if request.auth != null && request.auth.uid == uid;
        }
        // Minecraft UUID → account links: backend only, no client access.
        match /mcLinks/{uuid} {

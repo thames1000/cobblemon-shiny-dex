@@ -564,13 +564,15 @@ async function pushModDex(opts) {
     if (!opts.silent) setModLinkStatus("Sign in (Account card above) to push changes to your server sync.", false);
     return 0;
   }
-  let md = null;
-  try { md = await window.ShinyCloud.loadModDex(); }
-  catch (e) { if (!opts.silent) setModLinkStatus("Couldn't reach the server sync: " + ((e && e.message) || "error"), false); return 0; }
-  if (!md) { if (!opts.silent) setModLinkStatus("No server data to reconcile yet.", true); return 0; }
+  let md = null, mb = null;
+  try {
+    md = await window.ShinyCloud.loadModDex();
+    if (window.ShinyCloud.loadModBerries) mb = await window.ShinyCloud.loadModBerries();
+  } catch (e) { if (!opts.silent) setModLinkStatus("Couldn't reach the server sync: " + ((e && e.message) || "error"), false); return 0; }
+  if (!md && !mb) { if (!opts.silent) setModLinkStatus("No server data to reconcile yet.", true); return 0; }
 
-  const dexPatch = {}, variantPatch = {}, removedNames = [];
-  for (const [k, mv] of Object.entries(md.dex || {})) {
+  const dexPatch = {}, variantPatch = {}, berryPatch = {}, removedNames = [];
+  for (const [k, mv] of Object.entries((md && md.dex) || {})) {
     if (MOD_STATE_RANK[mv] == null) continue;
     const dex = Number(k);
     const local = Number.isFinite(dex) ? dexState(dex) : "none";
@@ -580,18 +582,26 @@ async function pushModDex(opts) {
       if (local === "none" && sp) removedNames.push(sp.name);
     }
   }
-  for (const [id, mv] of Object.entries(md.variants || {})) {
+  for (const [id, mv] of Object.entries((md && md.variants) || {})) {
     if (MOD_STATE_RANK[mv] == null) continue;
     const cur = state.variants[id];
     const localRank = cur === "shiny" ? 3 : (cur ? 2 : 0);
     if (localRank < MOD_STATE_RANK[mv]) variantPatch[id] = localRank === 0 ? null : (localRank === 3 ? "shiny" : "caught");
   }
+  // Berries are set-only ("have it"); the pull only ever adds. Reconcile removals:
+  // a berry the server still holds but the site no longer has → delete it server-side.
+  for (const [id, has] of Object.entries((mb && mb.berries) || {})) {
+    if (!has) continue;
+    if (!state.berries[id]) berryPatch[id] = null;
+  }
 
-  const n = Object.keys(dexPatch).length + Object.keys(variantPatch).length;
+  const n = Object.keys(dexPatch).length + Object.keys(variantPatch).length + Object.keys(berryPatch).length;
   if (!n) { if (!opts.silent) setModLinkStatus("Server sync already matches the site — nothing to push.", true); return 0; }
 
-  try { await window.ShinyCloud.saveModDex(dexPatch, variantPatch); }
-  catch (e) { setModLinkStatus("Couldn't push changes: " + ((e && e.message) || "error"), false); return 0; }
+  try {
+    await window.ShinyCloud.saveModDex(dexPatch, variantPatch);
+    if (Object.keys(berryPatch).length && window.ShinyCloud.saveModBerries) await window.ShinyCloud.saveModBerries(berryPatch);
+  } catch (e) { setModLinkStatus("Couldn't push changes: " + ((e && e.message) || "error"), false); return 0; }
 
   // Prune now-orphaned mod-logged finds for fully-removed species.
   let prunedFinds = 0;
@@ -604,10 +614,12 @@ async function pushModDex(opts) {
   }
   if (prunedFinds) { save(); renderLog(); refreshDashboard(); refreshStats(); }
 
+  const berriesRemoved = Object.keys(berryPatch).length;
   const sample = removedNames.slice(0, 3).map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(", ");
   setModLinkStatus(
     `Pushed ${n} correction${n !== 1 ? "s" : ""} to your server sync` +
     (sample ? ` — removed ${sample}${removedNames.length > 3 ? "…" : ""}` : "") +
+    (berriesRemoved ? `${sample ? "," : " —"} ${berriesRemoved} berr${berriesRemoved !== 1 ? "ies" : "y"} removed` : "") +
     (prunedFinds ? ` (${prunedFinds} find${prunedFinds !== 1 ? "s" : ""} cleared)` : "") + ".",
     true
   );

@@ -96,7 +96,7 @@ Restart the server. Verify connectivity in-game with `/shinydex test` — it hit
 | `linkCodes` | the code | website (client) | backend (burns it) |
 | `mcLinks` | Minecraft UUID | backend | backend |
 | `modDex` | user uid | backend (catches) + website owner (corrections) | website (owner) |
-| `modBerries` | user uid | backend | website (owner) |
+| `modBerries` | user uid | backend (adds) + website owner (removals) | website (owner) |
 
 `modDex/{uid}.dex` is a plain `{ "<nationalDex>": "caught" | "shiny" }` map. The
 backend only ever *adds/upgrades* it; the merge-up into your normal progress is

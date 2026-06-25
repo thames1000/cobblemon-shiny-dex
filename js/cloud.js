@@ -211,6 +211,17 @@ async function bootCloud() {
         updatedAt: Number(d.updatedAt) || 0,
       };
     },
+    // Push owner-side berry corrections back to the mod-sync store. berryPatch is a
+    // sparse map; a value of null DELETES that berry (used when you remove one on the
+    // site so the set-only pull can't re-add it). Merge-write preserves the rest.
+    async saveModBerries(berryPatch) {
+      const u = auth.currentUser;
+      if (!u) throw new Error("Sign in first.");
+      const berries = {};
+      for (const [k, v] of Object.entries(berryPatch || {})) berries[k] = v == null ? deleteField() : v;
+      if (!Object.keys(berries).length) return;
+      await setDoc(doc(db, "modBerries", u.uid), { berries, updatedAt: Date.now() }, { merge: true });
+    },
   };
 
   emitStatus("ready");

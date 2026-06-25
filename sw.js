@@ -8,7 +8,7 @@
  *
  * Bump CACHE on every release so old caches are purged on activate.
  */
-const CACHE = "shinydex-hq-v130";
+const CACHE = "shinydex-hq-v131";
 const SHELL = [
   "./",
   "./index.html",

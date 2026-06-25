@@ -78,7 +78,7 @@ In the console → **Build → Authentication → Get started → Sign-in method
        }
        // Minecraft UUID → account links: backend only, no client access.
        match /mcLinks/{uuid} {
-         allow read, write: if false;
+         allow read, write: if false; 
        }
      }
    }

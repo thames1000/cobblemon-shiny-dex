@@ -513,17 +513,17 @@ async function pullModDex(opts) {
     if (!opts.silent) setModLinkStatus("No server data yet — link a Minecraft account below, then catch something or run /shinydex berries.", true);
     return 0;
   }
-  let upgraded = 0, variantsUp = 0, berriesAdded = 0;
+  let upgraded = 0, variantsUp = 0, berriesAdded = 0, findsAdded = 0;
   for (const [k, next] of Object.entries(dexMap)) {
     const dex = Number(k);
     if (!Number.isFinite(dex) || !DEX_BY_NUM[dex]) continue;
     if (MOD_STATE_RANK[next] == null) continue;
     const cur = dexState(dex);
-    if (MOD_STATE_RANK[next] > MOD_STATE_RANK[cur]) {
-      const wasShiny = cur === "shiny" || cur === "boxed";
-      setDexState(dex, next); upgraded++;
-      if (!wasShiny && (next === "shiny" || next === "boxed")) logFindFromMod(dex);
-    }
+    if (MOD_STATE_RANK[next] > MOD_STATE_RANK[cur]) { setDexState(dex, next); upgraded++; }
+    // Back-fill a finds-log row for every server shiny that doesn't have one yet —
+    // not just ones crossing the threshold on THIS pull, so shinies already synced
+    // (before this feature, or in an earlier session) still get logged. Idempotent.
+    if (next === "shiny" || next === "boxed") { if (logFindFromMod(dex)) findsAdded++; }
   }
   // Variants: backend stores "caught"/"shiny"; state.variants uses true/"shiny".
   // Upgrade-only; variants have only caught & shiny (no seen/boxed).
@@ -538,16 +538,16 @@ async function pullModDex(opts) {
     if (!berryMap[id] || !GUIDE_BY_ID[id]) continue;
     if (!state.berries[id]) { state.berries[id] = true; berriesAdded++; }
   }
-  if (upgraded || variantsUp || berriesAdded) {
+  if (upgraded || variantsUp || berriesAdded || findsAdded) {
     save(); // persists locally and (since cloudActive) pushes the merged blob up
     renderDex(); renderForms(); renderVariants(); renderLegendary(); renderBerries();
     renderBoxes(); renderDashboard(); renderStats(); renderLog(); renderBackupCard();
   }
-  if (!opts.silent || upgraded || variantsUp || berriesAdded) {
+  if (!opts.silent || upgraded || variantsUp || berriesAdded || findsAdded) {
     const who = (md && md.minecraftName) || (mb && mb.minecraftName);
-    setModLinkStatus(`Server sync — ${upgraded} dex, ${variantsUp} variants, ${berriesAdded} berries updated${who ? ` (linked to ${who})` : ""}.`, true);
+    setModLinkStatus(`Server sync — ${upgraded} dex, ${variantsUp} variants, ${berriesAdded} berries updated${findsAdded ? `, ${findsAdded} finds logged` : ""}${who ? ` (linked to ${who})` : ""}.`, true);
   }
-  return upgraded + variantsUp + berriesAdded;
+  return upgraded + variantsUp + berriesAdded + findsAdded;
 }
 
 // Create + display a one-time link code the player types in-game.
@@ -5342,7 +5342,7 @@ function importModSync(file) {
       const entries = modEntries(d);
       if (!entries) throw new Error("not a ShinyDex Link export (no catch list found)");
 
-      let upgraded = 0, variantsUp = 0, already = 0, unknown = 0;
+      let upgraded = 0, variantsUp = 0, already = 0, unknown = 0, findsAdded = 0;
       const unknownNames = new Set();
       for (const raw of entries) {
         const e = modPayload(raw);
@@ -5356,12 +5356,10 @@ function importModSync(file) {
           continue;
         }
         const cur = dexState(dex);
-        if (MOD_STATE_RANK[next] > MOD_STATE_RANK[cur]) {
-          const wasShiny = cur === "shiny" || cur === "boxed";
-          setDexState(dex, next); upgraded++;
-          if (!wasShiny && (next === "shiny" || next === "boxed")) logFindFromMod(dex);
-        }
+        if (MOD_STATE_RANK[next] > MOD_STATE_RANK[cur]) { setDexState(dex, next); upgraded++; }
         else already++;
+        // Back-fill a finds-log row for every shiny without one (idempotent).
+        if (next === "shiny" || next === "boxed") { if (logFindFromMod(dex)) findsAdded++; }
         // Regional/cosmetic/cobblemon form → Variants tab (caught/shiny only).
         if (next === "caught" || next === "shiny") {
           const v = modEntryVariant(e, dex);
@@ -5373,13 +5371,14 @@ function importModSync(file) {
         }
       }
 
-      if (upgraded || variantsUp) {
+      if (upgraded || variantsUp || findsAdded) {
         save();
         renderDex(); renderForms(); renderVariants(); renderLegendary(); renderBerries();
         renderBoxes(); renderDashboard(); renderStats(); renderLog(); renderBackupCard();
       }
       const parts = [`Synced from mod — ${upgraded} updated`];
       if (variantsUp) parts.push(`${variantsUp} variants`);
+      if (findsAdded) parts.push(`${findsAdded} finds logged`);
       if (already) parts.push(`${already} already current`);
       if (unknown) {
         const sample = [...unknownNames].slice(0, 3).join(", ");

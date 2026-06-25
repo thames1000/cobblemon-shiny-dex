@@ -2862,12 +2862,17 @@ function renderDashHunt() {
     return;
   }
   const sp = DEX_BY_NUM[h.activeDex];
+  const v = h.activeVariant ? VARIANT_BY_ID[h.activeVariant] : null;
+  const huntImg = v ? variantArt(v, true).src : spriteUrl(h.activeDex, true);
+  const huntName = v
+    ? `${v.base.replace(/-/g, " ")} <span class="muted">${v.name}</span>`
+    : (sp ? sp.name.replace(/-/g, " ") : "");
   el.innerHTML =
     `<h2>Active hunt</h2>` +
     `<div class="dash-hunt-row">` +
-      `<img class="dash-hunt-sprite" src="${spriteUrl(h.activeDex, true)}" alt="" />` +
+      `<img class="dash-hunt-sprite" src="${huntImg}" alt="" />` +
       `<div class="dash-hunt-meta">` +
-        `<div class="dash-hunt-name">${sp ? sp.name.replace(/-/g, " ") : ""} ` +
+        `<div class="dash-hunt-name">${huntName} ` +
           `<span class="muted">#${String(h.activeDex).padStart(4, "0")} · ${MODE_NAME[h.mode]}</span></div>` +
         `<div class="dash-hunt-count">${s.count}</div>` +
         `<div class="odds-readout">${huntOddsLine(s)}</div>` +

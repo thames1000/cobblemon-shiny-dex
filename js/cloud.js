@@ -78,7 +78,7 @@ async function bootCloud() {
     getRedirectResult, createUserWithEmailAndPassword, signInWithEmailAndPassword,
     signOut, sendPasswordResetEmail,
   } = authMod;
-  const { initializeFirestore, doc, getDoc, setDoc } = fsMod;
+  const { initializeFirestore, doc, getDoc, setDoc, deleteField } = fsMod;
 
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
@@ -181,6 +181,21 @@ async function bootCloud() {
         lastSyncAt: Number(d.lastSyncAt) || 0,
         updatedAt: Number(d.updatedAt) || 0,
       };
+    },
+    // Push owner-side corrections back to the mod-sync store. dexPatch/variantPatch
+    // are sparse { key: value } maps; a value of null DELETES that key (used when a
+    // Pokémon is evolved/released on the site so the upgrade-only pull can't resurrect
+    // it). Merge-write so untouched keys and minecraftName are preserved.
+    async saveModDex(dexPatch, variantPatch) {
+      const u = auth.currentUser;
+      if (!u) throw new Error("Sign in first.");
+      const dex = {}, variants = {};
+      for (const [k, v] of Object.entries(dexPatch || {})) dex[k] = v == null ? deleteField() : v;
+      for (const [k, v] of Object.entries(variantPatch || {})) variants[k] = v == null ? deleteField() : v;
+      const patch = { updatedAt: Date.now() };
+      if (Object.keys(dex).length) patch.dex = dex;
+      if (Object.keys(variants).length) patch.variants = variants;
+      await setDoc(doc(db, "modDex", u.uid), patch, { merge: true });
     },
     // Read the mod-sourced berry collection for this user (written by the backend
     // /minecraft/berries endpoint). Returns { berries:{<id>:true}, … } or null.

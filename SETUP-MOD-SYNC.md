@@ -95,12 +95,14 @@ Restart the server. Verify connectivity in-game with `/shinydex test` — it hit
 |-----------|--------|-----------|---------|
 | `linkCodes` | the code | website (client) | backend (burns it) |
 | `mcLinks` | Minecraft UUID | backend | backend |
-| `modDex` | user uid | backend | website (owner) |
+| `modDex` | user uid | backend (catches) + website owner (corrections) | website (owner) |
 | `modBerries` | user uid | backend | website (owner) |
 
 `modDex/{uid}.dex` is a plain `{ "<nationalDex>": "caught" | "shiny" }` map. The
-website never writes it; it only merges it up into your normal progress, so a
-manual ✨/📦 is never overwritten by the mod.
+backend only ever *adds/upgrades* it; the merge-up into your normal progress is
+upgrade-only, so a manual ✨/📦 is never overwritten by the mod. The website also
+writes it in one case — **Push site changes** reconciles owner-side removals/downgrades
+(e.g. an evolved Pokémon) back down, so the upgrade-only pull can't resurrect them.
 
 ## Endpoints (implemented in `api/minecraft/`)
 

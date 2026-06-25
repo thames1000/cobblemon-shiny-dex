@@ -65,9 +65,11 @@ In the console → **Build → Authentication → Get started → Sign-in method
          allow read, delete: if request.auth != null
                        && resource.data.uid == request.auth.uid;
        }
-       // Mod-sourced caught/shiny, written ONLY by the backend; owner can read.
+       // Mod-sourced caught/shiny: the backend (Admin SDK) writes new catches; the
+       // owner can read, and can write their OWN doc to push site-side corrections
+       // (e.g. removing an evolved Pokémon so the upgrade-only pull can't re-add it).
        match /modDex/{uid} {
-         allow read: if request.auth != null && request.auth.uid == uid;
+         allow read, write: if request.auth != null && request.auth.uid == uid;
        }
        // Mod-sourced berry collection, written ONLY by the backend; owner can read.
        match /modBerries/{uid} {

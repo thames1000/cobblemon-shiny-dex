@@ -550,6 +550,70 @@ async function pullModDex(opts) {
   return upgraded + variantsUp + berriesAdded + findsAdded;
 }
 
+// Push owner-side corrections UP to the mod-sync store. The pull merge is
+// upgrade-only, so clearing/evolving a Pokémon on the site (e.g. Vulpix → Ninetales)
+// can't stick on its own — the next pull would re-add it from modDex. This reconciles
+// the other direction: for every entry modDex still holds that the site has since
+// LOWERED (downgraded or fully removed), patch modDex to match, deleting it on "none".
+// It never adds or upgrades modDex entries — growing the dex stays the mod's job.
+// Orphaned mod-logged finds for removed species are pruned too, so Recent finds stays
+// consistent (hand-logged hunt finds are left alone).
+async function pushModDex(opts) {
+  opts = opts || {};
+  if (!window.ShinyCloud || !window.ShinyCloud.configured || !window.ShinyCloud.saveModDex || !cloudUser) {
+    if (!opts.silent) setModLinkStatus("Sign in (Account card above) to push changes to your server sync.", false);
+    return 0;
+  }
+  let md = null;
+  try { md = await window.ShinyCloud.loadModDex(); }
+  catch (e) { if (!opts.silent) setModLinkStatus("Couldn't reach the server sync: " + ((e && e.message) || "error"), false); return 0; }
+  if (!md) { if (!opts.silent) setModLinkStatus("No server data to reconcile yet.", true); return 0; }
+
+  const dexPatch = {}, variantPatch = {}, removedNames = [];
+  for (const [k, mv] of Object.entries(md.dex || {})) {
+    if (MOD_STATE_RANK[mv] == null) continue;
+    const dex = Number(k);
+    const local = Number.isFinite(dex) ? dexState(dex) : "none";
+    if (MOD_STATE_RANK[local] < MOD_STATE_RANK[mv]) {
+      dexPatch[k] = local === "none" ? null : local;
+      const sp = DEX_BY_NUM[dex];
+      if (local === "none" && sp) removedNames.push(sp.name);
+    }
+  }
+  for (const [id, mv] of Object.entries(md.variants || {})) {
+    if (MOD_STATE_RANK[mv] == null) continue;
+    const cur = state.variants[id];
+    const localRank = cur === "shiny" ? 3 : (cur ? 2 : 0);
+    if (localRank < MOD_STATE_RANK[mv]) variantPatch[id] = localRank === 0 ? null : (localRank === 3 ? "shiny" : "caught");
+  }
+
+  const n = Object.keys(dexPatch).length + Object.keys(variantPatch).length;
+  if (!n) { if (!opts.silent) setModLinkStatus("Server sync already matches the site — nothing to push.", true); return 0; }
+
+  try { await window.ShinyCloud.saveModDex(dexPatch, variantPatch); }
+  catch (e) { setModLinkStatus("Couldn't push changes: " + ((e && e.message) || "error"), false); return 0; }
+
+  // Prune now-orphaned mod-logged finds for fully-removed species.
+  let prunedFinds = 0;
+  for (const k of Object.keys(dexPatch)) {
+    if (dexPatch[k] !== null) continue;
+    const dex = Number(k);
+    const before = state.hunt.finds.length;
+    state.hunt.finds = state.hunt.finds.filter((f) => !(f.dex === dex && f.fromMod && !f.variant));
+    prunedFinds += before - state.hunt.finds.length;
+  }
+  if (prunedFinds) { save(); renderLog(); refreshDashboard(); refreshStats(); }
+
+  const sample = removedNames.slice(0, 3).map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(", ");
+  setModLinkStatus(
+    `Pushed ${n} correction${n !== 1 ? "s" : ""} to your server sync` +
+    (sample ? ` — removed ${sample}${removedNames.length > 3 ? "…" : ""}` : "") +
+    (prunedFinds ? ` (${prunedFinds} find${prunedFinds !== 1 ? "s" : ""} cleared)` : "") + ".",
+    true
+  );
+  return n;
+}
+
 // Create + display a one-time link code the player types in-game.
 async function generateLinkCode() {
   if (!window.ShinyCloud || !window.ShinyCloud.configured) {
@@ -5501,6 +5565,7 @@ function grabEls() {
     modImportStatus: document.getElementById("mod-import-status"),
     modLinkBtn: document.getElementById("mod-link-btn"),
     modPullBtn: document.getElementById("mod-pull-btn"),
+    modPushBtn: document.getElementById("mod-push-btn"),
     modLinkCode: document.getElementById("mod-link-code"),
     modLinkStatus: document.getElementById("mod-link-status"),
     installBtn: document.getElementById("install-btn"),
@@ -6171,6 +6236,7 @@ function wire() {
   if (els.modImportFile) els.modImportFile.addEventListener("change", (e) => { if (e.target.files[0]) { importModSync(e.target.files[0]); e.target.value = ""; } });
   if (els.modLinkBtn) els.modLinkBtn.addEventListener("click", generateLinkCode);
   if (els.modPullBtn) els.modPullBtn.addEventListener("click", () => pullModDex({ silent: false }));
+  if (els.modPushBtn) els.modPushBtn.addEventListener("click", () => pushModDex({ silent: false }));
   els.resetAll.addEventListener("click", () => {
     if (confirm("Erase ALL progress? Export first if unsure.")) {
       state = freshState();

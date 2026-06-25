@@ -167,7 +167,7 @@ async function bootCloud() {
       return { code, expiresAt };
     },
     // Read the mod-sourced caught/shiny map for this user (written by the backend).
-    // Returns { dex:{<num>:state}, minecraftName, lastSyncAt, updatedAt } or null.
+    // Returns { dex:{<num>:state}, variants:{<id>:state}, minecraftName, … } or null.
     async loadModDex() {
       const u = auth.currentUser;
       if (!u) return null;
@@ -176,6 +176,7 @@ async function bootCloud() {
       const d = snap.data() || {};
       return {
         dex: d.dex && typeof d.dex === "object" ? d.dex : {},
+        variants: d.variants && typeof d.variants === "object" ? d.variants : {},
         minecraftName: d.minecraftName || null,
         lastSyncAt: Number(d.lastSyncAt) || 0,
         updatedAt: Number(d.updatedAt) || 0,

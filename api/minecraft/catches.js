@@ -6,9 +6,15 @@
 const { db } = require("../_lib/admin");
 const { readBody, tokenOk, truthy } = require("../_lib/http");
 const { resolveDex } = require("../_lib/species");
+const { resolveVariant } = require("../_lib/variants");
 
 const RANK = { seen: 1, caught: 2, shiny: 3 };
-const noChange = { normalCaught: false, shinyCaught: false, newDexEntry: false };
+// Variants only have caught/shiny (no seen, no boxed) — see js/app.js Variants tab.
+const VRANK = { caught: 2, shiny: 3 };
+const noChange = {
+  normalCaught: false, shinyCaught: false, newDexEntry: false,
+  variantId: null, variantCaught: false, variantShinyCaught: false,
+};
 
 module.exports = async (req, res) => {
   if (req.method !== "POST") return res.status(405).json({ success: false, message: "Method not allowed" });
@@ -35,6 +41,9 @@ module.exports = async (req, res) => {
   }
   const uid = link.uid;
   const next = shiny ? "shiny" : "caught";
+  // A regional/cosmetic/cobblemon form (matched on aspects/form) also updates the
+  // separate Variants tab. null when the catch is a plain form or unknown variant.
+  const variant = resolveVariant(dex, body);
   const ref = db.collection("modDex").doc(uid);
 
   try {
@@ -47,18 +56,35 @@ module.exports = async (req, res) => {
       const newDexEntry = !cur;
       const upgraded = !cur || RANK[next] > (RANK[cur] || 0);
       if (upgraded) map[key] = next;
-      tx.set(ref, {
+
+      const write = {
         dex: map, updatedAt: Date.now(), lastSyncAt: Date.now(),
         minecraftName: body.minecraftName || data.minecraftName || null,
-      }, { merge: true });
-      return { upgraded, newDexEntry };
+      };
+      let variantUpgraded = false;
+      if (variant) {
+        const variants = Object.assign({}, data.variants || {});
+        const vcur = variants[variant.id];
+        variantUpgraded = !vcur || VRANK[next] > (VRANK[vcur] || 0);
+        if (variantUpgraded) variants[variant.id] = next;
+        write.variants = variants;
+      }
+      tx.set(ref, write, { merge: true });
+      return { upgraded, newDexEntry, variantUpgraded };
     });
     db.collection("mcLinks").doc(String(minecraftUuid)).set({ lastSyncAt: Date.now() }, { merge: true }).catch(() => {});
     return res.status(200).json({
       success: true,
-      duplicate: !result.upgraded,
+      duplicate: !result.upgraded && !result.variantUpgraded,
       message: "OK",
-      updated: { normalCaught: true, shinyCaught: next === "shiny", newDexEntry: result.newDexEntry },
+      updated: {
+        normalCaught: true,
+        shinyCaught: next === "shiny",
+        newDexEntry: result.newDexEntry,
+        variantId: variant ? variant.id : null,
+        variantCaught: !!variant,
+        variantShinyCaught: !!variant && next === "shiny",
+      },
     });
   } catch (e) {
     console.error("catches write error", e);

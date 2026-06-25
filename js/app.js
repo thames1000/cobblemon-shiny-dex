@@ -507,12 +507,13 @@ async function pullModDex(opts) {
     return 0;
   }
   const dexMap = (md && md.dex) || {};
+  const variantMap = (md && md.variants) || {};
   const berryMap = (mb && mb.berries) || {};
-  if (!Object.keys(dexMap).length && !Object.keys(berryMap).length) {
+  if (!Object.keys(dexMap).length && !Object.keys(variantMap).length && !Object.keys(berryMap).length) {
     if (!opts.silent) setModLinkStatus("No server data yet — link a Minecraft account below, then catch something or run /shinydex berries.", true);
     return 0;
   }
-  let upgraded = 0, berriesAdded = 0;
+  let upgraded = 0, variantsUp = 0, berriesAdded = 0;
   for (const [k, next] of Object.entries(dexMap)) {
     const dex = Number(k);
     if (!Number.isFinite(dex) || !DEX_BY_NUM[dex]) continue;
@@ -520,21 +521,29 @@ async function pullModDex(opts) {
     const cur = dexState(dex);
     if (MOD_STATE_RANK[next] > MOD_STATE_RANK[cur]) { setDexState(dex, next); upgraded++; }
   }
+  // Variants: backend stores "caught"/"shiny"; state.variants uses true/"shiny".
+  // Upgrade-only; variants have only caught & shiny (no seen/boxed).
+  for (const [id, next] of Object.entries(variantMap)) {
+    if (!VARIANT_BY_ID[id] || MOD_STATE_RANK[next] == null) continue;
+    const cur = state.variants[id];
+    const curRank = cur === "shiny" ? 3 : (cur ? 2 : 0);
+    if (MOD_STATE_RANK[next] > curRank) { state.variants[id] = next === "shiny" ? "shiny" : true; variantsUp++; }
+  }
   // Berries are a set-only collection ("have it"); only ever add, never remove.
   for (const id of Object.keys(berryMap)) {
     if (!berryMap[id] || !GUIDE_BY_ID[id]) continue;
     if (!state.berries[id]) { state.berries[id] = true; berriesAdded++; }
   }
-  if (upgraded || berriesAdded) {
+  if (upgraded || variantsUp || berriesAdded) {
     save(); // persists locally and (since cloudActive) pushes the merged blob up
     renderDex(); renderForms(); renderVariants(); renderLegendary(); renderBerries();
     renderBoxes(); renderDashboard(); renderStats(); renderBackupCard();
   }
-  if (!opts.silent || upgraded || berriesAdded) {
+  if (!opts.silent || upgraded || variantsUp || berriesAdded) {
     const who = (md && md.minecraftName) || (mb && mb.minecraftName);
-    setModLinkStatus(`Server sync — ${upgraded} dex, ${berriesAdded} berries updated${who ? ` (linked to ${who})` : ""}.`, true);
+    setModLinkStatus(`Server sync — ${upgraded} dex, ${variantsUp} variants, ${berriesAdded} berries updated${who ? ` (linked to ${who})` : ""}.`, true);
   }
-  return upgraded + berriesAdded;
+  return upgraded + variantsUp + berriesAdded;
 }
 
 // Create + display a one-time link code the player types in-game.
@@ -5263,6 +5272,22 @@ function modEntryDex(e) {
   return key ? DEX_BY_NAME[key] : undefined;
 }
 
+// Resolve a Variants-tab entry for a mod export entry from its Cobblemon aspects
+// (or form name), keyed by national dex. Mirrors the backend's resolveVariant().
+function modEntryVariant(e, dex) {
+  if (!Number.isFinite(dex)) return null;
+  if (!VARIANT_BY_DEXFORM) buildVariantLookup();
+  if (!VARIANT_BY_DEXFORM) return null;
+  const tokens = [];
+  if (Array.isArray(e.aspects)) tokens.push(...e.aspects);
+  if (e.form) { tokens.push(e.form); tokens.push(String(e.form).split(" / ")[0]); }
+  for (const t of tokens) {
+    const v = VARIANT_BY_DEXFORM[dex + "|" + normSpeciesName(t)];
+    if (v) return v;
+  }
+  return null;
+}
+
 function importModSync(file) {
   const reader = new FileReader();
   reader.onload = () => {
@@ -5278,7 +5303,7 @@ function importModSync(file) {
       const entries = modEntries(d);
       if (!entries) throw new Error("not a ShinyDex Link export (no catch list found)");
 
-      let upgraded = 0, already = 0, unknown = 0;
+      let upgraded = 0, variantsUp = 0, already = 0, unknown = 0;
       const unknownNames = new Set();
       for (const raw of entries) {
         const e = modPayload(raw);
@@ -5294,14 +5319,24 @@ function importModSync(file) {
         const cur = dexState(dex);
         if (MOD_STATE_RANK[next] > MOD_STATE_RANK[cur]) { setDexState(dex, next); upgraded++; }
         else already++;
+        // Regional/cosmetic/cobblemon form → Variants tab (caught/shiny only).
+        if (next === "caught" || next === "shiny") {
+          const v = modEntryVariant(e, dex);
+          if (v) {
+            const vcur = state.variants[v.id];
+            const vRank = vcur === "shiny" ? 3 : (vcur ? 2 : 0);
+            if (MOD_STATE_RANK[next] > vRank) { state.variants[v.id] = next === "shiny" ? "shiny" : true; variantsUp++; }
+          }
+        }
       }
 
-      if (upgraded) {
+      if (upgraded || variantsUp) {
         save();
         renderDex(); renderForms(); renderVariants(); renderLegendary(); renderBerries();
         renderBoxes(); renderDashboard(); renderStats(); renderBackupCard();
       }
       const parts = [`Synced from mod — ${upgraded} updated`];
+      if (variantsUp) parts.push(`${variantsUp} variants`);
       if (already) parts.push(`${already} already current`);
       if (unknown) {
         const sample = [...unknownNames].slice(0, 3).join(", ");

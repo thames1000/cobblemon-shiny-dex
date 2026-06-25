@@ -119,6 +119,13 @@ unknown ids are ignored. Berries are a set-only collection, so the scan is idemp
 All require the matching `serverToken`; catches/links resolve species by name or
 national-dex number via `js/data/species.json`.
 
+`/minecraft/catches` also reads the catch's Cobblemon `aspects` (e.g. `["alolan"]`,
+`["region-bias-alola"]`, with `form` as a fallback) and matches them against
+`js/data/variants.json` (`api/_lib/variants.js`) to update the player's **Variants**
+tab — stored as `variants:{<variantId>:"caught"|"shiny"}` on `modDex/{uid}` alongside
+the national dex. Variants are upgrade-only and have only caught/shiny states (no
+seen/boxed). Plain forms and unknown variants just update the national dex as before.
+
 ## Troubleshooting
 
 - **`Invalid server token`** → `SHINYDEX_SERVER_TOKEN` (Vercel) ≠ `serverToken` (mod),

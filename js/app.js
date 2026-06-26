@@ -113,6 +113,9 @@ function normalize() {
         mode, dex, variant,
         count: Number.isFinite(s.count) ? Math.max(0, Math.floor(s.count)) : 0,
         startedAt: Number.isFinite(s.startedAt) ? s.startedAt : Date.now(),
+        // Preserve the marker for sessions mirrored from the Minecraft mod so the
+        // pull can keep them in step with the authoritative mod snapshot.
+        ...(s.fromMod ? { fromMod: true } : {}),
       };
     }
   }
@@ -488,6 +491,52 @@ async function pullFromCloud() {
   }
 }
 
+// Mirror the mod's in-progress hunts (modHunts/{uid}, written on disconnect) into
+// the site's own continuing-hunt sessions so a synced encounter count shows up — and
+// updates — in the Hunt tab's "Active hunts" list. The mod keys hunts by species|form;
+// we map species→dex and form→variant, pick a site mode (eggs-heavy → breeding, else
+// encounter), and use the hunt total as the session count. Count is upgrade-only so a
+// higher hand-tracked tally is never clobbered. fromMod sessions missing from the
+// authoritative snapshot (the hunt was stopped/finished in-game) are pruned. Returns
+// the number of sessions created, raised, or pruned.
+function mergeModHunts(huntMap) {
+  const sessions = state.hunt.sessions || (state.hunt.sessions = {});
+  const liveKeys = new Set();
+  let changed = 0;
+  for (const hunt of Object.values(huntMap || {})) {
+    if (!hunt || typeof hunt !== "object") continue;
+    const dex = modEntryDex({ species: hunt.species, displayName: hunt.displayName });
+    if (!Number.isFinite(dex) || !DEX_BY_NUM[dex]) continue;
+    const variant = modEntryVariant({ form: hunt.form }, dex);
+    const variantId = variant ? variant.id : null;
+    const eggs = Math.max(0, Math.floor(Number(hunt.eggs) || 0));
+    const enc = Math.max(0, Math.floor(Number(hunt.encounters) || 0));
+    const manual = Math.floor(Number(hunt.manual) || 0);
+    let total = Math.floor(Number(hunt.total));
+    if (!Number.isFinite(total)) total = enc + eggs + manual;
+    total = Math.max(0, total);
+    const mode = eggs > enc ? "breeding" : "encounter";
+    const k = huntKey(mode, dex, variantId);
+    liveKeys.add(k);
+    const existing = sessions[k];
+    if (existing) {
+      if (total > (existing.count || 0)) { existing.count = total; changed++; }
+    } else {
+      const started = Date.parse(hunt.startedAt);
+      sessions[k] = {
+        mode, dex, variant: variantId, count: total,
+        startedAt: Number.isFinite(started) ? started : Date.now(),
+        fromMod: true,
+      };
+      changed++;
+    }
+  }
+  for (const [k, s] of Object.entries(sessions)) {
+    if (s && s.fromMod && !liveKeys.has(k)) { delete sessions[k]; changed++; }
+  }
+  return changed;
+}
+
 // Merge the mod-sourced caught/shiny map (written by the ShinyDex Link backend)
 // into local state. Upgrade-only, exactly like the file import: it raises
 // none→seen→caught→✨shiny and never downgrades or disturbs a 📦 boxed mon. Safe
@@ -498,10 +547,12 @@ async function pullModDex(opts) {
     if (!opts.silent) setModLinkStatus("Sign in (Account card above) to sync from your server.", false);
     return 0;
   }
-  let md = null, mb = null;
+  let md = null, mb = null, mh = null;
+  const huntsAvailable = !!window.ShinyCloud.loadModHunts;
   try {
     md = await window.ShinyCloud.loadModDex();
     if (window.ShinyCloud.loadModBerries) mb = await window.ShinyCloud.loadModBerries();
+    if (huntsAvailable) mh = await window.ShinyCloud.loadModHunts();
   } catch (e) {
     if (!opts.silent) setModLinkStatus("Couldn't reach the server sync: " + ((e && e.message) || "error"), false);
     return 0;
@@ -509,11 +560,16 @@ async function pullModDex(opts) {
   const dexMap = (md && md.dex) || {};
   const variantMap = (md && md.variants) || {};
   const berryMap = (mb && mb.berries) || {};
-  if (!Object.keys(dexMap).length && !Object.keys(variantMap).length && !Object.keys(berryMap).length) {
+  const huntMap = (mh && mh.hunts) || {};
+  // fromMod sessions may need pruning even when the live snapshot is empty (every
+  // hunt was stopped/finished), so don't bail early while any still linger.
+  const hasModSessions = Object.values(state.hunt.sessions || {}).some((s) => s && s.fromMod);
+  if (!Object.keys(dexMap).length && !Object.keys(variantMap).length && !Object.keys(berryMap).length
+      && !Object.keys(huntMap).length && !(huntsAvailable && hasModSessions)) {
     if (!opts.silent) setModLinkStatus("No server data yet — link a Minecraft account below, then catch something or run /shinydex berries.", true);
     return 0;
   }
-  let upgraded = 0, variantsUp = 0, berriesAdded = 0, findsAdded = 0;
+  let upgraded = 0, variantsUp = 0, berriesAdded = 0, findsAdded = 0, huntsChanged = 0;
   for (const [k, next] of Object.entries(dexMap)) {
     const dex = Number(k);
     if (!Number.isFinite(dex) || !DEX_BY_NUM[dex]) continue;
@@ -540,16 +596,19 @@ async function pullModDex(opts) {
     if (!berryMap[id] || !GUIDE_BY_ID[id]) continue;
     if (!state.berries[id]) { state.berries[id] = true; berriesAdded++; }
   }
-  if (upgraded || variantsUp || berriesAdded || findsAdded) {
+  // Mirror in-progress mod hunts into the site's Active hunts (count updates here).
+  if (huntsAvailable) huntsChanged = mergeModHunts(huntMap);
+  if (upgraded || variantsUp || berriesAdded || findsAdded || huntsChanged) {
     save(); // persists locally and (since cloudActive) pushes the merged blob up
     renderDex(); renderForms(); renderVariants(); renderLegendary(); renderBerries();
     renderBoxes(); renderDashboard(); renderStats(); renderLog(); renderBackupCard();
+    if (huntsChanged) renderHunt();
   }
-  if (!opts.silent || upgraded || variantsUp || berriesAdded || findsAdded) {
-    const who = (md && md.minecraftName) || (mb && mb.minecraftName);
-    setModLinkStatus(`Server sync — ${upgraded} dex, ${variantsUp} variants, ${berriesAdded} berries updated${findsAdded ? `, ${findsAdded} finds logged` : ""}${who ? ` (linked to ${who})` : ""}.`, true);
+  if (!opts.silent || upgraded || variantsUp || berriesAdded || findsAdded || huntsChanged) {
+    const who = (md && md.minecraftName) || (mb && mb.minecraftName) || (mh && mh.minecraftName);
+    setModLinkStatus(`Server sync — ${upgraded} dex, ${variantsUp} variants, ${berriesAdded} berries, ${huntsChanged} hunts updated${findsAdded ? `, ${findsAdded} finds logged` : ""}${who ? ` (linked to ${who})` : ""}.`, true);
   }
-  return upgraded + variantsUp + berriesAdded + findsAdded;
+  return upgraded + variantsUp + berriesAdded + findsAdded + huntsChanged;
 }
 
 // Push owner-side corrections UP to the mod-sync store. The pull merge is

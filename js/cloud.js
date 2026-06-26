@@ -211,6 +211,21 @@ async function bootCloud() {
         updatedAt: Number(d.updatedAt) || 0,
       };
     },
+    // Read the mod-sourced in-progress hunts for this user (written by the backend
+    // /minecraft/hunts/sync endpoint when a player disconnects). Returns
+    // { hunts:{ "<species>|<form>": {encounters,eggs,total,…} }, minecraftName, … } or null.
+    async loadModHunts() {
+      const u = auth.currentUser;
+      if (!u) return null;
+      const snap = await getDoc(doc(db, "modHunts", u.uid));
+      if (!snap.exists()) return null;
+      const d = snap.data() || {};
+      return {
+        hunts: d.hunts && typeof d.hunts === "object" ? d.hunts : {},
+        minecraftName: d.minecraftName || null,
+        updatedAt: Number(d.updatedAt) || 0,
+      };
+    },
     // Push owner-side berry corrections back to the mod-sync store. berryPatch is a
     // sparse map; a value of null DELETES that berry (used when you remove one on the
     // site so the set-only pull can't re-add it). Merge-write preserves the rest.

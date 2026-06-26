@@ -97,7 +97,7 @@ Restart the server. Verify connectivity in-game with `/shinydex test` — it hit
 | `mcLinks` | Minecraft UUID | backend | backend |
 | `modDex` | user uid | backend (catches) + website owner (corrections) | website (owner) |
 | `modBerries` | user uid | backend (adds) + website owner (removals) | website (owner) |
-| `modHunts` | user uid | backend (hunt sync on disconnect) | backend (hunt fetch on start) |
+| `modHunts` | user uid | backend (hunt sync on disconnect) | backend (hunt fetch on start) + website (mirrors into Active hunts) |
 
 `modDex/{uid}.dex` is a plain `{ "<nationalDex>": "caught" | "shiny" }` map. The
 backend only ever *adds/upgrades* it; the merge-up into your normal progress is
@@ -109,6 +109,11 @@ writes it in one case — **Push site changes** reconciles owner-side removals/d
 ... } }` map of a player's **in-progress** shiny hunts (form blank for an any-form
 hunt). Unlike the dex, this is **replace-only**: each disconnect overwrites the whole
 map with the mod's current snapshot, so a stopped/finished hunt disappears.
+
+On pull, the website mirrors these into its own Hunt tab "Active hunts" (`state.hunt.sessions`):
+species→dex, form→variant, eggs-heavy→breeding else encounter, `total`→the session count.
+The count is upgrade-only (never lowers a hand-tracked tally) and mod-mirrored sessions
+are pruned when they leave the snapshot — so the site's hunt count tracks what you synced.
 
 ## Endpoints (implemented in `api/minecraft/`)
 

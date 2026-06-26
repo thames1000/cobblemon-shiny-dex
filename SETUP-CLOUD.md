@@ -80,10 +80,12 @@ In the console → **Build → Authentication → Get started → Sign-in method
        match /mcLinks/{uuid} {
          allow read, write: if false; 
        }
-       // In-progress shiny hunts: backend writes (disconnect) and reads (hunt start).
-       // The website doesn't show these, so clients get no access.
+       // In-progress shiny hunts: backend writes (disconnect) and reads (hunt start);
+       // the owner READS their own doc so the site can mirror it into Active hunts.
+       // Client writes stay off — the mod's snapshot is authoritative (Admin bypasses).
        match /modHunts/{uid} {
-         allow read, write: if false;
+         allow read: if request.auth != null && request.auth.uid == uid;
+         allow write: if false;
        }
      }
    }

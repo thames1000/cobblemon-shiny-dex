@@ -211,17 +211,22 @@ async function bootCloud() {
         updatedAt: Number(d.updatedAt) || 0,
       };
     },
-    // Read the mod-sourced in-progress hunts for this user (written by the backend
-    // /minecraft/hunts/sync endpoint when a player disconnects). Returns
-    // { hunts:{ "<species>|<form>": {encounters,eggs,total,…} }, minecraftName, … } or null.
+    // Read the mod-sourced hunts for this user (written by the backend
+    // /minecraft/hunts/sync endpoint when a player disconnects). The doc keeps an
+    // `active` map (currently-hunting) and an `inactive` map (history); the site only
+    // mirrors `active` into the Active-hunts list. Tolerates the legacy flat `hunts`
+    // shape (treated as all-active). Returns { active, inactive, minecraftName, … } or null.
     async loadModHunts() {
       const u = auth.currentUser;
       if (!u) return null;
       const snap = await getDoc(doc(db, "modHunts", u.uid));
       if (!snap.exists()) return null;
       const d = snap.data() || {};
+      const active = d.active && typeof d.active === "object" ? d.active
+        : (d.hunts && typeof d.hunts === "object" ? d.hunts : {});
       return {
-        hunts: d.hunts && typeof d.hunts === "object" ? d.hunts : {},
+        active,
+        inactive: d.inactive && typeof d.inactive === "object" ? d.inactive : {},
         minecraftName: d.minecraftName || null,
         updatedAt: Number(d.updatedAt) || 0,
       };

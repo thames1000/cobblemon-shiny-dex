@@ -105,15 +105,19 @@ upgrade-only, so a manual ✨/📦 is never overwritten by the mod. The website 
 writes it in one case — **Push site changes** reconciles owner-side removals/downgrades
 (e.g. an evolved Pokémon) back down, so the upgrade-only pull can't resurrect them.
 
-`modHunts/{uid}.hunts` is a `{ "<species>|<form>": { encounters, eggs, manual, total,
-... } }` map of a player's **in-progress** shiny hunts (form blank for an any-form
-hunt). Unlike the dex, this is **replace-only**: each disconnect overwrites the whole
-map with the mod's current snapshot, so a stopped/finished hunt disappears.
+`modHunts/{uid}` holds two maps — `active` and `inactive` — each `{ "<species>|<form>":
+{ encounters, eggs, manual, total, ... } }` (form blank for an any-form hunt). On each
+disconnect the mod's snapshot becomes `active`; a hunt that drops out (stopped/finished
+in-game) is **moved to `inactive`** with its last counts rather than deleted, so the mod
+can resume it later via `/hunts/fetch` (which checks `inactive` only when starting a new
+hunt). A hunt that reappears is promoted back to `active`. (Legacy docs with a flat
+`hunts` map are read as all-active and migrate on the next sync.)
 
-On pull, the website mirrors these into its own Hunt tab "Active hunts" (`state.hunt.sessions`):
-species→dex, form→variant, eggs-heavy→breeding else encounter, `total`→the session count.
-The count is upgrade-only (never lowers a hand-tracked tally) and mod-mirrored sessions
-are pruned when they leave the snapshot — so the site's hunt count tracks what you synced.
+On pull, the website mirrors only the **active** hunts into its Hunt tab "Active hunts"
+(`state.hunt.sessions`): species→dex, form→variant, eggs-heavy→breeding else encounter,
+`total`→the session count. The count is upgrade-only (never lowers a hand-tracked tally)
+and mod-mirrored sessions are pruned when they leave the active set — so the site's hunt
+count tracks what you synced.
 
 ## Endpoints (implemented in `api/minecraft/`)
 

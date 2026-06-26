@@ -67,4 +67,22 @@ function sanitizeHunt(raw) {
   };
 }
 
-module.exports = { lc, huntKey, sanitizeHunt };
+/* Normalize a stored modHunts doc into { active, inactive } maps. Tolerates the
+ * original flat `{ hunts: {...} }` shape (treated as all-active) so old docs migrate
+ * on the next write. Both maps are keyed by `species|form`. */
+function readBuckets(data) {
+  const d = data || {};
+  const active = d.active && typeof d.active === "object" ? d.active
+    : (d.hunts && typeof d.hunts === "object" ? d.hunts : {});
+  const inactive = d.inactive && typeof d.inactive === "object" ? d.inactive : {};
+  return { active: Object.assign({}, active), inactive: Object.assign({}, inactive) };
+}
+
+/* Stamp a hunt as it moves from active → inactive, recording when it stopped being
+ * actively hunted. Keeps the first endedAt if the hunt was already inactive. */
+function markInactive(hunt, now) {
+  const ended = Number(hunt && hunt.endedAt);
+  return Object.assign({}, hunt, { endedAt: Number.isFinite(ended) ? ended : now });
+}
+
+module.exports = { lc, huntKey, sanitizeHunt, readBuckets, markInactive };

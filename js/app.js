@@ -560,7 +560,9 @@ async function pullModDex(opts) {
   const dexMap = (md && md.dex) || {};
   const variantMap = (md && md.variants) || {};
   const berryMap = (mb && mb.berries) || {};
-  const huntMap = (mh && mh.hunts) || {};
+  // Only the player's ACTIVE hunts mirror into the site's Active-hunts list;
+  // inactive history stays server-side for the mod to resume from on a fresh start.
+  const huntMap = (mh && mh.active) || {};
   // fromMod sessions may need pruning even when the live snapshot is empty (every
   // hunt was stopped/finished), so don't bail early while any still linger.
   const hasModSessions = Object.values(state.hunt.sessions || {}).some((s) => s && s.fromMod);

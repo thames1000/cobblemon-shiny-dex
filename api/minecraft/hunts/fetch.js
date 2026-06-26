@@ -1,12 +1,17 @@
 /* POST /api/minecraft/hunts/fetch
  * Return saved progress for ONE hunt (a player + species, optionally a form). The
- * mod calls this when a hunt starts, to resume the counter. Read-only. Responds
- * `{ found:false, hunt:null }` when there's nothing saved (including unlinked
- * players), so the mod simply starts the hunt at 0.
+ * mod calls this when a hunt starts, to resume the counter. Read-only.
+ *
+ * By default this only looks at the player's ACTIVE hunts. When `includeInactive` is
+ * set (the mod sends it when STARTING a new hunt), it falls back to the inactive
+ * history to find a start point — so picking a species you hunted before resumes from
+ * where you left off. The response's `status` says which bucket the hunt came from.
+ * Responds `{ found:false, hunt:null }` when there's nothing to resume (including
+ * unlinked players), so the mod simply starts at 0.
  */
 const { db } = require("../../_lib/admin");
-const { readBody, tokenOk } = require("../../_lib/http");
-const { huntKey } = require("../../_lib/hunts");
+const { readBody, tokenOk, truthy } = require("../../_lib/http");
+const { huntKey, readBuckets } = require("../../_lib/hunts");
 
 const notFound = (res, message) => res.status(200).json({ success: true, found: false, hunt: null, message });
 
@@ -20,6 +25,7 @@ module.exports = async (req, res) => {
   if (!species) return res.status(400).json({ success: false, message: "Missing species" });
 
   const key = huntKey(species, body.form);
+  const includeInactive = truthy(body.includeInactive);
 
   let linkSnap;
   try { linkSnap = await db.collection("mcLinks").doc(String(minecraftUuid)).get(); }
@@ -33,9 +39,13 @@ module.exports = async (req, res) => {
 
   try {
     const snap = await db.collection("modHunts").doc(link.uid).get();
-    const hunt = snap.exists ? (snap.data().hunts || {})[key] : null;
+    const { active, inactive } = readBuckets(snap.exists ? snap.data() : null);
+    // Resume an active hunt first; only consult history when starting a new hunt.
+    let hunt = active[key];
+    let status = "active";
+    if (!hunt && includeInactive) { hunt = inactive[key]; status = "inactive"; }
     if (!hunt) return notFound(res, "No saved hunt");
-    return res.status(200).json({ success: true, found: true, hunt });
+    return res.status(200).json({ success: true, found: true, status, hunt });
   } catch (e) {
     console.error("hunts/fetch read error", e);
     return res.status(500).json({ success: false, message: "Server error" });

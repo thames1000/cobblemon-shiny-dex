@@ -97,12 +97,18 @@ Restart the server. Verify connectivity in-game with `/shinydex test` — it hit
 | `mcLinks` | Minecraft UUID | backend | backend |
 | `modDex` | user uid | backend (catches) + website owner (corrections) | website (owner) |
 | `modBerries` | user uid | backend (adds) + website owner (removals) | website (owner) |
+| `modHunts` | user uid | backend (hunt sync on disconnect) | backend (hunt fetch on start) |
 
 `modDex/{uid}.dex` is a plain `{ "<nationalDex>": "caught" | "shiny" }` map. The
 backend only ever *adds/upgrades* it; the merge-up into your normal progress is
 upgrade-only, so a manual ✨/📦 is never overwritten by the mod. The website also
 writes it in one case — **Push site changes** reconciles owner-side removals/downgrades
 (e.g. an evolved Pokémon) back down, so the upgrade-only pull can't resurrect them.
+
+`modHunts/{uid}.hunts` is a `{ "<species>|<form>": { encounters, eggs, manual, total,
+... } }` map of a player's **in-progress** shiny hunts (form blank for an any-form
+hunt). Unlike the dex, this is **replace-only**: each disconnect overwrites the whole
+map with the mod's current snapshot, so a stopped/finished hunt disappears.
 
 ## Endpoints (implemented in `api/minecraft/`)
 
@@ -113,10 +119,19 @@ writes it in one case — **Push site changes** reconciles owner-side removals/d
 | `POST /minecraft/catches` | `api/minecraft/catches.js` |
 | `POST /minecraft/berries` | `api/minecraft/berries.js` |
 | `POST /minecraft/test-event` | `api/minecraft/test-event.js` |
+| `POST /minecraft/hunts/sync` | `api/minecraft/hunts/sync.js` |
+| `POST /minecraft/hunts/fetch` | `api/minecraft/hunts/fetch.js` |
 
 `/minecraft/berries` takes `{ serverToken, minecraftUuid, berries: [...] }` (or a
 single `berry`). Ids may be bare (`occa`) or full item ids (`cobblemon:occa_berry`);
 unknown ids are ignored. Berries are a set-only collection, so the scan is idempotent.
+
+`/minecraft/hunts/sync` takes `{ serverToken, minecraftUuid, hunts: [...] }` — the
+mod's full hunt snapshot, sent when a player disconnects — and replaces `modHunts/{uid}`
+with it. `/minecraft/hunts/fetch` takes `{ serverToken, minecraftUuid, species, form? }`
+and returns `{ found, hunt }` so a hunt resumes its counter when it restarts. Both key
+hunts by `species|form` (the mod's key) and no-op for unlinked players. See
+`shiny-dex-site-link/docs/backend-api.md` for the exact request/response shapes.
 
 All require the matching `serverToken`; catches/links resolve species by name or
 national-dex number via `js/data/species.json`.

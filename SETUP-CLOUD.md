@@ -80,6 +80,11 @@ In the console → **Build → Authentication → Get started → Sign-in method
        match /mcLinks/{uuid} {
          allow read, write: if false; 
        }
+       // In-progress shiny hunts: backend writes (disconnect) and reads (hunt start).
+       // The website doesn't show these, so clients get no access.
+       match /modHunts/{uid} {
+         allow read, write: if false;
+       }
      }
    }
    ```

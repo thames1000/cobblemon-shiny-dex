@@ -2871,39 +2871,43 @@ function renderDashboard() {
 function renderDashWishlist() {
   const el = document.getElementById("dash-wishlist");
   if (!el) return;
-  const list = state.wishlist.map((d) => DEX_BY_NUM[d]).filter(Boolean);
-  const vlist = (state.variantWishlist || []).map((id) => VARIANT_BY_ID[id]).filter(Boolean);
+  // Caught mons stay on the wishlist (data is never pruned on catch), but the
+  // home dashboard only surfaces the still-open targets — done ones are hidden
+  // here so the list reads as "what's left to hunt".
+  const allSp = state.wishlist.map((d) => DEX_BY_NUM[d]).filter(Boolean);
+  const allV = (state.variantWishlist || []).map((id) => VARIANT_BY_ID[id]).filter(Boolean);
+  const list = allSp.filter((sp) => { const st = dexState(sp.dex); return st !== "shiny" && st !== "boxed"; });
+  const vlist = allV.filter((v) => !variantShiny(v.id));
+  const hiddenDone = (allSp.length - list.length) + (allV.length - vlist.length);
   if (!list.length && !vlist.length) {
-    el.innerHTML = `<h2>★ Wishlist</h2><p class="hint">Star Pokémon on the Dex (tap ☆) or variants on the Variants tab to pin your hunt goals here. 🎲 Surprise me favours them.</p>`;
+    const doneNote = hiddenDone
+      ? `<p class="hint">✨ All ${hiddenDone} of your wishlist ${hiddenDone === 1 ? "target is" : "targets are"} caught — they stay starred on the Dex.</p>`
+      : `<p class="hint">Star Pokémon on the Dex (tap ☆) or variants on the Variants tab to pin your hunt goals here. 🎲 Surprise me favours them.</p>`;
+    el.innerHTML = `<h2>★ Wishlist</h2>` + doneNote;
     return;
   }
   const spCards = list.map((sp) => {
-    const st = dexState(sp.dex);
-    const done = st === "shiny" || st === "boxed";
     const nm = sp.name.replace(/-/g, " ");
-    return `<div class="dash-gap${done ? " wl-done" : ""}" data-dex="${sp.dex}" role="button" tabindex="0" title="Jump to ${nm} in Boxes">` +
+    return `<div class="dash-gap" data-dex="${sp.dex}" role="button" tabindex="0" title="Jump to ${nm} in Boxes">` +
       `<button class="dash-gap-hunt" data-dex="${sp.dex}" title="Start a hunt for ${nm}">🎯</button>` +
       `<button class="dash-wl-star" data-dex="${sp.dex}" title="Remove ${nm} from wishlist">★</button>` +
       `<img loading="lazy" src="${spriteUrl(sp.dex, true)}" alt="${sp.name}" />` +
       `<span class="dash-gap-no">#${String(sp.dex).padStart(4, "0")}</span>` +
       `<span class="dash-gap-nm">${nm}</span>` +
-      `${done ? `<span class="wl-badge">${st === "boxed" ? "📦" : "✨"}</span>` : ""}` +
     `</div>`;
   });
   const vCards = vlist.map((v) => {
-    const done = variantShiny(v.id);
     const nm = `${v.base.replace(/-/g, " ")} ${v.name}`;
-    return `<div class="dash-gap${done ? " wl-done" : ""}" data-variant="${v.id}" role="button" tabindex="0" title="Start a hunt for ${nm}">` +
+    return `<div class="dash-gap" data-variant="${v.id}" role="button" tabindex="0" title="Start a hunt for ${nm}">` +
       `<button class="dash-gap-hunt" data-variant="${v.id}" title="Start a hunt for ${nm}">🎯</button>` +
       `<button class="dash-wl-star" data-variant="${v.id}" title="Remove ${nm} from wishlist">★</button>` +
-      `<img loading="lazy" src="${variantArt(v, done).src}" alt="${nm}" />` +
+      `<img loading="lazy" src="${variantArt(v, false).src}" alt="${nm}" />` +
       `<span class="dash-gap-no">#${String(v.dex).padStart(4, "0")}</span>` +
       `<span class="dash-gap-nm">${v.base.replace(/-/g, " ")} <span class="muted">${v.name}</span></span>` +
-      `${done ? `<span class="wl-badge">✨</span>` : ""}` +
     `</div>`;
   });
   el.innerHTML =
-    `<h2>★ Wishlist <span class="muted">— ${list.length + vlist.length}</span></h2>` +
+    `<h2>★ Wishlist <span class="muted">— ${list.length + vlist.length}${hiddenDone ? ` <span class="muted">(+${hiddenDone} caught)</span>` : ""}</span></h2>` +
     `<div class="dash-gaps-row">` + spCards.concat(vCards).join("") + `</div>`;
 }
 

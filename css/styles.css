@@ -171,8 +171,6 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .dash-gap-box, .dash-wl-star { right: 2px; }
 .dash-wl-star { color: var(--gold); border-color: var(--gold); }
 .dash-gap-hunt:hover, .dash-gap-box:hover, .dash-wl-star:hover { border-color: var(--accent); }
-.dash-gap.wl-done { opacity: .72; }
-.dash-gap .wl-badge { position: absolute; bottom: 2px; right: 3px; font-size: .7rem; }
 
 /* Luck chips (#6) */
 .luck-chip { font-size: .68rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; white-space: nowrap; }

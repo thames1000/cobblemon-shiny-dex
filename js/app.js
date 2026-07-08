@@ -3788,7 +3788,15 @@ function renderSpawnByBiome(biome) {
  * scripts/build-karp-patterns.js for the decompiled provenance of every constant.
  */
 const KARP_SCEN = { surface: "Open sky", underground: "Underground (sky light ≤ 7)" };
-let karpCalc = { biome: "dark forest", scen: "surface", lure: true, luck: 0, bait: "none" };
+// shinyRate is null until first shown, then seeded from the site's global base rate
+// (state.config.baseShinyRate) so the fishing math matches the rest of the app; the
+// user can still override it just for this section.
+let karpCalc = { biome: "dark forest", scen: "surface", lure: true, luck: 0, bait: "none", shinyRate: null };
+function karpShinyRate() {
+  const r = Number(karpCalc.shinyRate);
+  if (r >= 1) return Math.round(r);
+  return (state.config && state.config.baseShinyRate) || (KARP && KARP.shinyRate) || 8192;
+}
 let karpFocusId = null;  // variant currently shown, so the guide's controls re-render it
 
 // Bucket odds after Cobblemon's BucketNormalizingInfluence, which the fishing bobber
@@ -3806,9 +3814,10 @@ function karpBucketOdds(tier) {
 // Normal roll, plus the bait's extra roll: shinyReroll() picks Random(0..shinyRate)
 // and shinifies when roll <= value, i.e. (value+1)/(shinyRate+1).
 function karpShinyOdds(bait) {
-  const base = 1 / KARP.shinyRate;
+  const rate = karpShinyRate();
+  const base = 1 / rate;
   if (!bait || bait.shiny == null) return base;
-  const extra = (bait.shiny + 1) / (KARP.shinyRate + 1);
+  const extra = (bait.shiny + 1) / (rate + 1);
   return 1 - (1 - base) * (1 - extra);
 }
 const karpBait = (id) => KARP.baits.find((b) => b.id === id) || KARP.baits[0];
@@ -3837,6 +3846,7 @@ function karpControlsHtml() {
     <label>Where <select class="select" data-karp="scen">${Object.entries(KARP_SCEN).map(([k, v]) => opt(k, karpCalc.scen, v)).join("")}</select></label>
     <label>Luck of the Sea <select class="select" data-karp="luck">${[0, 1, 2, 3].map((l) => opt(l, Number(karpCalc.luck), l ? "Level " + l : "None")).join("")}</select></label>
     <label>Bait <select class="select" data-karp="bait">${KARP.baits.map((b) => opt(b.id, karpCalc.bait, b.label + (b.berry ? " 🫐" : ""))).join("")}</select></label>
+    <label>Base shiny rate 1/<input type="number" class="select karp-rate" data-karp="shinyRate" min="1" step="1" value="${karpShinyRate()}" /></label>
     <label class="karp-check"><input type="checkbox" data-karp="lure"${karpCalc.lure ? " checked" : ""}/> Rod has Lure I+</label>
   </div>`;
 }
@@ -3848,6 +3858,7 @@ function karpGuideHtml(focus) {
   const bait = karpBait(karpCalc.bait);
   const tier = bait.rarity + Number(karpCalc.luck);
   const pBucket = karpBucketOdds(tier);
+  const rate = karpShinyRate();
   const pool = (KARP.pools[karpCalc.biome] || {})[karpCalc.scen];
 
   const rows = KARP.patterns
@@ -3879,14 +3890,18 @@ function karpGuideHtml(focus) {
       (tier ${tier}${tier ? ` — Luck ${karpCalc.luck} + bait ${bait.rarity}` : ""}) ·
       Shiny: <b>1 / ${Math.round(1 / shiny)}</b>${bait.shiny != null ? ` (${bait.label} reroll)` : ""}
       ${pool ? `· pool weight ${pool.total}` : ""}</p>
+    <p class="hint" style="margin-top:-4px">The Cobblemon wiki quotes a <b>flat 5%</b> (+2.5%/Lure&nbsp;level, max 12.5%). That's
+      base Cobblemon; <b>this server's Rarity Overhaul makes the base 10%</b> (bucket weights 88.5/10/1.2/0.3). The real Luck
+      curve is also exponential, not linear — Luck I/II/III give ${[1, 2, 3].map((t) => (karpBucketOdds(bait.rarity + t) * 100).toFixed(1)).join(" / ")}%.</p>
     ${noLure}${noPool}
     <div class="karp-wrap"><table class="karp-table">
       <thead><tr><th>Pattern</th><th>Boost here</th><th>Per catch</th><th>Catches</th><th>→ ✨ shiny</th></tr></thead>
       <tbody>${rows}</tbody></table></div>
     <p class="hint"><b>Catches</b> = expected Pokémon hooked before that pattern shows up.
       <b>→ ✨ shiny</b> folds in the shiny roll. <b>Starf Berry</b> 🫐 is the only <i>berry</i> with a shiny reroll
-      (+5/8193); Enchanted Golden Apple is stronger (+10/8193) and also shifts the bucket, but isn't a berry.
-      Typing / egg-group baits also reweight the pool and aren't modelled here.</p>
+      (+5/${rate + 1}); Enchanted Golden Apple is stronger (+10/${rate + 1}) and also shifts the bucket, but isn't a berry.
+      Typing / egg-group baits also reweight the pool and aren't modelled here.
+      Base shiny rate is editable above (defaults to your config's 1/${(state.config && state.config.baseShinyRate) || KARP.shinyRate}).</p>
   </div>`;
 }
 

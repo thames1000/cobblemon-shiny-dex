@@ -67,7 +67,9 @@ roll = Random.nextInt(0, shinyRate + 1)
 if (roll <= effect.value) pokemon.shiny = true
 ```
 
-So a `shiny_reroll` bait adds `(value + 1) / (shinyRate + 1)` **on top of** the normal 1/8192 roll.
+So a `shiny_reroll` bait adds `(value + 1) / (shinyRate + 1)` **on top of** the normal 1/`shinyRate` roll.
+The guide's **base shiny rate is editable** (defaults to the site's `config.baseShinyRate`, 1/8192) so you can
+model a boosted server rate; every "→ ✨ shiny" number and the reroll fractions scale with it.
 
 | Bait | `shiny_reroll` | `rarity_bucket` | Effective shiny |
 |---|---|---|---|

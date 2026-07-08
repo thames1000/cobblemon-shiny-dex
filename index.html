@@ -321,6 +321,7 @@
       <div class="seg" id="spawn-mode">
         <button class="seg-btn active" data-smode="mon">By Pokémon</button>
         <button class="seg-btn" data-smode="biome">By Biome</button>
+        <button class="seg-btn" data-smode="variant">By Variant</button>
       </div>
       <p class="hint">Out-of-game planning that complements the in-game PokéNav. Spawn data is base Cobblemon's
         <code>spawn_pool_world</code> — species added only by addon datapacks may show "no natural spawn."</p>
@@ -334,6 +335,15 @@
       <div class="card" id="spawn-biome-controls" hidden>
         <h2>See what spawns in a biome</h2>
         <select id="spawn-biome-select" class="select" style="width:100%"></select>
+      </div>
+
+      <div class="card" id="spawn-variant-controls" hidden>
+        <h2>Find where a variant comes from</h2>
+        <input list="variants-list" id="spawn-variant-input" class="search"
+               placeholder="Magikarp — Skelly, Meowth — Galar, Mewtwo — Shadow…" />
+        <div class="controls" style="margin-top:8px"><button id="spawn-variant-find" class="ctrl-btn">Find variant</button></div>
+        <p class="hint" style="margin-bottom:0">Regional &amp; cosmetic forms show their spawn rows. The 31
+          <b>Magikarp Jump</b> patterns are fishing-only, so they get a dedicated guide below (shown by default).</p>
       </div>
 
       <div id="spawn-results"></div>
@@ -897,6 +907,7 @@
   <!-- Shared species autocomplete — top-level so it works on every tab (a datalist
        inside a display:none panel won't surface options). -->
   <datalist id="species-list"></datalist>
+  <datalist id="variants-list"></datalist>
   <datalist id="hunt-target-list"></datalist>
   <datalist id="moves-list"></datalist>
   <datalist id="held-items-list"></datalist>

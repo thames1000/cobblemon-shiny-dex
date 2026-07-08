@@ -3529,6 +3529,7 @@ function refreshHotkeyBtn() {
 
 /* ---------- spawns tab ---------- */
 let SPAWNS = {};        // dex -> [entry]
+let KARP = null;        // js/data/karp-patterns.json — Magikarp Jump pattern fishing model
 let BIOME_INDEX = {};   // biome -> [{dex, entry}]
 const RARITY_ORDER = { common: 0, uncommon: 1, rare: 2, "ultra-rare": 3 };
 let spawnMode = "mon";
@@ -3776,13 +3777,197 @@ function renderSpawnByBiome(biome) {
     <div class="grid" id="spawn-biome-grid">${cards}</div>`;
 }
 
+/* ---------- variant lookup + Magikarp/Gyarados fishing guide ----------
+ *
+ * The 31 Magikarp Jump patterns are `fishing`-only, `uncommon`-bucket spawns that
+ * need a Poké Rod with Lure I+. They're catchable in every overworld biome, but each
+ * is 3x/5x likelier in certain biome categories — and those multipliers STACK, so a
+ * Dark Forest (both `spooky` and `magical`) is 15x for Saucy Violet.
+ *
+ * js/data/karp-patterns.json carries the whole model straight from the datapack; see
+ * scripts/build-karp-patterns.js for the decompiled provenance of every constant.
+ */
+const KARP_SCEN = { surface: "Open sky", underground: "Underground (sky light ≤ 7)" };
+let karpCalc = { biome: "dark forest", scen: "surface", lure: true, luck: 0, bait: "none" };
+let karpFocusId = null;  // variant currently shown, so the guide's controls re-render it
+
+// Bucket odds after Cobblemon's BucketNormalizingInfluence, which the fishing bobber
+// builds with tier = Σ(bait rarity_bucket) + Luck of the Sea level:
+//   tier == 0 -> untouched; else weight_i ** (1 / (firstTier + gradient*(tier-1)))
+function karpBucketOdds(tier) {
+  const w = { ...KARP.buckets };
+  if (tier !== 0) {
+    const d = KARP.normalize.firstTier + KARP.normalize.gradient * (tier - 1);
+    for (const k in w) w[k] = Math.pow(w[k], 1 / d);
+  }
+  const total = Object.values(w).reduce((a, b) => a + b, 0);
+  return w[KARP.bucket] / total;
+}
+// Normal roll, plus the bait's extra roll: shinyReroll() picks Random(0..shinyRate)
+// and shinifies when roll <= value, i.e. (value+1)/(shinyRate+1).
+function karpShinyOdds(bait) {
+  const base = 1 / KARP.shinyRate;
+  if (!bait || bait.shiny == null) return base;
+  const extra = (bait.shiny + 1) / (KARP.shinyRate + 1);
+  return 1 - (1 - base) * (1 - extra);
+}
+const karpBait = (id) => KARP.baits.find((b) => b.id === id) || KARP.baits[0];
+
+/* Per-pattern odds in the current scenario. Returns null if you can't fish patterns
+ * there at all (no water pool, or no Lure). */
+function karpOdds(pattern) {
+  const pool = (KARP.pools[karpCalc.biome] || {})[karpCalc.scen];
+  if (!pool || !karpCalc.lure) return null;
+  const w = pool.w[pattern.aspect];
+  if (!w) return null;
+  const bait = karpBait(karpCalc.bait);
+  const pBucket = karpBucketOdds(bait.rarity + Number(karpCalc.luck));
+  const share = w / pool.total;
+  const p = pBucket * share;
+  const pShiny = karpShinyOdds(bait);
+  return { w, share, p, pShiny, catches: 1 / p, shinyCatches: 1 / (p * pShiny), mult: w / pattern.base };
+}
+const karpNum = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1000 ? Math.round(n / 100) / 10 + "k" : Math.round(n));
+
+function karpControlsHtml() {
+  const biomes = Object.keys(KARP.pools).sort();
+  const opt = (v, sel, label) => `<option value="${v}"${v === sel ? " selected" : ""}>${label || v}</option>`;
+  return `<div class="karp-controls">
+    <label>Biome <select class="select" data-karp="biome">${biomes.map((b) => opt(b, karpCalc.biome)).join("")}</select></label>
+    <label>Where <select class="select" data-karp="scen">${Object.entries(KARP_SCEN).map(([k, v]) => opt(k, karpCalc.scen, v)).join("")}</select></label>
+    <label>Luck of the Sea <select class="select" data-karp="luck">${[0, 1, 2, 3].map((l) => opt(l, Number(karpCalc.luck), l ? "Level " + l : "None")).join("")}</select></label>
+    <label>Bait <select class="select" data-karp="bait">${KARP.baits.map((b) => opt(b.id, karpCalc.bait, b.label + (b.berry ? " 🫐" : ""))).join("")}</select></label>
+    <label class="karp-check"><input type="checkbox" data-karp="lure"${karpCalc.lure ? " checked" : ""}/> Rod has Lure I+</label>
+  </div>`;
+}
+
+/* The informational page: every pattern ranked for the chosen spot, with expected
+ * catches and expected catches to a shiny. `focus` highlights one pattern's row. */
+function karpGuideHtml(focus) {
+  if (!KARP) return "";
+  const bait = karpBait(karpCalc.bait);
+  const tier = bait.rarity + Number(karpCalc.luck);
+  const pBucket = karpBucketOdds(tier);
+  const pool = (KARP.pools[karpCalc.biome] || {})[karpCalc.scen];
+
+  const rows = KARP.patterns
+    .map((p) => ({ p, o: karpOdds(p) }))
+    .sort((a, b) => (b.o ? b.o.p : 0) - (a.o ? a.o.p : 0) || a.p.name.localeCompare(b.p.name))
+    .map(({ p, o }) => {
+      const hot = focus && (focus.aspect === p.aspect);
+      if (!o) return `<tr${hot ? ' class="karp-hot"' : ""}><td>${p.name}</td><td colspan="4" class="muted">not fishable here</td></tr>`;
+      const mult = o.mult > 1 ? `<b>×${+o.mult.toFixed(2)}</b>` : `<span class="muted">×1</span>`;
+      return `<tr${hot ? ' class="karp-hot"' : ""}>
+        <td>${p.name}</td><td>${mult}</td>
+        <td>${(o.p * 100).toFixed(2)}%</td>
+        <td>${karpNum(o.catches)}</td>
+        <td>${karpNum(o.shinyCatches)}</td></tr>`;
+    }).join("");
+
+  const noPool = !pool ? `<p class="hint">No uncommon fishing pool in <b>${karpCalc.biome}</b> ${karpCalc.scen === "underground" ? "underground" : "under open sky"} — pick another spot.</p>` : "";
+  const noLure = !karpCalc.lure ? `<p class="hint">⚠ Patterns need a Poké Rod with <b>Lure I or better</b> (<code>minLureLevel: 1</code>). Without it you can only fish plain Magikarp.</p>` : "";
+  const shiny = karpShinyOdds(bait);
+
+  return `<div class="card">
+    <h2>🎣 Magikarp &amp; Gyarados fishing guide</h2>
+    <p class="hint">All 31 <b>Magikarp Jump</b> patterns are fished from the <b>uncommon</b> bucket with a
+      <b>Lure I+</b> Poké Rod, in <b>any</b> overworld biome — biome only changes the odds. Multipliers
+      <b>stack</b>: a Dark Forest is both <i>spooky</i> and <i>magical</i>, so Saucy Violet is ×15 there.
+      <b>Gyarados patterns aren't fished</b> — evolve a patterned Magikarp.</p>
+    ${karpControlsHtml()}
+    <p class="hint">Uncommon bucket: <b>${(pBucket * 100).toFixed(2)}%</b> per catch
+      (tier ${tier}${tier ? ` — Luck ${karpCalc.luck} + bait ${bait.rarity}` : ""}) ·
+      Shiny: <b>1 / ${Math.round(1 / shiny)}</b>${bait.shiny != null ? ` (${bait.label} reroll)` : ""}
+      ${pool ? `· pool weight ${pool.total}` : ""}</p>
+    ${noLure}${noPool}
+    <div class="karp-wrap"><table class="karp-table">
+      <thead><tr><th>Pattern</th><th>Boost here</th><th>Per catch</th><th>Catches</th><th>→ ✨ shiny</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+    <p class="hint"><b>Catches</b> = expected Pokémon hooked before that pattern shows up.
+      <b>→ ✨ shiny</b> folds in the shiny roll. <b>Starf Berry</b> 🫐 is the only <i>berry</i> with a shiny reroll
+      (+5/8193); Enchanted Golden Apple is stronger (+10/8193) and also shifts the bucket, but isn't a berry.
+      Typing / egg-group baits also reweight the pool and aren't modelled here.</p>
+  </div>`;
+}
+
+function karpPatternFor(variantId) {
+  if (!KARP) return null;
+  return KARP.patterns.find((p) => p.magikarp === variantId || p.gyarados === variantId) || null;
+}
+
+/* Where does a given variant come from? Magikarp/Gyarados patterns get the fishing
+ * guide; everything else reuses the base species' spawn rows, kept only when the
+ * row's form maps back to this same variant. */
+function renderSpawnByVariant(id) {
+  const v = VARIANT_BY_ID[id];
+  if (!v) return `<div class="card"><p class="hint">Unknown variant.</p></div>`;
+  const art = variantArt(v, false);
+  const head = `<div class="card"><div class="find-row">
+      <img src="${art.src}" onerror="this.src='${art.fb}'" alt=""/>
+      <span class="find-name">${v.base} — ${v.name}</span></div>`;
+
+  const pat = karpPatternFor(id);
+  if (pat) {
+    const isGy = pat.gyarados === id;
+    const boosts = pat.boosts.map((b) => `<span class="struct-chip">×${b.x} ${b.cat}</span>`).join("") || `<span class="muted">no biome boost</span>`;
+    const where = pat.boosts.filter((b) => b.cat !== "underground")
+      .map((b) => `<b>×${b.x} ${b.cat}</b>: ${(KARP.categories[b.cat] || []).join(", ") || "—"}`)
+      .join("<br>");
+    const gy = isGy
+      ? `<p class="hint">🐉 <b>Gyarados can't be fished with a pattern.</b> Fish the matching
+         <b>Magikarp — ${pat.name}</b> and evolve it (Lv 20); the pattern carries over.</p>` : "";
+    return `${head}
+      <p class="hint">🎣 Fished from the <b>uncommon</b> bucket with a <b>Lure I+</b> Poké Rod, in any overworld biome.</p>
+      <div class="spawn-row"><div class="spawn-biomes">${boosts}</div>
+        ${where ? `<div class="spawn-ig">${where}</div>` : ""}</div>
+      ${gy}</div>
+      ${karpGuideHtml(pat)}`;
+  }
+
+  const rows = (SPAWNS[v.dex] || []).filter((e) => e.f && spawnVariant(v.dex, e.f) && spawnVariant(v.dex, e.f).id === id);
+  if (!rows.length) {
+    return `${head}<p class="hint">No natural spawn for this form in the Cobbleverse data — it comes from
+      evolution, breeding, an item, or a quest. (Regional forms often spawn only as a
+      <i>region bias</i> on the base species.)</p></div>`;
+  }
+  const list = rows.map((e) => `<div class="spawn-row">
+      <div class="spawn-biomes">${formChip(e.f)}${e.b.map(biomeChip).join("")}</div>
+      <div class="spawn-meta">${rarityChip(e.r)} <span class="muted">${entryDetail(e)}</span></div>
+    </div>`).join("");
+  return `${head}${list}</div>`;
+}
+
+function findSpawnVariantByInput(raw) {
+  const q = String(raw || "").trim().toLowerCase();
+  if (!q) return;
+  const all = allVariantObjs();
+  const label = (o) => `${o.base} — ${o.name}`.toLowerCase();
+  const v = all.find((o) => label(o) === q) || all.find((o) => label(o).includes(q));
+  if (!v) { alert(`No variant matching "${raw}".`); return; }
+  els.spawnVariantInput.value = `${v.base} — ${v.name}`;
+  karpFocusId = v.id;
+  els.spawnResults.innerHTML = renderSpawnByVariant(v.id);
+}
+function fillVariantList() {
+  const dl = document.getElementById("variants-list");
+  if (!dl || !VARIANTS) return;
+  dl.innerHTML = allVariantObjs().map((o) => `<option value="${o.base} — ${o.name}"></option>`).join("");
+}
+
 function setSpawnMode(mode) {
   spawnMode = mode;
   document.querySelectorAll("#spawn-mode .seg-btn").forEach((b) => b.classList.toggle("active", b.dataset.smode === mode));
   document.getElementById("spawn-mon-controls").hidden = mode !== "mon";
   document.getElementById("spawn-biome-controls").hidden = mode !== "biome";
+  document.getElementById("spawn-variant-controls").hidden = mode !== "variant";
   els.spawnResults.innerHTML = "";
   if (mode === "biome") renderSpawnResults();
+  if (mode === "variant") {
+    fillVariantList();
+    karpFocusId = null;
+    if (els.spawnVariantInput) els.spawnVariantInput.value = "";
+    els.spawnResults.innerHTML = karpGuideHtml(null);
+  }
 }
 function renderSpawnResults() {
   if (spawnMode === "biome") {
@@ -5706,6 +5891,7 @@ function grabEls() {
     cfgHotkey: document.getElementById("cfg-hotkey"),
     cfgHotkeyClear: document.getElementById("cfg-hotkey-clear"),
     spawnInput: document.getElementById("spawn-input"),
+    spawnVariantInput: document.getElementById("spawn-variant-input"),
     spawnBiomeSelect: document.getElementById("spawn-biome-select"),
     spawnResults: document.getElementById("spawn-results"),
     snackBiome: document.getElementById("snack-biome"),
@@ -6259,6 +6445,18 @@ function wire() {
   document.getElementById("spawn-find").addEventListener("click", () => findSpawnByInput(els.spawnInput.value));
   els.spawnInput.addEventListener("keydown", (e) => { if (e.key === "Enter") findSpawnByInput(els.spawnInput.value); });
   els.spawnBiomeSelect.addEventListener("change", renderSpawnResults);
+  document.getElementById("spawn-variant-find").addEventListener("click", () => findSpawnVariantByInput(els.spawnVariantInput.value));
+  els.spawnVariantInput.addEventListener("change", () => findSpawnVariantByInput(els.spawnVariantInput.value));
+  els.spawnVariantInput.addEventListener("keydown", (e) => { if (e.key === "Enter") findSpawnVariantByInput(els.spawnVariantInput.value); });
+  // Fishing-guide controls live inside the results, so delegate and re-render in place.
+  els.spawnResults.addEventListener("change", (e) => {
+    const c = e.target.closest("[data-karp]");
+    if (!c) return;
+    karpCalc[c.dataset.karp] = c.dataset.karp === "lure" ? c.checked : c.value;
+    els.spawnResults.innerHTML = karpFocusId
+      ? renderSpawnByVariant(karpFocusId)
+      : karpGuideHtml(null);
+  });
   els.spawnResults.addEventListener("click", (e) => {
     const huntLink = e.target.closest(".hunt-link");
     if (huntLink) { loadTarget(DEX_BY_NUM[Number(huntLink.dataset.dex)].name); showTab("hunt"); return; }
@@ -6503,7 +6701,7 @@ async function boot() {
     showAccountView();
   });
   showAccountView();
-  const [sp, fm, spawns, berries, variants, berryGuide, moves, coach, legends, biomeSpawns] = await Promise.all([
+  const [sp, fm, spawns, berries, variants, berryGuide, moves, coach, legends, biomeSpawns, karp] = await Promise.all([
     fetch("js/data/species.json").then((r) => r.json()),
     fetch("js/data/forms.json").then((r) => r.json()),
     fetch("js/data/spawns.json").then((r) => r.json()).catch(() => ({})),
@@ -6514,7 +6712,9 @@ async function boot() {
     fetch("js/data/coach.json").then((r) => r.json()).catch(() => ({})),
     fetch("js/data/legendaries.json").then((r) => r.json()).catch(() => ({ tiers: [], list: [] })),
     fetch("js/data/biome-spawns.json").then((r) => r.json()).catch(() => ({})),
+    fetch("js/data/karp-patterns.json").then((r) => r.json()).catch(() => null),
   ]);
+  KARP = karp;
   BIOME_SPAWNS = biomeSpawns;
   SPECIES = sp;
   MOVES = moves;

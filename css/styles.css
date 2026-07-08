@@ -910,3 +910,19 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
   background: var(--panel-2); font-size: .86rem; line-height: 1.45; }
 .goal-exists { color: var(--gold); font-size: .8rem; }
 #goal-add[disabled] { opacity: .5; cursor: not-allowed; }
+
+/* ---- Magikarp/Gyarados fishing guide (Spawns → By Variant) ---- */
+.karp-controls { display: flex; flex-wrap: wrap; gap: 10px 14px; margin: 10px 0; align-items: flex-end; }
+.karp-controls label { display: flex; flex-direction: column; gap: 4px; font-size: .78rem; color: var(--muted); }
+.karp-controls .select { min-width: 140px; text-transform: capitalize; }
+.karp-controls .karp-check { flex-direction: row; align-items: center; gap: 6px; padding-bottom: 8px; }
+.karp-wrap { overflow-x: auto; margin-top: 8px; }
+.karp-table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+.karp-table th, .karp-table td { padding: 6px 10px; text-align: right; white-space: nowrap; }
+.karp-table th:first-child, .karp-table td:first-child { text-align: left; }
+.karp-table thead th { color: var(--muted); font-weight: 600; font-size: .74rem;
+  border-bottom: 1px solid var(--line); text-transform: uppercase; letter-spacing: .03em; }
+.karp-table tbody tr { border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent); }
+.karp-table tbody tr:hover { background: var(--panel-2); }
+.karp-table tr.karp-hot { background: color-mix(in srgb, var(--accent) 15%, var(--panel-2)); }
+.karp-table tr.karp-hot td:first-child { font-weight: 700; }

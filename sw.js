@@ -8,7 +8,7 @@
  *
  * Bump CACHE on every release so old caches are purged on activate.
  */
-const CACHE = "shinydex-hq-v135";
+const CACHE = "shinydex-hq-v136";
 const SHELL = [
   "./",
   "./index.html",
@@ -28,6 +28,7 @@ const SHELL = [
   "./js/data/variants.json",
   "./js/data/legendaries.json",
   "./js/data/biome-spawns.json",
+  "./js/data/karp-patterns.json",
   "./manifest.json",
   "./icons/icon-192.png",
   "./icons/icon-512.png",

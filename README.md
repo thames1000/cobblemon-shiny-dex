@@ -16,7 +16,7 @@ deploys straight to GitHub Pages. All progress is **manual** and stored in your 
 | **Boxes** | ✅ | Living-dex PC view — 30-slot boxes in National-Dex order showing boxed mons and gaps. "First gap" jumps to the next slot to fill. Tap a slot to edit state (syncs with Dex). |
 | **Mega/GMax** | ✅ Phase 1 | Separate "wing" tracking Mega Stone / GMax-Factor **capability** (Mega/GMax are temporary battle states, not boxable forms). Doesn't dilute the main dex %. |
 | **Hunt** | ✅ Phase 2 | Chain (Unchained), Breeding (Cobbreeding Masuda), and raw-encounter logger with editable mod odds. |
-| **Spawns** | ✅ Phase 3 | Forward (by Pokémon → biomes/rarity/time + best AFK spot) and reverse (by biome → species) lookup. Complements the in-game PokéNav. |
+| **Spawns** | ✅ Phase 3 | Forward (by Pokémon → biomes/rarity/time + best AFK spot), reverse (by biome → species), and **by variant** — including a 🎣 **Magikarp & Gyarados fishing guide** with per-biome odds, expected catches, and expected catches to a ✨shiny for each bait / Luck of the Sea level. Complements the in-game PokéNav. |
 | **Farm** | ✅ Phase 4 | Apricorn-farm sizing (apricorns & balls/hr, time-to-target) + encounter-farm time-to-shiny (50/90/99% counts and ETAs). Generic — no mod-specific recipes. |
 | **Data** | ✅ | Export / import / reset your progress, **optional** account sign-in for cloud sync, and **Minecraft sync** — import Cobblemon's own **Pokédex `.nbt`** straight off the server (no mod needed), import a **ShinyDex Link** mod export file, or link your server for **live** caught/✨shiny updates ([setup](SETUP-MOD-SYNC.md)). |
 
@@ -139,6 +139,15 @@ and retire Pages.
      `low-key-gmax` → Low-Key Toxtricity, `mega-sx` → Shadow Mewtwo, ZA Mega's `megae` → Eternal Floette); and
      the handful of dex forms named differently from their aspect are aliased (Genesect's dex says
      Fire/Ice/Water/Electric, the aspects are the *drives*). See `research/cobbleverse-variants.md`.
+- `scripts/build-karp-patterns.js` regenerates `js/data/karp-patterns.json` — the **Magikarp Jump** fishing
+  model behind *Spawns → By Variant*. The normal spawns pipeline treats `magikarp_jump` as cosmetic and
+  collapses it, so all 41 rows read "uncommon · fishing · any overworld"; this keeps the per-biome
+  `weightMultiplier`s that actually separate the 31 patterns. All are fishing-only, `uncommon` bucket,
+  and need a **Lure I+** Poké Rod. Multipliers **stack**, so a Dark Forest (`spooky` × `magical`) is ×15
+  for Saucy Violet. The bucket curve (`weight ^ 1/(1.29 + 0.2·(tier−1))`, `tier` = bait `rarity_bucket` +
+  Luck of the Sea) and the shiny reroll (`(value+1)/(shinyRate+1)` on top of 1/8192) are decompiled from
+  the jar — see [`research/magikarp-jump-patterns.md`](research/magikarp-jump-patterns.md). **Starf Berry**
+  is the only *berry* with a shiny reroll (1/8192 → 1/1366).
 - `js/data/forms.json` is the Mega/Primal/GMax list from the **Mega Showdown** mod (hand-authored; verify
   against your installed version).
 - Sprites are loaded on demand from the public PokeAPI sprite repo and cached by the service worker.

@@ -1,0 +1,6798 @@
+{
+ "_note": "Merged Cobblemon 1.7.3 + Mega Showdown 1.7.3 + ZA Mega 1.7.1 + COBBLEVERSE-DP-v29 (pack 1.7.31). class=recommended bucket; inSite=already tracked by the site (null=intentionally excluded).",
+ "forms": [
+  {
+   "species": "abomasnow",
+   "dex": 460,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "absol",
+   "dex": 359,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "absol",
+   "dex": 359,
+   "form": "Mega-Z",
+   "aspects": [
+    "mega_z"
+   ],
+   "labels": [
+    "gen3",
+    "mega_z"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "aegislash",
+   "dex": 681,
+   "form": "Blade",
+   "aspects": [
+    "blade-forme"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "transient",
+   "inSite": null
+  },
+  {
+   "species": "aerodactyl",
+   "dex": 142,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega",
+    "fossil"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "aggron",
+   "dex": 306,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "alakazam",
+   "dex": 65,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "alcremie",
+   "dex": 869,
+   "form": "Ruby-Cream",
+   "aspects": [
+    "cream-ruby"
+   ],
+   "labels": [
+    "gen8"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "alcremie",
+   "dex": 869,
+   "form": "Matcha-Cream",
+   "aspects": [
+    "cream-matcha"
+   ],
+   "labels": [
+    "gen8"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "alcremie",
+   "dex": 869,
+   "form": "Mint-Cream",
+   "aspects": [
+    "cream-mint"
+   ],
+   "labels": [
+    "gen8"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "alcremie",
+   "dex": 869,
+   "form": "Lemon-Cream",
+   "aspects": [
+    "cream-lemon"
+   ],
+   "labels": [
+    "gen8"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "alcremie",
+   "dex": 869,
+   "form": "Salted-Cream",
+   "aspects": [
+    "cream-salted"
+   ],
+   "labels": [
+    "gen8"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "alcremie",
+   "dex": 869,
+   "form": "Ruby-Swirl",
+   "aspects": [
+    "cream-ruby_swirl"
+   ],
+   "labels": [
+    "gen8"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "alcremie",
+   "dex": 869,
+   "form": "Caramel-Swirl",
+   "aspects": [
+    "cream-caramel_swirl"
+   ],
+   "labels": [
+    "gen8"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "alcremie",
+   "dex": 869,
+   "form": "Rainbow-Swirl",
+   "aspects": [
+    "cream-rainbow_swirl"
+   ],
+   "labels": [
+    "gen8"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "alcremie",
+   "dex": 869,
+   "form": "Gmax",
+   "aspects": [
+    "gmax"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "cobblemon",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "altaria",
+   "dex": 334,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "ampharos",
+   "dex": 181,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "appletun",
+   "dex": 842,
+   "form": "Gmax",
+   "aspects": [
+    "gmax"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "cobblemon",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "arcanine",
+   "dex": 59,
+   "form": "Hisui",
+   "aspects": [
+    "hisuian"
+   ],
+   "labels": [
+    "gen8a",
+    "hisuian_form"
+   ],
+   "source": "cobbleverse_dp",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "arceus",
+   "dex": 493,
+   "form": "Fighting",
+   "aspects": [
+    "fighting-plate"
+   ],
+   "labels": [
+    "gen4",
+    "mythical"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "arceus",
+   "dex": 493,
+   "form": "Flying",
+   "aspects": [
+    "flying-plate"
+   ],
+   "labels": [
+    "gen4",
+    "mythical"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "arceus",
+   "dex": 493,
+   "form": "Poison",
+   "aspects": [
+    "poison-plate"
+   ],
+   "labels": [
+    "gen4",
+    "mythical"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "arceus",
+   "dex": 493,
+   "form": "Ground",
+   "aspects": [
+    "ground-plate"
+   ],
+   "labels": [
+    "gen4",
+    "mythical"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "arceus",
+   "dex": 493,
+   "form": "Rock",
+   "aspects": [
+    "rock-plate"
+   ],
+   "labels": [
+    "gen4",
+    "mythical"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "arceus",
+   "dex": 493,
+   "form": "Bug",
+   "aspects": [
+    "bug-plate"
+   ],
+   "labels": [
+    "gen4",
+    "mythical"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "arceus",
+   "dex": 493,
+   "form": "Ghost",
+   "aspects": [
+    "ghost-plate"
+   ],
+   "labels": [
+    "gen4",
+    "mythical"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "arceus",
+   "dex": 493,
+   "form": "Steel",
+   "aspects": [
+    "steel-plate"
+   ],
+   "labels": [
+    "gen4",
+    "mythical"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "arceus",
+   "dex": 493,
+   "form": "Fire",
+   "aspects": [
+    "fire-plate"
+   ],
+   "labels": [
+    "gen4",
+    "mythical"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "arceus",
+   "dex": 493,
+   "form": "Water",
+   "aspects": [
+    "water-plate"
+   ],
+   "labels": [
+    "gen4",
+    "mythical"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "arceus",
+   "dex": 493,
+   "form": "Grass",
+   "aspects": [
+    "grass-plate"
+   ],
+   "labels": [
+    "gen4",
+    "mythical"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "arceus",
+   "dex": 493,
+   "form": "Electric",
+   "aspects": [
+    "electric-plate"
+   ],
+   "labels": [
+    "gen4",
+    "mythical"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "arceus",
+   "dex": 493,
+   "form": "Psychic",
+   "aspects": [
+    "psychic-plate"
+   ],
+   "labels": [
+    "gen4",
+    "mythical"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "arceus",
+   "dex": 493,
+   "form": "Ice",
+   "aspects": [
+    "ice-plate"
+   ],
+   "labels": [
+    "gen4",
+    "mythical"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "arceus",
+   "dex": 493,
+   "form": "Dragon",
+   "aspects": [
+    "dragon-plate"
+   ],
+   "labels": [
+    "gen4",
+    "mythical"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "arceus",
+   "dex": 493,
+   "form": "Dark",
+   "aspects": [
+    "dark-plate"
+   ],
+   "labels": [
+    "gen4",
+    "mythical"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "arceus",
+   "dex": 493,
+   "form": "Fairy",
+   "aspects": [
+    "fairy-plate"
+   ],
+   "labels": [
+    "gen6",
+    "mythical"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "articuno",
+   "dex": 144,
+   "form": "Galar",
+   "aspects": [
+    "galarian"
+   ],
+   "labels": [
+    "gen8",
+    "legendary",
+    "galarian_form"
+   ],
+   "source": "cobbleverse_dp",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "audino",
+   "dex": 531,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "avalugg",
+   "dex": 713,
+   "form": "Hisui",
+   "aspects": [
+    "hisuian"
+   ],
+   "labels": [
+    "gen8a",
+    "hisuian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "banette",
+   "dex": 354,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "barbaracle",
+   "dex": 689,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "basculegion",
+   "dex": 902,
+   "form": "F",
+   "aspects": [
+    "female"
+   ],
+   "labels": [
+    "gen8a"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "basculin",
+   "dex": 550,
+   "form": "Blue-Striped",
+   "aspects": [
+    "bluestriped"
+   ],
+   "labels": [
+    "gen5"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "basculin",
+   "dex": 550,
+   "form": "White-Striped",
+   "aspects": [
+    "whitestriped"
+   ],
+   "labels": [
+    "gen8a",
+    "hisuian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "baxcalibur",
+   "dex": 998,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen9",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "beedrill",
+   "dex": 15,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "blastoise",
+   "dex": 9,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "mega_showdown",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "blastoise",
+   "dex": 9,
+   "form": "Gmax",
+   "aspects": [
+    "gmax"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "mega_showdown",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "blaziken",
+   "dex": 257,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "braviary",
+   "dex": 628,
+   "form": "Hisui",
+   "aspects": [
+    "hisuian"
+   ],
+   "labels": [
+    "gen8a",
+    "hisuian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "burmy",
+   "dex": 412,
+   "form": "Sandy",
+   "aspects": [
+    "sandy-cloak"
+   ],
+   "labels": [
+    "gen4"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "burmy",
+   "dex": 412,
+   "form": "Trash",
+   "aspects": [
+    "trash-cloak"
+   ],
+   "labels": [
+    "gen4"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "butterfree",
+   "dex": 12,
+   "form": "Gmax",
+   "aspects": [
+    "gmax"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "cobblemon",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "calyrex",
+   "dex": 898,
+   "form": "Ice",
+   "aspects": [
+    "ice-rider"
+   ],
+   "labels": [
+    "gen8",
+    "legendary"
+   ],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "calyrex",
+   "dex": 898,
+   "form": "Shadow",
+   "aspects": [
+    "shadow-rider"
+   ],
+   "labels": [
+    "gen8",
+    "legendary"
+   ],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "camerupt",
+   "dex": 323,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "castform",
+   "dex": 351,
+   "form": "Sunny",
+   "aspects": [
+    "sunny-form"
+   ],
+   "labels": [
+    "gen4"
+   ],
+   "source": "cobblemon",
+   "class": "transient",
+   "inSite": null
+  },
+  {
+   "species": "castform",
+   "dex": 351,
+   "form": "Rainy",
+   "aspects": [
+    "rainy-form"
+   ],
+   "labels": [
+    "gen4"
+   ],
+   "source": "cobblemon",
+   "class": "transient",
+   "inSite": null
+  },
+  {
+   "species": "castform",
+   "dex": 351,
+   "form": "Snowy",
+   "aspects": [
+    "snowy-form"
+   ],
+   "labels": [
+    "gen4"
+   ],
+   "source": "cobblemon",
+   "class": "transient",
+   "inSite": null
+  },
+  {
+   "species": "centiskorch",
+   "dex": 851,
+   "form": "Gmax",
+   "aspects": [
+    "gmax"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "cobblemon",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "chandelure",
+   "dex": 609,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen5",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "charizard",
+   "dex": 6,
+   "form": "Mega-X",
+   "aspects": [
+    "mega_x"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "mega_showdown",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "charizard",
+   "dex": 6,
+   "form": "Mega-Y",
+   "aspects": [
+    "mega_y"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "mega_showdown",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "charizard",
+   "dex": 6,
+   "form": "Gmax",
+   "aspects": [
+    "gmax"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "mega_showdown",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "cherrim",
+   "dex": 421,
+   "form": "Sunshine",
+   "aspects": [
+    "sunshine-form"
+   ],
+   "labels": [
+    "gen5"
+   ],
+   "source": "cobblemon",
+   "class": "transient",
+   "inSite": null
+  },
+  {
+   "species": "chesnaught",
+   "dex": 652,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "chimecho",
+   "dex": 358,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen3",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "cinderace",
+   "dex": 815,
+   "form": "Gmax",
+   "aspects": [
+    "gmax"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "cobblemon",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "clefable",
+   "dex": 36,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen1",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "coalossal",
+   "dex": 839,
+   "form": "Gmax",
+   "aspects": [
+    "gmax"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "cobblemon",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "copperajah",
+   "dex": 879,
+   "form": "Gmax",
+   "aspects": [
+    "gmax"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "cobblemon",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "corsola",
+   "dex": 222,
+   "form": "Galar",
+   "aspects": [
+    "galarian"
+   ],
+   "labels": [
+    "gen8",
+    "galarian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "corviknight",
+   "dex": 823,
+   "form": "Gmax",
+   "aspects": [
+    "gmax"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "cobblemon",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "crabominable",
+   "dex": 740,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen7",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "cramorant",
+   "dex": 845,
+   "form": "Gulping",
+   "aspects": [
+    "gulping-form"
+   ],
+   "labels": [
+    "gen8"
+   ],
+   "source": "cobblemon",
+   "class": "transient",
+   "inSite": null
+  },
+  {
+   "species": "cramorant",
+   "dex": 845,
+   "form": "Gorging",
+   "aspects": [
+    "gorging-form"
+   ],
+   "labels": [
+    "gen8"
+   ],
+   "source": "cobblemon",
+   "class": "transient",
+   "inSite": null
+  },
+  {
+   "species": "cubone",
+   "dex": 104,
+   "form": "Alola-Bias",
+   "aspects": [
+    "region-bias-alola"
+   ],
+   "labels": [
+    "gen7",
+    "customized_official",
+    "alolan_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "cyndaquil",
+   "dex": 155,
+   "form": "Hisui-Bias",
+   "aspects": [
+    "region-bias-hisui"
+   ],
+   "labels": [
+    "gen8a",
+    "starter",
+    "customized_official",
+    "hisuian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "darkrai",
+   "dex": 491,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen4",
+    "legendary",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "darmanitan",
+   "dex": 555,
+   "form": "Zen",
+   "aspects": [
+    "zen-mode"
+   ],
+   "labels": [
+    "gen5"
+   ],
+   "source": "cobblemon",
+   "class": "transient",
+   "inSite": null
+  },
+  {
+   "species": "darmanitan",
+   "dex": 555,
+   "form": "Galar",
+   "aspects": [
+    "standard-mode",
+    "galarian"
+   ],
+   "labels": [
+    "gen8",
+    "galarian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "darmanitan",
+   "dex": 555,
+   "form": "Galar-Zen",
+   "aspects": [
+    "galarian",
+    "zen-mode"
+   ],
+   "labels": [
+    "gen8",
+    "galarian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "dartrix",
+   "dex": 723,
+   "form": "Hisui-Bias",
+   "aspects": [
+    "region-bias-hisui"
+   ],
+   "labels": [
+    "gen8a",
+    "customized_official",
+    "hisuian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "darumaka",
+   "dex": 554,
+   "form": "Galar",
+   "aspects": [
+    "galarian"
+   ],
+   "labels": [
+    "gen8",
+    "galarian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "decidueye",
+   "dex": 724,
+   "form": "Hisui",
+   "aspects": [
+    "hisuian"
+   ],
+   "labels": [
+    "gen8a",
+    "hisuian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "deerling",
+   "dex": 585,
+   "form": "Summer",
+   "aspects": [
+    "summer"
+   ],
+   "labels": [
+    "gen5"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "deerling",
+   "dex": 585,
+   "form": "Autumn",
+   "aspects": [
+    "autumn"
+   ],
+   "labels": [
+    "gen5"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "deerling",
+   "dex": 585,
+   "form": "Winter",
+   "aspects": [
+    "winter"
+   ],
+   "labels": [
+    "gen5"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "delphox",
+   "dex": 655,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "deoxys",
+   "dex": 386,
+   "form": "Attack",
+   "aspects": [
+    "attack-forme"
+   ],
+   "labels": [
+    "gen4",
+    "mythical"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "deoxys",
+   "dex": 386,
+   "form": "Defense",
+   "aspects": [
+    "defense-forme"
+   ],
+   "labels": [
+    "gen4",
+    "mythical"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "deoxys",
+   "dex": 386,
+   "form": "Speed",
+   "aspects": [
+    "speed-forme"
+   ],
+   "labels": [
+    "gen4",
+    "mythical"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "dewott",
+   "dex": 502,
+   "form": "Hisui-Bias",
+   "aspects": [
+    "region-bias-hisui"
+   ],
+   "labels": [
+    "gen8a",
+    "customized_official",
+    "hisuian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "dialga",
+   "dex": 483,
+   "form": "Origin",
+   "aspects": [
+    "origin-forme"
+   ],
+   "labels": [
+    "gen8a",
+    "legendary",
+    "restricted"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "dialga",
+   "dex": 483,
+   "form": "Origin",
+   "aspects": [
+    "origin-forme"
+   ],
+   "labels": [
+    "gen8a",
+    "legendary",
+    "restricted"
+   ],
+   "source": "cobbleverse_dp",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "dialga",
+   "dex": 483,
+   "form": "Primal",
+   "aspects": [
+    "primal"
+   ],
+   "labels": [
+    "gen8a",
+    "legendary",
+    "restricted",
+    "primal"
+   ],
+   "source": "cobbleverse_dp",
+   "class": "primal",
+   "inSite": false
+  },
+  {
+   "species": "diancie",
+   "dex": 719,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mythical",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "diglett",
+   "dex": 50,
+   "form": "Alola",
+   "aspects": [
+    "alolan"
+   ],
+   "labels": [
+    "gen7",
+    "alolan_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "dragalge",
+   "dex": 691,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "dragonite",
+   "dex": 149,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen1",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "drampa",
+   "dex": 780,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen7",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "drednaw",
+   "dex": 834,
+   "form": "Gmax",
+   "aspects": [
+    "gmax"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "cobblemon",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "dudunsparce",
+   "dex": 982,
+   "form": "Three-Segment",
+   "aspects": [
+    "three-segment-form"
+   ],
+   "labels": [
+    "gen9"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "dugtrio",
+   "dex": 51,
+   "form": "Alola",
+   "aspects": [
+    "alolan"
+   ],
+   "labels": [
+    "gen7",
+    "alolan_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "duraludon",
+   "dex": 884,
+   "form": "Gmax",
+   "aspects": [
+    "gmax"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "cobblemon",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "eelektross",
+   "dex": 604,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen5",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "eevee",
+   "dex": 133,
+   "form": "Gmax",
+   "aspects": [
+    "gmax"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "cobblemon",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "eiscue",
+   "dex": 875,
+   "form": "Noice-Face",
+   "aspects": [
+    "noice_face"
+   ],
+   "labels": [
+    "gen8"
+   ],
+   "source": "cobblemon",
+   "class": "transient",
+   "inSite": null
+  },
+  {
+   "species": "electrode",
+   "dex": 101,
+   "form": "Hisui",
+   "aspects": [
+    "hisuian"
+   ],
+   "labels": [
+    "gen8a",
+    "hisuian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "emboar",
+   "dex": 500,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen5",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "enamorus",
+   "dex": 905,
+   "form": "Therian",
+   "aspects": [
+    "therian-forme"
+   ],
+   "labels": [
+    "gen8a",
+    "legendary"
+   ],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "eternatus",
+   "dex": 890,
+   "form": "Eternamax",
+   "aspects": [
+    "eternamax"
+   ],
+   "labels": [
+    "gen8",
+    "legendary",
+    "restricted"
+   ],
+   "source": "cobbleverse_dp",
+   "class": "eternamax",
+   "inSite": true
+  },
+  {
+   "species": "excadrill",
+   "dex": 530,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen5",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "exeggcute",
+   "dex": 102,
+   "form": "Alola-Bias",
+   "aspects": [
+    "region-bias-alola"
+   ],
+   "labels": [
+    "gen7",
+    "customized_official",
+    "alolan_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "exeggutor",
+   "dex": 103,
+   "form": "Alola",
+   "aspects": [
+    "alolan"
+   ],
+   "labels": [
+    "gen7",
+    "alolan_form"
+   ],
+   "source": "cobbleverse_dp",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "falinks",
+   "dex": 870,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen8",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "farfetch\u2019d",
+   "dex": 83,
+   "form": "Galar",
+   "aspects": [
+    "galarian"
+   ],
+   "labels": [
+    "gen8",
+    "galarian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "feraligatr",
+   "dex": 160,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen2",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "flabebe",
+   "dex": 669,
+   "form": "Yellow",
+   "aspects": [
+    "flower-yellow"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "flabebe",
+   "dex": 669,
+   "form": "Orange",
+   "aspects": [
+    "flower-orange"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "flabebe",
+   "dex": 669,
+   "form": "Blue",
+   "aspects": [
+    "flower-blue"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "flabebe",
+   "dex": 669,
+   "form": "White",
+   "aspects": [
+    "flower-white"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "flapple",
+   "dex": 841,
+   "form": "Gmax",
+   "aspects": [
+    "gmax"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "cobblemon",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "floette",
+   "dex": 670,
+   "form": "Yellow",
+   "aspects": [
+    "flower-yellow"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "floette",
+   "dex": 670,
+   "form": "Orange",
+   "aspects": [
+    "flower-orange"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "floette",
+   "dex": 670,
+   "form": "Blue",
+   "aspects": [
+    "flower-blue"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "floette",
+   "dex": 670,
+   "form": "White",
+   "aspects": [
+    "flower-white"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "floette",
+   "dex": 670,
+   "form": "Eternal",
+   "aspects": [
+    "flower-eternal"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "floette",
+   "dex": 670,
+   "form": "MegaE",
+   "aspects": [
+    "mega",
+    "flower-eternal"
+   ],
+   "labels": [
+    "flower-eternal",
+    "mega",
+    "gen6",
+    "mythical"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "floette",
+   "dex": 670,
+   "form": "Ange",
+   "aspects": [
+    "angemax",
+    "flower-eternal"
+   ],
+   "labels": [
+    "flower-eternal",
+    "gen6",
+    "mythical"
+   ],
+   "source": "zamega",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "florges",
+   "dex": 671,
+   "form": "Yellow",
+   "aspects": [
+    "flower-yellow"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "florges",
+   "dex": 671,
+   "form": "Orange",
+   "aspects": [
+    "flower-orange"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "florges",
+   "dex": 671,
+   "form": "Blue",
+   "aspects": [
+    "flower-blue"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "florges",
+   "dex": 671,
+   "form": "White",
+   "aspects": [
+    "flower-white"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "froslass",
+   "dex": 478,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen4",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "furfrou",
+   "dex": 676,
+   "form": "Heart",
+   "aspects": [
+    "heart-trim"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "furfrou",
+   "dex": 676,
+   "form": "Star",
+   "aspects": [
+    "star-trim"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "furfrou",
+   "dex": 676,
+   "form": "Diamond",
+   "aspects": [
+    "diamond-trim"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "furfrou",
+   "dex": 676,
+   "form": "Debutante",
+   "aspects": [
+    "debutante-trim"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "furfrou",
+   "dex": 676,
+   "form": "Matron",
+   "aspects": [
+    "matron-trim"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "furfrou",
+   "dex": 676,
+   "form": "Dandy",
+   "aspects": [
+    "dandy-trim"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "furfrou",
+   "dex": 676,
+   "form": "La-Reine",
+   "aspects": [
+    "la_reine-trim"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "furfrou",
+   "dex": 676,
+   "form": "Kabuki",
+   "aspects": [
+    "kabuki-trim"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "furfrou",
+   "dex": 676,
+   "form": "Pharaoh",
+   "aspects": [
+    "pharaoh-trim"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "furfrou",
+   "dex": 676,
+   "form": "Matcha",
+   "aspects": [
+    "matcha-trim"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "furfrou",
+   "dex": 676,
+   "form": "Lavender",
+   "aspects": [
+    "lavender-trim"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "furfrou",
+   "dex": 676,
+   "form": "Cinnamon",
+   "aspects": [
+    "cinnamon-trim"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "furfrou",
+   "dex": 676,
+   "form": "Crusader",
+   "aspects": [
+    "crusader-trim"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "furfrou",
+   "dex": 676,
+   "form": "Rocker",
+   "aspects": [
+    "rocker-trim"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "furfrou",
+   "dex": 676,
+   "form": "Mourner",
+   "aspects": [
+    "mourner-trim"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "gallade",
+   "dex": 475,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "garbodor",
+   "dex": 569,
+   "form": "Gmax",
+   "aspects": [
+    "gmax"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "cobblemon",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "garchomp",
+   "dex": 445,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "garchomp",
+   "dex": 445,
+   "form": "Mega-Z",
+   "aspects": [
+    "mega_z"
+   ],
+   "labels": [
+    "gen4",
+    "mega_z"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "gardevoir",
+   "dex": 282,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "gastrodon",
+   "dex": 423,
+   "form": "East",
+   "aspects": [
+    "east-sea"
+   ],
+   "labels": [
+    "gen4"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "genesect",
+   "dex": 649,
+   "form": "Douse",
+   "aspects": [
+    "douse-drive"
+   ],
+   "labels": [
+    "gen5",
+    "mythical"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "genesect",
+   "dex": 649,
+   "form": "Shock",
+   "aspects": [
+    "shock-drive"
+   ],
+   "labels": [
+    "gen5",
+    "mythical"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "genesect",
+   "dex": 649,
+   "form": "Burn",
+   "aspects": [
+    "burn-drive"
+   ],
+   "labels": [
+    "gen5",
+    "mythical"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "genesect",
+   "dex": 649,
+   "form": "Chill",
+   "aspects": [
+    "chill-drive"
+   ],
+   "labels": [
+    "gen5",
+    "mythical"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "gengar",
+   "dex": 94,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "mega_showdown",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "gengar",
+   "dex": 94,
+   "form": "Gmax",
+   "aspects": [
+    "gmax"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "mega_showdown",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "geodude",
+   "dex": 74,
+   "form": "Alola",
+   "aspects": [
+    "alolan"
+   ],
+   "labels": [
+    "gen7",
+    "alolan_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "gimmighoul",
+   "dex": 999,
+   "form": "Roaming",
+   "aspects": [
+    "roaming"
+   ],
+   "labels": [
+    "gen9"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "giratina",
+   "dex": 487,
+   "form": "Origin",
+   "aspects": [
+    "origin-forme"
+   ],
+   "labels": [
+    "gen4",
+    "legendary",
+    "restricted"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "glalie",
+   "dex": 362,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "glimmora",
+   "dex": 970,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen9",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "golem",
+   "dex": 76,
+   "form": "Alola",
+   "aspects": [
+    "alolan"
+   ],
+   "labels": [
+    "gen7",
+    "alolan_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "golisopod",
+   "dex": 768,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen7",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "golurk",
+   "dex": 623,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen5",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "goodra",
+   "dex": 706,
+   "form": "Hisui",
+   "aspects": [
+    "hisuian"
+   ],
+   "labels": [
+    "gen8a",
+    "powerhouse",
+    "hisuian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "goomy",
+   "dex": 704,
+   "form": "Hisui-Bias",
+   "aspects": [
+    "region-bias-hisui"
+   ],
+   "labels": [
+    "gen8a",
+    "customized_official",
+    "hisuian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "gourgeist",
+   "dex": 711,
+   "form": "Small",
+   "aspects": [
+    "pumpkin-size-small"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "gourgeist",
+   "dex": 711,
+   "form": "Large",
+   "aspects": [
+    "pumpkin-size-large"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "gourgeist",
+   "dex": 711,
+   "form": "Super",
+   "aspects": [
+    "pumpkin-size-super"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "graveler",
+   "dex": 75,
+   "form": "Alola",
+   "aspects": [
+    "alolan"
+   ],
+   "labels": [
+    "gen7",
+    "alolan_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "greninja",
+   "dex": 658,
+   "form": "Bond",
+   "aspects": [
+    "bond"
+   ],
+   "labels": [
+    "gen7"
+   ],
+   "source": "cobblemon",
+   "class": "transient",
+   "inSite": null
+  },
+  {
+   "species": "greninja",
+   "dex": 658,
+   "form": "Ash",
+   "aspects": [
+    "ash"
+   ],
+   "labels": [
+    "gen7"
+   ],
+   "source": "cobblemon",
+   "class": "transient",
+   "inSite": null
+  },
+  {
+   "species": "greninja",
+   "dex": 658,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "grimer",
+   "dex": 88,
+   "form": "Alola",
+   "aspects": [
+    "alolan"
+   ],
+   "labels": [
+    "gen7",
+    "alolan_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "grimmsnarl",
+   "dex": 861,
+   "form": "Gmax",
+   "aspects": [
+    "gmax"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "cobblemon",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "groudon",
+   "dex": 383,
+   "form": "Primal",
+   "aspects": [
+    "primal"
+   ],
+   "labels": [
+    "gen6",
+    "legendary",
+    "restricted",
+    "primal"
+   ],
+   "source": "cobblemon",
+   "class": "primal",
+   "inSite": true
+  },
+  {
+   "species": "groudon",
+   "dex": 383,
+   "form": "Virus",
+   "aspects": [
+    "virus"
+   ],
+   "labels": [],
+   "source": "cobbleverse_dp",
+   "class": "variant",
+   "inSite": false
+  },
+  {
+   "species": "growlithe",
+   "dex": 58,
+   "form": "Hisui",
+   "aspects": [
+    "hisuian"
+   ],
+   "labels": [
+    "gen8a",
+    "hisuian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "gyarados",
+   "dex": 130,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "hatterene",
+   "dex": 858,
+   "form": "Gmax",
+   "aspects": [
+    "gmax"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "cobblemon",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "hawlucha",
+   "dex": 701,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "heatran",
+   "dex": 485,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen4",
+    "legendary",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "heracross",
+   "dex": 214,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "hoopa",
+   "dex": 720,
+   "form": "Unbound",
+   "aspects": [
+    "unbound"
+   ],
+   "labels": [
+    "gen6",
+    "mythical"
+   ],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "houndoom",
+   "dex": 229,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "indeedee",
+   "dex": 876,
+   "form": "F",
+   "aspects": [
+    "female"
+   ],
+   "labels": [
+    "gen8"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "inteleon",
+   "dex": 818,
+   "form": "Gmax",
+   "aspects": [
+    "gmax"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "cobblemon",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "kangaskhan",
+   "dex": 115,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "keldeo",
+   "dex": 647,
+   "form": "Resolute",
+   "aspects": [
+    "resolute-form"
+   ],
+   "labels": [
+    "gen5",
+    "mythical"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "kingler",
+   "dex": 99,
+   "form": "Gmax",
+   "aspects": [
+    "gmax"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "cobblemon",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "koffing",
+   "dex": 109,
+   "form": "Galar-Bias",
+   "aspects": [
+    "region-bias-galar"
+   ],
+   "labels": [
+    "gen8",
+    "customized_official",
+    "galarian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "kyogre",
+   "dex": 382,
+   "form": "Primal",
+   "aspects": [
+    "primal"
+   ],
+   "labels": [
+    "gen6",
+    "legendary",
+    "restricted",
+    "primal"
+   ],
+   "source": "cobblemon",
+   "class": "primal",
+   "inSite": true
+  },
+  {
+   "species": "kyurem",
+   "dex": 646,
+   "form": "White",
+   "aspects": [
+    "white-fusion"
+   ],
+   "labels": [
+    "gen5",
+    "legendary",
+    "restricted"
+   ],
+   "source": "cobbleverse_dp",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "kyurem",
+   "dex": 646,
+   "form": "Black",
+   "aspects": [
+    "black-fusion"
+   ],
+   "labels": [
+    "gen5",
+    "legendary",
+    "restricted"
+   ],
+   "source": "cobbleverse_dp",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "landorus",
+   "dex": 645,
+   "form": "Therian",
+   "aspects": [
+    "therian-forme"
+   ],
+   "labels": [
+    "gen5",
+    "legendary"
+   ],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "lapras",
+   "dex": 131,
+   "form": "Gmax",
+   "aspects": [
+    "gmax"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "cobblemon",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "latias",
+   "dex": 380,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "legendary",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "latios",
+   "dex": 381,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "legendary",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "lilligant",
+   "dex": 549,
+   "form": "Hisui",
+   "aspects": [
+    "hisuian"
+   ],
+   "labels": [
+    "gen8a",
+    "hisuian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "linoone",
+   "dex": 264,
+   "form": "Galar",
+   "aspects": [
+    "galarian"
+   ],
+   "labels": [
+    "gen8",
+    "galarian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "lopunny",
+   "dex": 428,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "lucario",
+   "dex": 448,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "lucario",
+   "dex": 448,
+   "form": "Mega-Z",
+   "aspects": [
+    "mega_z"
+   ],
+   "labels": [
+    "gen4",
+    "mega_z"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "lucario",
+   "dex": 448,
+   "form": "Cafe-Costume",
+   "aspects": [
+    "cafe-costume"
+   ],
+   "labels": [],
+   "source": "cobbleverse_dp",
+   "class": "variant",
+   "inSite": false
+  },
+  {
+   "species": "lucario",
+   "dex": 448,
+   "form": "Captain-Costume",
+   "aspects": [
+    "captain-costume"
+   ],
+   "labels": [],
+   "source": "cobbleverse_dp",
+   "class": "variant",
+   "inSite": false
+  },
+  {
+   "species": "lucario",
+   "dex": 448,
+   "form": "Chef-Costume",
+   "aspects": [
+    "chef-costume"
+   ],
+   "labels": [],
+   "source": "cobbleverse_dp",
+   "class": "variant",
+   "inSite": false
+  },
+  {
+   "species": "lucario",
+   "dex": 448,
+   "form": "Concert-Costume",
+   "aspects": [
+    "concert-costume"
+   ],
+   "labels": [],
+   "source": "cobbleverse_dp",
+   "class": "variant",
+   "inSite": false
+  },
+  {
+   "species": "lucario",
+   "dex": 448,
+   "form": "Costume_Party-Costume",
+   "aspects": [
+    "costume_party-costume"
+   ],
+   "labels": [],
+   "source": "cobbleverse_dp",
+   "class": "variant",
+   "inSite": false
+  },
+  {
+   "species": "lucario",
+   "dex": 448,
+   "form": "Holiday-Costume",
+   "aspects": [
+    "holiday-costume"
+   ],
+   "labels": [],
+   "source": "cobbleverse_dp",
+   "class": "variant",
+   "inSite": false
+  },
+  {
+   "species": "lucario",
+   "dex": 448,
+   "form": "Martial_Arts-Costume",
+   "aspects": [
+    "martial_arts-costume"
+   ],
+   "labels": [],
+   "source": "cobbleverse_dp",
+   "class": "variant",
+   "inSite": false
+  },
+  {
+   "species": "lucario",
+   "dex": 448,
+   "form": "Ruins-Costume",
+   "aspects": [
+    "ruins-costume"
+   ],
+   "labels": [],
+   "source": "cobbleverse_dp",
+   "class": "variant",
+   "inSite": false
+  },
+  {
+   "species": "lucario",
+   "dex": 448,
+   "form": "Space-Costume",
+   "aspects": [
+    "space-costume"
+   ],
+   "labels": [],
+   "source": "cobbleverse_dp",
+   "class": "variant",
+   "inSite": false
+  },
+  {
+   "species": "lucario",
+   "dex": 448,
+   "form": "Mega-Cafe-Costume",
+   "aspects": [
+    "cafe-costume",
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobbleverse_dp",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "lucario",
+   "dex": 448,
+   "form": "Mega-Captain-Costume",
+   "aspects": [
+    "captain-costume",
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobbleverse_dp",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "lucario",
+   "dex": 448,
+   "form": "Mega-Chef-Costume",
+   "aspects": [
+    "chef-costume",
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobbleverse_dp",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "lucario",
+   "dex": 448,
+   "form": "Mega-Concert-Costume",
+   "aspects": [
+    "concert-costume",
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobbleverse_dp",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "lucario",
+   "dex": 448,
+   "form": "Mega-Costume_Party-Costume",
+   "aspects": [
+    "costume_party-costume",
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobbleverse_dp",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "lucario",
+   "dex": 448,
+   "form": "Mega-Holiday-Costume",
+   "aspects": [
+    "holiday-costume",
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobbleverse_dp",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "lucario",
+   "dex": 448,
+   "form": "Mega-Martial_Arts-Costume",
+   "aspects": [
+    "martial_arts-costume",
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobbleverse_dp",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "lucario",
+   "dex": 448,
+   "form": "Mega-Ruins-Costume",
+   "aspects": [
+    "ruins-costume",
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobbleverse_dp",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "lucario",
+   "dex": 448,
+   "form": "Mega-Space-Costume",
+   "aspects": [
+    "space-costume",
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobbleverse_dp",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "lugia",
+   "dex": 249,
+   "form": "Shadow",
+   "aspects": [
+    "shadow"
+   ],
+   "labels": [],
+   "source": "cobbleverse_dp",
+   "class": "variant",
+   "inSite": false
+  },
+  {
+   "species": "lycanroc",
+   "dex": 745,
+   "form": "Midnight",
+   "aspects": [
+    "midnight-form"
+   ],
+   "labels": [
+    "gen7"
+   ],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "lycanroc",
+   "dex": 745,
+   "form": "Dusk",
+   "aspects": [
+    "dusk-form"
+   ],
+   "labels": [
+    "gen7"
+   ],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "machamp",
+   "dex": 68,
+   "form": "Gmax",
+   "aspects": [
+    "gmax"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "cobblemon",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "magearna",
+   "dex": 801,
+   "form": "Original",
+   "aspects": [
+    "original-color"
+   ],
+   "labels": [
+    "gen7",
+    "mythical"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "magearna",
+   "dex": 801,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "mega",
+    "mythical"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "magearna",
+   "dex": 801,
+   "form": "MegaO",
+   "aspects": [
+    "mega",
+    "original-color"
+   ],
+   "labels": [
+    "mega",
+    "mythical"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "malamar",
+   "dex": 687,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "manectric",
+   "dex": 310,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "marowak",
+   "dex": 105,
+   "form": "Alola",
+   "aspects": [
+    "alolan"
+   ],
+   "labels": [
+    "gen7",
+    "alolan_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "maushold",
+   "dex": 925,
+   "form": "Four",
+   "aspects": [
+    "maushold-family-four"
+   ],
+   "labels": [
+    "gen9"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "mawile",
+   "dex": 303,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "medicham",
+   "dex": 308,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "meganium",
+   "dex": 154,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen2",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "melmetal",
+   "dex": 809,
+   "form": "Gmax",
+   "aspects": [
+    "gmax"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "cobblemon",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "meloetta",
+   "dex": 648,
+   "form": "Pirouette",
+   "aspects": [
+    "pirouette-forme"
+   ],
+   "labels": [
+    "gen5",
+    "mythical"
+   ],
+   "source": "cobblemon",
+   "class": "transient",
+   "inSite": null
+  },
+  {
+   "species": "meowstic",
+   "dex": 678,
+   "form": "F",
+   "aspects": [
+    "female"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "meowstic",
+   "dex": 678,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "mega",
+    "gen6"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "meowth",
+   "dex": 52,
+   "form": "Alola",
+   "aspects": [
+    "alolan"
+   ],
+   "labels": [
+    "gen7",
+    "alolan_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "meowth",
+   "dex": 52,
+   "form": "Galar",
+   "aspects": [
+    "galarian"
+   ],
+   "labels": [
+    "gen8",
+    "galarian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "meowth",
+   "dex": 52,
+   "form": "Gmax",
+   "aspects": [
+    "gmax"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "cobblemon",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "metagross",
+   "dex": 376,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "mega_showdown",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "mewtwo",
+   "dex": 150,
+   "form": "Mega-X",
+   "aspects": [
+    "mega_x"
+   ],
+   "labels": [
+    "gen6",
+    "legendary",
+    "restricted",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "mewtwo",
+   "dex": 150,
+   "form": "Mega-Y",
+   "aspects": [
+    "mega_y"
+   ],
+   "labels": [
+    "gen6",
+    "legendary",
+    "restricted",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "mewtwo",
+   "dex": 150,
+   "form": "Shadow",
+   "aspects": [
+    "shadow"
+   ],
+   "labels": [],
+   "source": "cobbleverse_dp",
+   "class": "variant",
+   "inSite": false
+  },
+  {
+   "species": "mewtwo",
+   "dex": 150,
+   "form": "Armored",
+   "aspects": [
+    "armored"
+   ],
+   "labels": [],
+   "source": "cobbleverse_dp",
+   "class": "variant",
+   "inSite": false
+  },
+  {
+   "species": "mewtwo",
+   "dex": 150,
+   "form": "Mega-SY",
+   "aspects": [
+    "mega_y",
+    "shadow"
+   ],
+   "labels": [],
+   "source": "cobbleverse_dp",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "mewtwo",
+   "dex": 150,
+   "form": "Mega-SX",
+   "aspects": [
+    "mega_x",
+    "shadow"
+   ],
+   "labels": [],
+   "source": "cobbleverse_dp",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "mewtwo",
+   "dex": 150,
+   "form": "Mega-AX",
+   "aspects": [
+    "armored",
+    "mega_x"
+   ],
+   "labels": [],
+   "source": "cobbleverse_dp",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "mewtwo",
+   "dex": 150,
+   "form": "Mega-AY",
+   "aspects": [
+    "armored",
+    "mega_y"
+   ],
+   "labels": [],
+   "source": "cobbleverse_dp",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "mime jr.",
+   "dex": 439,
+   "form": "Galar-Bias",
+   "aspects": [
+    "region-bias-galar"
+   ],
+   "labels": [
+    "gen8",
+    "baby",
+    "customized_official",
+    "galarian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "mimikyu",
+   "dex": 778,
+   "form": "Busted",
+   "aspects": [
+    "busted-form"
+   ],
+   "labels": [
+    "gen7"
+   ],
+   "source": "cobblemon",
+   "class": "transient",
+   "inSite": null
+  },
+  {
+   "species": "minior",
+   "dex": 774,
+   "form": "Meteor",
+   "aspects": [
+    "meteor-form"
+   ],
+   "labels": [
+    "gen7"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "moltres",
+   "dex": 146,
+   "form": "Galar",
+   "aspects": [
+    "galarian"
+   ],
+   "labels": [
+    "gen8",
+    "legendary",
+    "galarian_form"
+   ],
+   "source": "cobbleverse_dp",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "morpeko",
+   "dex": 877,
+   "form": "Hangry",
+   "aspects": [
+    "hangry-mode"
+   ],
+   "labels": [
+    "gen8"
+   ],
+   "source": "cobblemon",
+   "class": "transient",
+   "inSite": null
+  },
+  {
+   "species": "mr. mime",
+   "dex": 122,
+   "form": "Galar",
+   "aspects": [
+    "galarian"
+   ],
+   "labels": [
+    "gen8",
+    "galarian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "muk",
+   "dex": 89,
+   "form": "Alola",
+   "aspects": [
+    "alolan"
+   ],
+   "labels": [
+    "gen7",
+    "alolan_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "necrozma",
+   "dex": 800,
+   "form": "Dusk-Mane",
+   "aspects": [
+    "dusk-fusion"
+   ],
+   "labels": [
+    "gen7",
+    "legendary",
+    "restricted"
+   ],
+   "source": "cobbleverse_dp",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "necrozma",
+   "dex": 800,
+   "form": "Dawn-Wings",
+   "aspects": [
+    "dawn-fusion"
+   ],
+   "labels": [
+    "gen7",
+    "legendary",
+    "restricted"
+   ],
+   "source": "cobbleverse_dp",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "necrozma",
+   "dex": 800,
+   "form": "Ultra",
+   "aspects": [
+    "ultra-fusion"
+   ],
+   "labels": [
+    "gen7",
+    "legendary",
+    "restricted",
+    "ultra_burst"
+   ],
+   "source": "cobbleverse_dp",
+   "class": "ultra_burst",
+   "inSite": true
+  },
+  {
+   "species": "ninetales",
+   "dex": 38,
+   "form": "Alola",
+   "aspects": [
+    "alolan"
+   ],
+   "labels": [
+    "gen7",
+    "alolan_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "ogerpon",
+   "dex": 1017,
+   "form": "Wellspring",
+   "aspects": [
+    "wellspring-mask"
+   ],
+   "labels": [
+    "gen9",
+    "legendary"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "ogerpon",
+   "dex": 1017,
+   "form": "Hearthflame",
+   "aspects": [
+    "hearthflame-mask"
+   ],
+   "labels": [
+    "gen9",
+    "legendary"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "ogerpon",
+   "dex": 1017,
+   "form": "Cornerstone",
+   "aspects": [
+    "cornerstone-mask"
+   ],
+   "labels": [
+    "gen9",
+    "legendary"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "ogerpon",
+   "dex": 1017,
+   "form": "Teal-Tera",
+   "aspects": [
+    "embody-aspect",
+    "teal-mask"
+   ],
+   "labels": [
+    "gen9",
+    "legendary"
+   ],
+   "source": "cobblemon",
+   "class": "transient",
+   "inSite": null
+  },
+  {
+   "species": "ogerpon",
+   "dex": 1017,
+   "form": "Wellspring-Tera",
+   "aspects": [
+    "embody-aspect",
+    "wellspring-mask"
+   ],
+   "labels": [
+    "gen9",
+    "legendary"
+   ],
+   "source": "cobblemon",
+   "class": "transient",
+   "inSite": null
+  },
+  {
+   "species": "ogerpon",
+   "dex": 1017,
+   "form": "Hearthflame-Tera",
+   "aspects": [
+    "embody-aspect",
+    "hearthflame-mask"
+   ],
+   "labels": [
+    "gen9",
+    "legendary"
+   ],
+   "source": "cobblemon",
+   "class": "transient",
+   "inSite": null
+  },
+  {
+   "species": "ogerpon",
+   "dex": 1017,
+   "form": "Cornerstone-Tera",
+   "aspects": [
+    "embody-aspect",
+    "cornerstone-mask"
+   ],
+   "labels": [
+    "gen9",
+    "legendary"
+   ],
+   "source": "cobblemon",
+   "class": "transient",
+   "inSite": null
+  },
+  {
+   "species": "oinkologne",
+   "dex": 916,
+   "form": "F",
+   "aspects": [
+    "female"
+   ],
+   "labels": [
+    "gen9"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "orbeetle",
+   "dex": 826,
+   "form": "Gmax",
+   "aspects": [
+    "gmax"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "cobblemon",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "oricorio",
+   "dex": 741,
+   "form": "Pom-Pom",
+   "aspects": [
+    "pom-pom-style"
+   ],
+   "labels": [
+    "gen7"
+   ],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "oricorio",
+   "dex": 741,
+   "form": "Pa\u2019u",
+   "aspects": [
+    "pau-style"
+   ],
+   "labels": [
+    "gen7"
+   ],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "oricorio",
+   "dex": 741,
+   "form": "Sensu",
+   "aspects": [
+    "sensu-style"
+   ],
+   "labels": [
+    "gen7"
+   ],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "oshawott",
+   "dex": 501,
+   "form": "Hisui-Bias",
+   "aspects": [
+    "region-bias-hisui"
+   ],
+   "labels": [
+    "gen8a",
+    "starter",
+    "customized_official",
+    "hisuian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "palafin",
+   "dex": 964,
+   "form": "Hero",
+   "aspects": [
+    "hero-form"
+   ],
+   "labels": [
+    "gen9"
+   ],
+   "source": "cobblemon",
+   "class": "transient",
+   "inSite": null
+  },
+  {
+   "species": "palkia",
+   "dex": 484,
+   "form": "Origin",
+   "aspects": [
+    "origin-forme"
+   ],
+   "labels": [
+    "gen8a",
+    "legendary",
+    "restricted"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "palkia",
+   "dex": 484,
+   "form": "Origin",
+   "aspects": [
+    "origin-forme"
+   ],
+   "labels": [
+    "gen8a",
+    "legendary",
+    "restricted"
+   ],
+   "source": "cobbleverse_dp",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "persian",
+   "dex": 53,
+   "form": "Alola",
+   "aspects": [
+    "alolan"
+   ],
+   "labels": [
+    "gen7",
+    "alolan_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "petilil",
+   "dex": 548,
+   "form": "Hisui-Bias",
+   "aspects": [
+    "region-bias-hisui"
+   ],
+   "labels": [
+    "gen8a",
+    "customized_official",
+    "hisuian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "pichu",
+   "dex": 172,
+   "form": "Alola-Bias",
+   "aspects": [
+    "region-bias-alola"
+   ],
+   "labels": [
+    "gen7",
+    "baby",
+    "customized_official",
+    "alolan_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "pidgeot",
+   "dex": 18,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "pikachu",
+   "dex": 25,
+   "form": "Partner",
+   "aspects": [
+    "partner-cap"
+   ],
+   "labels": [
+    "gen7"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "pikachu",
+   "dex": 25,
+   "form": "Gmax",
+   "aspects": [
+    "gmax"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "cobblemon",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "pikachu",
+   "dex": 25,
+   "form": "Alola-Bias",
+   "aspects": [
+    "region-bias-alola"
+   ],
+   "labels": [
+    "gen7",
+    "customized_official",
+    "alolan_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "pikachu",
+   "dex": 25,
+   "form": "Partner",
+   "aspects": [
+    "cosmetic_item-pewter_crunchies"
+   ],
+   "labels": [
+    "gen7"
+   ],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "pikachu",
+   "dex": 25,
+   "form": "Original",
+   "aspects": [
+    "cosmetic_item-rage_candy_bar"
+   ],
+   "labels": [
+    "gen1"
+   ],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": false
+  },
+  {
+   "species": "pikachu",
+   "dex": 25,
+   "form": "Hoenn",
+   "aspects": [
+    "cosmetic_item-lava_cookie"
+   ],
+   "labels": [
+    "gen3"
+   ],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": false
+  },
+  {
+   "species": "pikachu",
+   "dex": 25,
+   "form": "Sinnoh",
+   "aspects": [
+    "cosmetic_item-old_gateau"
+   ],
+   "labels": [
+    "gen4"
+   ],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": false
+  },
+  {
+   "species": "pikachu",
+   "dex": 25,
+   "form": "Unova",
+   "aspects": [
+    "cosmetic_item-casteliacone"
+   ],
+   "labels": [
+    "gen5"
+   ],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": false
+  },
+  {
+   "species": "pikachu",
+   "dex": 25,
+   "form": "Kalos",
+   "aspects": [
+    "cosmetic_item-lumiose_galette"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": false
+  },
+  {
+   "species": "pikachu",
+   "dex": 25,
+   "form": "Alola",
+   "aspects": [
+    "cosmetic_item-big_malasada"
+   ],
+   "labels": [
+    "gen7"
+   ],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": false
+  },
+  {
+   "species": "pikachu",
+   "dex": 25,
+   "form": "World",
+   "aspects": [
+    "cosmetic_item-smoked_tail_curry"
+   ],
+   "labels": [
+    "gen7"
+   ],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": false
+  },
+  {
+   "species": "pikachu",
+   "dex": 25,
+   "form": "Cosplay",
+   "aspects": [
+    "cosplay"
+   ],
+   "labels": [],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": false
+  },
+  {
+   "species": "pikachu",
+   "dex": 25,
+   "form": "Rock-Star",
+   "aspects": [
+    "rock_star"
+   ],
+   "labels": [],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": false
+  },
+  {
+   "species": "pikachu",
+   "dex": 25,
+   "form": "Pop-Star",
+   "aspects": [
+    "pop_star"
+   ],
+   "labels": [],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": false
+  },
+  {
+   "species": "pikachu",
+   "dex": 25,
+   "form": "PhD",
+   "aspects": [
+    "phd"
+   ],
+   "labels": [],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": false
+  },
+  {
+   "species": "pikachu",
+   "dex": 25,
+   "form": "Libre",
+   "aspects": [
+    "libre"
+   ],
+   "labels": [],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": false
+  },
+  {
+   "species": "pikachu",
+   "dex": 25,
+   "form": "Belle",
+   "aspects": [
+    "belle"
+   ],
+   "labels": [],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": false
+  },
+  {
+   "species": "pinsir",
+   "dex": 127,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "poltchageist",
+   "dex": 1012,
+   "form": "Artisan",
+   "aspects": [
+    "artisan"
+   ],
+   "labels": [
+    "gen9"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "polteageist",
+   "dex": 855,
+   "form": "Antique",
+   "aspects": [
+    "antique"
+   ],
+   "labels": [
+    "gen8"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "ponyta",
+   "dex": 77,
+   "form": "Galar",
+   "aspects": [
+    "galarian"
+   ],
+   "labels": [
+    "gen8",
+    "galarian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "pumpkaboo",
+   "dex": 710,
+   "form": "Small",
+   "aspects": [
+    "pumpkin-size-small"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "pumpkaboo",
+   "dex": 710,
+   "form": "Large",
+   "aspects": [
+    "pumpkin-size-large"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "pumpkaboo",
+   "dex": 710,
+   "form": "Super",
+   "aspects": [
+    "pumpkin-size-super"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "pyroar",
+   "dex": 668,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "quilava",
+   "dex": 156,
+   "form": "Hisui-Bias",
+   "aspects": [
+    "region-bias-hisui"
+   ],
+   "labels": [
+    "gen8a",
+    "customized_official",
+    "hisuian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "qwilfish",
+   "dex": 211,
+   "form": "Hisui",
+   "aspects": [
+    "hisuian"
+   ],
+   "labels": [
+    "gen8a",
+    "hisuian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "raichu",
+   "dex": 26,
+   "form": "Alola",
+   "aspects": [
+    "alolan"
+   ],
+   "labels": [
+    "gen7",
+    "alolan_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "raichu",
+   "dex": 26,
+   "form": "Mega-X",
+   "aspects": [
+    "mega_x"
+   ],
+   "labels": [
+    "gen1",
+    "mega_x"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "raichu",
+   "dex": 26,
+   "form": "Mega-Y",
+   "aspects": [
+    "mega_y"
+   ],
+   "labels": [
+    "gen1",
+    "mega_y"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "rapidash",
+   "dex": 78,
+   "form": "Galar",
+   "aspects": [
+    "galarian"
+   ],
+   "labels": [
+    "gen8",
+    "galarian_form"
+   ],
+   "source": "cobbleverse_dp",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "raticate",
+   "dex": 20,
+   "form": "Alola",
+   "aspects": [
+    "alolan"
+   ],
+   "labels": [
+    "gen7",
+    "alolan_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "rattata",
+   "dex": 19,
+   "form": "Alola",
+   "aspects": [
+    "alolan"
+   ],
+   "labels": [
+    "gen7",
+    "alolan_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "rayquaza",
+   "dex": 384,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "legendary",
+    "restricted",
+    "mega"
+   ],
+   "source": "cobbleverse_dp",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "rillaboom",
+   "dex": 812,
+   "form": "Gmax",
+   "aspects": [
+    "gmax"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "cobblemon",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "rockruff",
+   "dex": 744,
+   "form": "Dusk",
+   "aspects": [
+    "dusk-form"
+   ],
+   "labels": [
+    "gen7"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "rotom",
+   "dex": 479,
+   "form": "Heat",
+   "aspects": [
+    "heat-appliance"
+   ],
+   "labels": [
+    "gen4"
+   ],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "rotom",
+   "dex": 479,
+   "form": "Wash",
+   "aspects": [
+    "wash-appliance"
+   ],
+   "labels": [
+    "gen4"
+   ],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "rotom",
+   "dex": 479,
+   "form": "Frost",
+   "aspects": [
+    "frost-appliance"
+   ],
+   "labels": [
+    "gen4"
+   ],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "rotom",
+   "dex": 479,
+   "form": "Fan",
+   "aspects": [
+    "fan-appliance"
+   ],
+   "labels": [
+    "gen4"
+   ],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "rotom",
+   "dex": 479,
+   "form": "Mow",
+   "aspects": [
+    "mow-appliance"
+   ],
+   "labels": [
+    "gen4"
+   ],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "rowlet",
+   "dex": 722,
+   "form": "Hisui-Bias",
+   "aspects": [
+    "region-bias-hisui"
+   ],
+   "labels": [
+    "gen8a",
+    "starter",
+    "customized_official",
+    "hisuian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "rufflet",
+   "dex": 627,
+   "form": "Hisui-Bias",
+   "aspects": [
+    "region-bias-hisui"
+   ],
+   "labels": [
+    "gen8a",
+    "customized_official",
+    "hisuian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "sableye",
+   "dex": 302,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "salamence",
+   "dex": 373,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "samurott",
+   "dex": 503,
+   "form": "Hisui",
+   "aspects": [
+    "hisuian"
+   ],
+   "labels": [
+    "gen8a",
+    "hisuian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "sandaconda",
+   "dex": 844,
+   "form": "Gmax",
+   "aspects": [
+    "gmax"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "cobblemon",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "sandshrew",
+   "dex": 27,
+   "form": "Alola",
+   "aspects": [
+    "alolan"
+   ],
+   "labels": [
+    "gen7",
+    "alolan_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "sandslash",
+   "dex": 28,
+   "form": "Alola",
+   "aspects": [
+    "alolan"
+   ],
+   "labels": [
+    "gen7",
+    "alolan_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "sawsbuck",
+   "dex": 586,
+   "form": "Summer",
+   "aspects": [
+    "summer"
+   ],
+   "labels": [
+    "gen5"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "sawsbuck",
+   "dex": 586,
+   "form": "Autumn",
+   "aspects": [
+    "autumn"
+   ],
+   "labels": [
+    "gen5"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "sawsbuck",
+   "dex": 586,
+   "form": "Winter",
+   "aspects": [
+    "winter"
+   ],
+   "labels": [
+    "gen5"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "sceptile",
+   "dex": 254,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "scizor",
+   "dex": 212,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "scolipede",
+   "dex": 545,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen5",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "scovillain",
+   "dex": 952,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen9",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "scrafty",
+   "dex": 560,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen5",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "sharpedo",
+   "dex": 319,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "shaymin",
+   "dex": 492,
+   "form": "Sky",
+   "aspects": [
+    "sky-forme"
+   ],
+   "labels": [
+    "gen4",
+    "mythical"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "shellos",
+   "dex": 422,
+   "form": "East",
+   "aspects": [
+    "east-sea"
+   ],
+   "labels": [
+    "gen4"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "silvally",
+   "dex": 773,
+   "form": "Fighting",
+   "aspects": [
+    "fighting-memory"
+   ],
+   "labels": [
+    "gen7",
+    "legendary"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "silvally",
+   "dex": 773,
+   "form": "Flying",
+   "aspects": [
+    "flying-memory"
+   ],
+   "labels": [
+    "gen7",
+    "legendary"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "silvally",
+   "dex": 773,
+   "form": "Poison",
+   "aspects": [
+    "poison-memory"
+   ],
+   "labels": [
+    "gen7",
+    "legendary"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "silvally",
+   "dex": 773,
+   "form": "Ground",
+   "aspects": [
+    "ground-memory"
+   ],
+   "labels": [
+    "gen7",
+    "legendary"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "silvally",
+   "dex": 773,
+   "form": "Rock",
+   "aspects": [
+    "rock-memory"
+   ],
+   "labels": [
+    "gen7",
+    "legendary"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "silvally",
+   "dex": 773,
+   "form": "Bug",
+   "aspects": [
+    "bug-memory"
+   ],
+   "labels": [
+    "gen7",
+    "legendary"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "silvally",
+   "dex": 773,
+   "form": "Ghost",
+   "aspects": [
+    "ghost-memory"
+   ],
+   "labels": [
+    "gen7",
+    "legendary"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "silvally",
+   "dex": 773,
+   "form": "Steel",
+   "aspects": [
+    "steel-memory"
+   ],
+   "labels": [
+    "gen7",
+    "legendary"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "silvally",
+   "dex": 773,
+   "form": "Fire",
+   "aspects": [
+    "fire-memory"
+   ],
+   "labels": [
+    "gen7",
+    "legendary"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "silvally",
+   "dex": 773,
+   "form": "Water",
+   "aspects": [
+    "water-memory"
+   ],
+   "labels": [
+    "gen7",
+    "legendary"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "silvally",
+   "dex": 773,
+   "form": "Grass",
+   "aspects": [
+    "grass-memory"
+   ],
+   "labels": [
+    "gen7",
+    "legendary"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "silvally",
+   "dex": 773,
+   "form": "Electric",
+   "aspects": [
+    "electric-memory"
+   ],
+   "labels": [
+    "gen7",
+    "legendary"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "silvally",
+   "dex": 773,
+   "form": "Psychic",
+   "aspects": [
+    "psychic-memory"
+   ],
+   "labels": [
+    "gen7",
+    "legendary"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "silvally",
+   "dex": 773,
+   "form": "Ice",
+   "aspects": [
+    "ice-memory"
+   ],
+   "labels": [
+    "gen7",
+    "legendary"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "silvally",
+   "dex": 773,
+   "form": "Dragon",
+   "aspects": [
+    "dragon-memory"
+   ],
+   "labels": [
+    "gen7",
+    "legendary"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "silvally",
+   "dex": 773,
+   "form": "Dark",
+   "aspects": [
+    "dark-memory"
+   ],
+   "labels": [
+    "gen7",
+    "legendary"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "silvally",
+   "dex": 773,
+   "form": "Fairy",
+   "aspects": [
+    "fairy-memory"
+   ],
+   "labels": [
+    "gen7",
+    "legendary"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "sinistcha",
+   "dex": 1013,
+   "form": "Masterpiece",
+   "aspects": [
+    "masterpiece"
+   ],
+   "labels": [
+    "gen9"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "sinistea",
+   "dex": 854,
+   "form": "Antique",
+   "aspects": [
+    "antique"
+   ],
+   "labels": [
+    "gen8"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "skarmory",
+   "dex": 227,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen2",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "sliggoo",
+   "dex": 705,
+   "form": "Hisui",
+   "aspects": [
+    "hisuian"
+   ],
+   "labels": [
+    "gen8a",
+    "hisuian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "slowbro",
+   "dex": 80,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "slowbro",
+   "dex": 80,
+   "form": "Galar",
+   "aspects": [
+    "galarian"
+   ],
+   "labels": [
+    "gen8",
+    "galarian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "slowking",
+   "dex": 199,
+   "form": "Galar",
+   "aspects": [
+    "galarian"
+   ],
+   "labels": [
+    "gen8",
+    "galarian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "slowpoke",
+   "dex": 79,
+   "form": "Galar",
+   "aspects": [
+    "galarian"
+   ],
+   "labels": [
+    "gen8",
+    "galarian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "sneasel",
+   "dex": 215,
+   "form": "Hisui",
+   "aspects": [
+    "hisuian"
+   ],
+   "labels": [
+    "gen8a",
+    "hisuian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "snorlax",
+   "dex": 143,
+   "form": "Gmax",
+   "aspects": [
+    "gmax"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "cobblemon",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "squawkabilly",
+   "dex": 931,
+   "form": "Blue",
+   "aspects": [
+    "squawkabilly-color-blue"
+   ],
+   "labels": [
+    "gen9"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "squawkabilly",
+   "dex": 931,
+   "form": "Yellow",
+   "aspects": [
+    "squawkabilly-color-yellow"
+   ],
+   "labels": [
+    "gen9"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "squawkabilly",
+   "dex": 931,
+   "form": "White",
+   "aspects": [
+    "squawkabilly-color-gray"
+   ],
+   "labels": [
+    "gen9"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "staraptor",
+   "dex": 398,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen4",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "starmie",
+   "dex": 121,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen1",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "steelix",
+   "dex": 208,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "stunfisk",
+   "dex": 618,
+   "form": "Galar",
+   "aspects": [
+    "galarian"
+   ],
+   "labels": [
+    "gen8",
+    "galarian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "swampert",
+   "dex": 260,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "tatsugiri",
+   "dex": 978,
+   "form": "Droopy",
+   "aspects": [
+    "tatsugiri-texture-droopy"
+   ],
+   "labels": [
+    "gen9"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "tatsugiri",
+   "dex": 978,
+   "form": "Stretchy",
+   "aspects": [
+    "tatsugiri-texture-stretchy"
+   ],
+   "labels": [
+    "gen9"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "tatsugiri",
+   "dex": 978,
+   "form": "Mega",
+   "aspects": [
+    "mega",
+    "tatsugiri-texture-curly"
+   ],
+   "labels": [
+    "gen9",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "tatsugiri",
+   "dex": 978,
+   "form": "MegaS",
+   "aspects": [
+    "mega",
+    "tatsugiri-texture-stretchy"
+   ],
+   "labels": [
+    "gen9",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "tatsugiri",
+   "dex": 978,
+   "form": "MegaD",
+   "aspects": [
+    "mega",
+    "tatsugiri-texture-droopy"
+   ],
+   "labels": [
+    "gen9",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "tauros",
+   "dex": 128,
+   "form": "Paldea-Combat",
+   "aspects": [
+    "paldean"
+   ],
+   "labels": [
+    "gen9",
+    "paldean_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "tauros",
+   "dex": 128,
+   "form": "Paldea-Blaze",
+   "aspects": [
+    "blaze-breed",
+    "paldean"
+   ],
+   "labels": [
+    "gen9",
+    "paldean_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "tauros",
+   "dex": 128,
+   "form": "Paldea-Aqua",
+   "aspects": [
+    "paldean",
+    "aqua-breed"
+   ],
+   "labels": [
+    "gen9",
+    "paldean_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "terapagos",
+   "dex": 1024,
+   "form": "Terastal",
+   "aspects": [
+    "terastal-form"
+   ],
+   "labels": [
+    "gen9",
+    "legendary",
+    "restricted"
+   ],
+   "source": "mega_showdown",
+   "class": "transient",
+   "inSite": null
+  },
+  {
+   "species": "terapagos",
+   "dex": 1024,
+   "form": "Stellar",
+   "aspects": [
+    "stellar-form"
+   ],
+   "labels": [
+    "gen9",
+    "legendary",
+    "restricted"
+   ],
+   "source": "mega_showdown",
+   "class": "transient",
+   "inSite": null
+  },
+  {
+   "species": "thundurus",
+   "dex": 642,
+   "form": "Therian",
+   "aspects": [
+    "therian-forme"
+   ],
+   "labels": [
+    "gen5",
+    "legendary"
+   ],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "tornadus",
+   "dex": 641,
+   "form": "Therian",
+   "aspects": [
+    "therian-forme"
+   ],
+   "labels": [
+    "gen5",
+    "legendary"
+   ],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "toxtricity",
+   "dex": 849,
+   "form": "Low-Key",
+   "aspects": [
+    "low_key-form"
+   ],
+   "labels": [
+    "gen8"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "toxtricity",
+   "dex": 849,
+   "form": "Gmax",
+   "aspects": [
+    "gmax",
+    "amped-form"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "cobblemon",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "toxtricity",
+   "dex": 849,
+   "form": "Low-Key-Gmax",
+   "aspects": [
+    "gmax",
+    "low_key-form"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "cobblemon",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "typhlosion",
+   "dex": 157,
+   "form": "Hisui",
+   "aspects": [
+    "hisuian"
+   ],
+   "labels": [
+    "gen8a",
+    "hisuian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "tyranitar",
+   "dex": 248,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "cobblemon",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "unown",
+   "dex": 201,
+   "form": "B",
+   "aspects": [
+    "character-b"
+   ],
+   "labels": [
+    "gen2"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "unown",
+   "dex": 201,
+   "form": "C",
+   "aspects": [
+    "character-c"
+   ],
+   "labels": [
+    "gen2"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "unown",
+   "dex": 201,
+   "form": "D",
+   "aspects": [
+    "character-d"
+   ],
+   "labels": [
+    "gen2"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "unown",
+   "dex": 201,
+   "form": "E",
+   "aspects": [
+    "character-e"
+   ],
+   "labels": [
+    "gen2"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "unown",
+   "dex": 201,
+   "form": "F",
+   "aspects": [
+    "character-f"
+   ],
+   "labels": [
+    "gen2"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "unown",
+   "dex": 201,
+   "form": "G",
+   "aspects": [
+    "character-g"
+   ],
+   "labels": [
+    "gen2"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "unown",
+   "dex": 201,
+   "form": "H",
+   "aspects": [
+    "character-h"
+   ],
+   "labels": [
+    "gen2"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "unown",
+   "dex": 201,
+   "form": "I",
+   "aspects": [
+    "character-i"
+   ],
+   "labels": [
+    "gen2"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "unown",
+   "dex": 201,
+   "form": "J",
+   "aspects": [
+    "character-j"
+   ],
+   "labels": [
+    "gen2"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "unown",
+   "dex": 201,
+   "form": "K",
+   "aspects": [
+    "character-k"
+   ],
+   "labels": [
+    "gen2"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "unown",
+   "dex": 201,
+   "form": "L",
+   "aspects": [
+    "character-l"
+   ],
+   "labels": [
+    "gen2"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "unown",
+   "dex": 201,
+   "form": "M",
+   "aspects": [
+    "character-m"
+   ],
+   "labels": [
+    "gen2"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "unown",
+   "dex": 201,
+   "form": "N",
+   "aspects": [
+    "character-n"
+   ],
+   "labels": [
+    "gen2"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "unown",
+   "dex": 201,
+   "form": "O",
+   "aspects": [
+    "character-o"
+   ],
+   "labels": [
+    "gen2"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "unown",
+   "dex": 201,
+   "form": "P",
+   "aspects": [
+    "character-p"
+   ],
+   "labels": [
+    "gen2"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "unown",
+   "dex": 201,
+   "form": "Q",
+   "aspects": [
+    "character-q"
+   ],
+   "labels": [
+    "gen2"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "unown",
+   "dex": 201,
+   "form": "R",
+   "aspects": [
+    "character-r"
+   ],
+   "labels": [
+    "gen2"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "unown",
+   "dex": 201,
+   "form": "S",
+   "aspects": [
+    "character-s"
+   ],
+   "labels": [
+    "gen2"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "unown",
+   "dex": 201,
+   "form": "T",
+   "aspects": [
+    "character-t"
+   ],
+   "labels": [
+    "gen2"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "unown",
+   "dex": 201,
+   "form": "U",
+   "aspects": [
+    "character-u"
+   ],
+   "labels": [
+    "gen2"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "unown",
+   "dex": 201,
+   "form": "V",
+   "aspects": [
+    "character-v"
+   ],
+   "labels": [
+    "gen2"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "unown",
+   "dex": 201,
+   "form": "W",
+   "aspects": [
+    "character-w"
+   ],
+   "labels": [
+    "gen2"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "unown",
+   "dex": 201,
+   "form": "X",
+   "aspects": [
+    "character-x"
+   ],
+   "labels": [
+    "gen2"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "unown",
+   "dex": 201,
+   "form": "Y",
+   "aspects": [
+    "character-y"
+   ],
+   "labels": [
+    "gen2"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "unown",
+   "dex": 201,
+   "form": "Z",
+   "aspects": [
+    "character-z"
+   ],
+   "labels": [
+    "gen2"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "unown",
+   "dex": 201,
+   "form": "!",
+   "aspects": [
+    "character-!"
+   ],
+   "labels": [
+    "gen3"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "unown",
+   "dex": 201,
+   "form": "?",
+   "aspects": [
+    "character-?"
+   ],
+   "labels": [
+    "gen3"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "ursaluna",
+   "dex": 901,
+   "form": "Bloodmoon",
+   "aspects": [
+    "bloodmoon"
+   ],
+   "labels": [
+    "gen9"
+   ],
+   "source": "cobbleverse_dp",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "urshifu",
+   "dex": 892,
+   "form": "Rapid-Strike",
+   "aspects": [
+    "rapid_strike-style"
+   ],
+   "labels": [
+    "gen8",
+    "legendary"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "urshifu",
+   "dex": 892,
+   "form": "Gmax",
+   "aspects": [
+    "gmax",
+    "single_strike-style"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "cobblemon",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "urshifu",
+   "dex": 892,
+   "form": "Rapid-Strike-Gmax",
+   "aspects": [
+    "gmax",
+    "rapid_strike-style"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "cobblemon",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "venusaur",
+   "dex": 3,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen6",
+    "mega"
+   ],
+   "source": "mega_showdown",
+   "class": "mega",
+   "inSite": true
+  },
+  {
+   "species": "venusaur",
+   "dex": 3,
+   "form": "Gmax",
+   "aspects": [
+    "gmax"
+   ],
+   "labels": [
+    "gen8",
+    "gmax"
+   ],
+   "source": "mega_showdown",
+   "class": "gmax",
+   "inSite": true
+  },
+  {
+   "species": "victreebel",
+   "dex": 71,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen1",
+    "mega"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "vivillon",
+   "dex": 666,
+   "form": "Pokeball",
+   "aspects": [
+    "vivillon-wings-poke-ball"
+   ],
+   "labels": [
+    "gen6"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "voltorb",
+   "dex": 100,
+   "form": "Hisui",
+   "aspects": [
+    "hisuian"
+   ],
+   "labels": [
+    "gen8a",
+    "hisuian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "vulpix",
+   "dex": 37,
+   "form": "Alola",
+   "aspects": [
+    "alolan"
+   ],
+   "labels": [
+    "gen7",
+    "alolan_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "weezing",
+   "dex": 110,
+   "form": "Galar",
+   "aspects": [
+    "galarian"
+   ],
+   "labels": [
+    "gen8",
+    "galarian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "wishiwashi",
+   "dex": 746,
+   "form": "School",
+   "aspects": [
+    "school-form"
+   ],
+   "labels": [
+    "gen7"
+   ],
+   "source": "cobblemon",
+   "class": "transient",
+   "inSite": null
+  },
+  {
+   "species": "wooper",
+   "dex": 194,
+   "form": "Paldea",
+   "aspects": [
+    "paldean"
+   ],
+   "labels": [
+    "gen9",
+    "paldean_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "wormadam",
+   "dex": 413,
+   "form": "Sandy",
+   "aspects": [
+    "sandy-cloak"
+   ],
+   "labels": [
+    "gen4"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "wormadam",
+   "dex": 413,
+   "form": "Trash",
+   "aspects": [
+    "trash-cloak"
+   ],
+   "labels": [
+    "gen4"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "xerneas",
+   "dex": 716,
+   "form": "Active",
+   "aspects": [
+    "active-mode"
+   ],
+   "labels": [
+    "gen6",
+    "legendary",
+    "restricted"
+   ],
+   "source": "cobblemon",
+   "class": "transient",
+   "inSite": null
+  },
+  {
+   "species": "xerneas",
+   "dex": 716,
+   "form": "Active",
+   "aspects": [
+    "active-mode"
+   ],
+   "labels": [
+    "gen6",
+    "legendary",
+    "restricted"
+   ],
+   "source": "cobbleverse_dp",
+   "class": "transient",
+   "inSite": null
+  },
+  {
+   "species": "yamask",
+   "dex": 562,
+   "form": "Galar",
+   "aspects": [
+    "galarian"
+   ],
+   "labels": [
+    "gen8",
+    "galarian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "zacian",
+   "dex": 888,
+   "form": "Crowned",
+   "aspects": [
+    "crowned"
+   ],
+   "labels": [
+    "gen8",
+    "legendary"
+   ],
+   "source": "mega_showdown",
+   "class": "transient",
+   "inSite": null
+  },
+  {
+   "species": "zamazenta",
+   "dex": 889,
+   "form": "Crowned",
+   "aspects": [
+    "crowned"
+   ],
+   "labels": [
+    "gen8",
+    "legendary"
+   ],
+   "source": "mega_showdown",
+   "class": "transient",
+   "inSite": null
+  },
+  {
+   "species": "zapdos",
+   "dex": 145,
+   "form": "Galar",
+   "aspects": [
+    "galarian"
+   ],
+   "labels": [
+    "gen8",
+    "legendary",
+    "galarian_form"
+   ],
+   "source": "cobbleverse_dp",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "zarude",
+   "dex": 893,
+   "form": "Dada",
+   "aspects": [
+    "dada-cape"
+   ],
+   "labels": [
+    "gen8",
+    "mythical"
+   ],
+   "source": "cobblemon",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "zeraora",
+   "dex": 807,
+   "form": "Mega",
+   "aspects": [
+    "mega"
+   ],
+   "labels": [
+    "gen7",
+    "mega",
+    "mythical"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  },
+  {
+   "species": "zigzagoon",
+   "dex": 263,
+   "form": "Galar",
+   "aspects": [
+    "galarian"
+   ],
+   "labels": [
+    "gen8",
+    "galarian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "zoroark",
+   "dex": 571,
+   "form": "Hisui",
+   "aspects": [
+    "hisuian"
+   ],
+   "labels": [
+    "gen8a",
+    "hisuian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "zorua",
+   "dex": 570,
+   "form": "Hisui",
+   "aspects": [
+    "hisuian"
+   ],
+   "labels": [
+    "gen8a",
+    "hisuian_form"
+   ],
+   "source": "cobblemon",
+   "class": "regional",
+   "inSite": true
+  },
+  {
+   "species": "zygarde",
+   "dex": 718,
+   "form": "10%",
+   "aspects": [
+    "10-percent"
+   ],
+   "labels": [
+    "gen7",
+    "legendary",
+    "restricted"
+   ],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "zygarde",
+   "dex": 718,
+   "form": "10%-C",
+   "aspects": [
+    "power-construct",
+    "10-percent"
+   ],
+   "labels": [
+    "cobblemon",
+    "legendary",
+    "restricted"
+   ],
+   "source": "mega_showdown",
+   "class": "transient",
+   "inSite": null
+  },
+  {
+   "species": "zygarde",
+   "dex": 718,
+   "form": "50%-C",
+   "aspects": [
+    "50-percent",
+    "power-construct"
+   ],
+   "labels": [
+    "cobblemon",
+    "legendary",
+    "restricted"
+   ],
+   "source": "mega_showdown",
+   "class": "transient",
+   "inSite": null
+  },
+  {
+   "species": "zygarde",
+   "dex": 718,
+   "form": "Complete",
+   "aspects": [
+    "complete-percent"
+   ],
+   "labels": [
+    "gen7",
+    "legendary",
+    "restricted"
+   ],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": true
+  },
+  {
+   "species": "zygarde",
+   "dex": 718,
+   "form": "Core",
+   "aspects": [
+    "core-percent"
+   ],
+   "labels": [],
+   "source": "mega_showdown",
+   "class": "variant",
+   "inSite": false
+  },
+  {
+   "species": "zygarde",
+   "dex": 718,
+   "form": "Mega",
+   "aspects": [
+    "complete-percent",
+    "mega"
+   ],
+   "labels": [
+    "Mega",
+    "complete-percent",
+    "legendary",
+    "restricted"
+   ],
+   "source": "zamega",
+   "class": "mega",
+   "inSite": false
+  }
+ ]
+}

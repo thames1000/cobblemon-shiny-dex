@@ -132,6 +132,13 @@ and retire Pages.
      were **seen**. It never records "the shiny was caught". So a species is only marked ✨ when the form is
      `CAUGHT` *and* a shiny of it was seen (`shinyRequiresCaught`, on by default) — the merge is upgrade-only,
      so a false ✨ couldn't be undone by re-importing.
+  3. A `formRecords` key is a Pokédex **dex-entry `displayForm`**, lowercased — not a species form name. Its
+     `variantToken()` maps all 1472 (species, displayForm) pairs the modpack can produce onto the site's model:
+     Mega/GMax/Primal/Eternamax and battle-only states (Zen, Blade, Busted, Crowned…) resolve to the national-dex
+     slot; a capability layered on a real variant is unwrapped (`galar-zen` → Galarian Darmanitan,
+     `low-key-gmax` → Low-Key Toxtricity, `mega-sx` → Shadow Mewtwo, ZA Mega's `megae` → Eternal Floette); and
+     the handful of dex forms named differently from their aspect are aliased (Genesect's dex says
+     Fire/Ice/Water/Electric, the aspects are the *drives*). See `research/cobbleverse-variants.md`.
 - `js/data/forms.json` is the Mega/Primal/GMax list from the **Mega Showdown** mod (hand-authored; verify
   against your installed version).
 - Sprites are loaded on demand from the public PokeAPI sprite repo and cached by the service worker.

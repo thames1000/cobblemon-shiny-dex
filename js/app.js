@@ -1001,7 +1001,7 @@ function buildVariantLookup() {
   VARIANT_BY_ID = {};
   if (!VARIANTS) return;
   for (const v of allVariantObjs()) VARIANT_BY_ID[v.id] = v;
-  const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
+  const norm = normSpeciesName; // shared: keeps Unown !/? distinct (see its comment)
   const add = (v) => {
     for (const t of new Set([norm(v.name), ...(v.aspects || []).map(norm)])) {
       const k = v.dex + "|" + t;
@@ -1015,7 +1015,7 @@ function buildVariantLookup() {
 }
 function spawnVariant(dex, form) {
   if (!form || !VARIANT_BY_DEXFORM) return null;
-  const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
+  const norm = normSpeciesName;
   return VARIANT_BY_DEXFORM[dex + "|" + norm(form)]
     || VARIANT_BY_DEXFORM[dex + "|" + norm(String(form).split(" / ")[0])] // compound "A / B" → first
     || null;
@@ -5449,7 +5449,15 @@ const MOD_STATE_RANK = { none: 0, seen: 1, caught: 2, shiny: 3, boxed: 4 };
 // names ("mareep", "nidoran-f", "mr-mime"); strip non-alphanumerics so we're
 // forgiving about separators (- _ space, etc.).
 let DEX_BY_NAME = null;
-function normSpeciesName(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
+// Strip separators so "nidoran-f" / "mr_mime" / "Pa’u" all collapse to a bare key.
+// "!" and "?" are spelled out first: Unown's two symbol forms would otherwise BOTH
+// normalize to "character" (from aspect "character-!") and collide, so a caught
+// Unown ? would silently mark Unown ! instead. Sprite slugs use the same em/qm.
+function normSpeciesName(s) {
+  return String(s || "").toLowerCase()
+    .replace(/!/g, "em").replace(/\?/g, "qm")
+    .replace(/[^a-z0-9]/g, "");
+}
 function buildNameLookup() {
   DEX_BY_NAME = {};
   for (const sp of SPECIES) DEX_BY_NAME[normSpeciesName(sp.name)] = sp.dex;

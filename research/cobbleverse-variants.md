@@ -104,6 +104,38 @@ Palafin Hero.
 cosmetic variants**. By the "temporary battle state" rule used for Mega/GMax they don't belong there,
 but that is existing behavior, not a new bug — left alone.
 
+## What the `.nbt` parser can and can't route
+
+A Pokédex `formRecords` key is a **dex-entry `displayForm`, lowercased** — not a species form name.
+(`dex_entries/.../oricorio.json` has `"Pa’u"` with U+2019, and the save's key is exactly `pa’u`.)
+Merging every `dex_entries` + `dex_entry_additions` across the pack gives **1472 (species, displayForm)
+pairs** — the complete set of keys the parser can ever see. Sweeping all of them through
+`variantToken()` + `modEntryVariant()`:
+
+| Outcome | Count |
+|---|---|
+| → national-dex slot (base form, Mega/GMax/Primal/Eternamax, battle-only state) | 1163 |
+| → routed to a `variants.json` entry | 275 |
+| → **unroutable**, falls back to the base dex | 34 |
+
+The 34 are exactly the data gaps below — the parser is doing the right thing; `variants.json` just has
+no entry to route them to. Pikachu ×13, Mewtwo `shadow`/`armored`/`mega-sx`/`mega-sy`, Lugia `shadow`,
+Groudon `virus`, Lucario ×11 (9 costumes + 2 scarves), Riolu ×2 scarves, Floette `ange`,
+Bergmite `hisui-bias`.
+
+⚠ Until they're added, a **shiny Shadow Mewtwo marks base Mewtwo ✨** (upgrade-only merge, so it can't
+be undone by re-importing). Same for the other 33.
+
+Two real bugs surfaced by the sweep and fixed in passing — both also affected the **live mod sync**,
+not just `.nbt` import:
+
+- **Unown `!` and `?` collided.** `norm("character-!")` and `norm("character-?")` both stripped to
+  `"character"`, so `VARIANT_BY_DEXFORM["201|character"]` only ever held `!` — catching Unown `?` marked
+  Unown `!`. `normSpeciesName()` now spells them `em`/`qm` (matching the sprite slugs) before stripping.
+  All 28 Unown are now reachable.
+- **Genesect's drives were unreachable.** Its dex forms are Fire/Ice/Water/Electric; the variants are
+  keyed `burn-drive`/`chill-drive`/`douse-drive`/`shock-drive`. Now aliased.
+
 ## Judgment calls worth a human decision
 
 1. **Lucario Mega-`<costume>` ×9** — the DP defines nine `mega + <x>-costume` forms. These are just

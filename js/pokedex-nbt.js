@@ -202,6 +202,78 @@
 
   const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
+  /* ---------- form-key → variant-token resolution ----------
+   *
+   * A `formRecords` key is a Pokédex *dex entry* `displayForm`, lowercased — NOT a
+   * species form name. (Verified: `dex_entries/.../oricorio.json` has displayForm
+   * "Pa’u" with U+2019, and the save's key is exactly "pa’u".) Across the whole
+   * COBBLEVERSE pack there are 1472 (species, displayForm) pairs; see
+   * research/cobbleverse-variants.md.
+   *
+   * Most keys are already the variant's token ("galar", "antique", "roaming"), so they
+   * fall straight through. Three groups need help:
+   *
+   * 1. CAPABILITY — Mega / GMax / Primal / Eternamax are temporary battle states the
+   *    site tracks in its Mega/GMax wing, not boxable forms. Seeing one means you own
+   *    the *base* species, so they resolve to "" (the national-dex slot).
+   * 2. MODIFIED — a capability layered on top of a real variant: "galar-zen" is a
+   *    Galarian Darmanitan, "low-key-gmax" a Low-Key Toxtricity, "mega-sx" a Shadow
+   *    Mewtwo. Strip the modifier so the underlying variant still gets credit.
+   * 3. ALIAS — the dex entry names a form differently from the species aspect.
+   *    Genesect's dex says Fire/Ice/Water/Electric; the aspects are the *drives*.
+   *
+   * Two dex forms legitimately resolve to the same variant ("galar" and "galar-zen"
+   * both mean you own a Galarian Darmanitan). The merge is upgrade-only and keyed by
+   * variant id, so the second one is a no-op rather than a double count.
+   */
+
+  // Pure capability: nothing collectible underneath. Matches "mega", "mega-x",
+  // "megae" (ZA Mega's Floette-Eternal Mega), "gmax", "primal", "eternamax". Anything
+  // in ALIAS is resolved first, so mega-of-a-variant keeps its variant.
+  const CAPABILITY = /^(mega[a-z]*(-[a-z]+)?|gmax|dynamax|primal|eternamax)$/;
+
+  // Battle-only states — entered mid-battle and reverted, never boxable. Owning one
+  // means owning the base species. Mirrors scripts/build-variants.js's SKIP list.
+  // NOT included: Castform's weather forms, Cherrim Sunshine, Palafin Hero, Greninja
+  // Ash/Bond — the site already tracks those as cosmetic variants.
+  const TRANSIENT = new Set(["zen", "blade", "busted", "gulping", "gorging", "hangry",
+    "noice-face", "school", "pirouette", "crowned"]);
+
+  // Capability wrapped around a variant. Each returns the underlying token, or "" if
+  // stripping leaves nothing (a bare "zen" Darmanitan is just a Darmanitan).
+  const MODIFIERS = [
+    (k) => (k.endsWith("-gmax") ? k.slice(0, -5) : null),   // low-key-gmax, rapid-strike-gmax
+    (k) => (k.endsWith("-zen") ? k.slice(0, -4) : null),    // galar-zen
+  ];
+
+  // `<species>|<formKey>` → variant token, for dex forms whose name matches neither
+  // the variant's name nor its aspects. Genesect's dex names the type, not the drive.
+  // The rest are ZA Mega / COBBLEVERSE Megas *of* a variant: keep the variant.
+  const ALIAS = {
+    "genesect|fire": "burn-drive", "genesect|ice": "chill-drive",
+    "genesect|water": "douse-drive", "genesect|electric": "shock-drive",
+    "mewtwo|mega-sx": "shadow", "mewtwo|mega-sy": "shadow",
+    "mewtwo|mega-ax": "armored", "mewtwo|mega-ay": "armored",
+    "floette|megae": "eternal", "magearna|megao": "original",
+    "tatsugiri|megad": "droopy", "tatsugiri|megas": "stretchy",
+    "zygarde|megac": "complete",
+  };
+
+  /* Resolve a raw formRecords key to the token app.js matches against variants.json.
+   * "" means "this is the base species" → the national-dex slot. */
+  function variantToken(species, formKey) {
+    const k = String(formKey || "").toLowerCase();
+    if (!k || BASE_FORMS.has(k)) return "";
+    const alias = ALIAS[species + "|" + k];
+    if (alias !== undefined) return alias;
+    for (const strip of MODIFIERS) {
+      const under = strip(k);
+      if (under !== null) return under && !BASE_FORMS.has(under) && !TRANSIENT.has(under) ? under : "";
+    }
+    if (TRANSIENT.has(k) || CAPABILITY.test(k)) return "";
+    return k;
+  }
+
   /* Pull `{ uuid, species: [...] }` out of a parsed root compound. Accepts the
    * `{name, value}` envelope from readNbt(), a bare root compound, or a root that
    * nests the dex one level down. */
@@ -272,11 +344,11 @@
    *   { species, dex, form, aspects, seen, caught, shiny }
    *
    * One entry per *form record*, because that is the only level at which shiny and
-   * form are unambiguous. Base ("normal") forms get form:"" so they land on the
-   * national-dex slot; every other form keeps its name as the variant token
-   * ("galar", "hisui-bias", "antique", "roaming", …), which app.js matches against
-   * variants.json. Forms with no matching variant (mewtwo "armored", zacian
-   * "crowned") fall through to the base dex slot, which is the right answer.
+   * form are unambiguous. `form` is the variant token from variantToken() — "" for
+   * the base species (so it lands on the national-dex slot), otherwise the token
+   * app.js matches against variants.json ("galar", "hisui-bias", "antique", …).
+   * A token with no matching variant (lucario "chef-costume") falls through to the
+   * base dex slot, which is the safe answer.
    *
    * Options:
    *   species              — the site's species.json array (required for `dex`)
@@ -297,7 +369,7 @@
         entries.push({
           species: sp.name,
           dex,
-          form: BASE_FORMS.has(f.form) ? "" : f.form,
+          form: variantToken(sp.name, f.form),
           // Deliberately empty: the species `aspects` union would misattribute
           // "shiny" (and regional tags) to the wrong form.
           aspects: [],
@@ -332,7 +404,7 @@
     return { uuid: pokedex.uuid, species: pokedex.species, entries, summary: summarize(entries) };
   }
 
-  const API = { readNbt, inflate, parsePokedex, pokedexEntries, parsePokedexFile, summarize, dexResolver };
+  const API = { readNbt, inflate, parsePokedex, pokedexEntries, parsePokedexFile, summarize, dexResolver, variantToken };
   global.ShinyDexNbt = API;
   if (typeof module !== "undefined" && module.exports) module.exports = API;
 })(typeof globalThis !== "undefined" ? globalThis : this);

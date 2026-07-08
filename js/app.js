@@ -5518,69 +5518,95 @@ function modEntryVariant(e, dex) {
   return null;
 }
 
+function showModStatus(msg, ok) {
+  const status = els.modImportStatus;
+  if (!status) { if (!ok) alert(msg); return; }
+  status.hidden = false;
+  status.textContent = msg;
+  status.dataset.tone = ok ? "good" : "bad";
+}
+
+/* Merge a flat list of mod-shaped entries into local state (upgrade-only), save and
+ * re-render. Shared by the mod-export JSON import and the server Pokédex .nbt import
+ * — both produce the same {species, dex, form, aspects, seen, caught, shiny} shape. */
+function mergeModEntries(entries) {
+  let upgraded = 0, variantsUp = 0, already = 0, unknown = 0, findsAdded = 0;
+  const unknownNames = new Set();
+  for (const raw of entries) {
+    const e = modPayload(raw);
+    if (!e || typeof e !== "object") continue;
+    const next = modEntryState(e);
+    if (!next) continue;
+    const dex = modEntryDex(e);
+    if (!Number.isFinite(dex) || !DEX_BY_NUM[dex]) {
+      unknown++;
+      unknownNames.add(e.species || e.displayName || e.name || String(e.dex ?? "?"));
+      continue;
+    }
+    // A regional/cosmetic/cobblemon form updates ONLY the Variants tab — never the
+    // base-dex slot — and logs a variant find. A plain catch updates the dex.
+    const v = (next === "caught" || next === "shiny") ? modEntryVariant(e, dex) : null;
+    if (v) {
+      const vcur = state.variants[v.id];
+      const vRank = vcur === "shiny" ? 3 : (vcur ? 2 : 0);
+      if (MOD_STATE_RANK[next] > vRank) { state.variants[v.id] = next === "shiny" ? "shiny" : true; variantsUp++; }
+      else already++;
+      if (next === "shiny") { if (logVariantFindFromMod(v.id)) findsAdded++; }
+    } else {
+      const cur = dexState(dex);
+      if (MOD_STATE_RANK[next] > MOD_STATE_RANK[cur]) { setDexState(dex, next); upgraded++; }
+      else already++;
+      // Back-fill a finds-log row for every shiny without one (idempotent).
+      if (next === "shiny" || next === "boxed") { if (logFindFromMod(dex)) findsAdded++; }
+    }
+  }
+
+  if (upgraded || variantsUp || findsAdded) {
+    save();
+    renderDex(); renderForms(); renderVariants(); renderLegendary(); renderBerries();
+    renderBoxes(); renderDashboard(); renderStats(); renderLog(); renderBackupCard();
+  }
+  return { upgraded, variantsUp, already, unknown, unknownNames, findsAdded };
+}
+
+function mergeSummaryText(s, label) {
+  const parts = [`${label} — ${s.upgraded} updated`];
+  if (s.variantsUp) parts.push(`${s.variantsUp} variants`);
+  if (s.findsAdded) parts.push(`${s.findsAdded} finds logged`);
+  if (s.already) parts.push(`${s.already} already current`);
+  if (s.unknown) {
+    const sample = [...s.unknownNames].slice(0, 3).join(", ");
+    parts.push(`${s.unknown} unrecognized${sample ? ` (${sample}${s.unknownNames.size > 3 ? "…" : ""})` : ""}`);
+  }
+  return parts.join(" · ");
+}
+
 function importModSync(file) {
   const reader = new FileReader();
   reader.onload = () => {
-    const status = els.modImportStatus;
-    const show = (msg, ok) => {
-      if (!status) { if (!ok) alert(msg); return; }
-      status.hidden = false;
-      status.textContent = msg;
-      status.dataset.tone = ok ? "good" : "bad";
-    };
     try {
       const d = JSON.parse(reader.result);
       const entries = modEntries(d);
       if (!entries) throw new Error("not a ShinyDex Link export (no catch list found)");
-
-      let upgraded = 0, variantsUp = 0, already = 0, unknown = 0, findsAdded = 0;
-      const unknownNames = new Set();
-      for (const raw of entries) {
-        const e = modPayload(raw);
-        if (!e || typeof e !== "object") continue;
-        const next = modEntryState(e);
-        if (!next) continue;
-        const dex = modEntryDex(e);
-        if (!Number.isFinite(dex) || !DEX_BY_NUM[dex]) {
-          unknown++;
-          unknownNames.add(e.species || e.displayName || e.name || String(e.dex ?? "?"));
-          continue;
-        }
-        // A regional/cosmetic/cobblemon form updates ONLY the Variants tab — never the
-        // base-dex slot — and logs a variant find. A plain catch updates the dex.
-        const v = (next === "caught" || next === "shiny") ? modEntryVariant(e, dex) : null;
-        if (v) {
-          const vcur = state.variants[v.id];
-          const vRank = vcur === "shiny" ? 3 : (vcur ? 2 : 0);
-          if (MOD_STATE_RANK[next] > vRank) { state.variants[v.id] = next === "shiny" ? "shiny" : true; variantsUp++; }
-          else already++;
-          if (next === "shiny") { if (logVariantFindFromMod(v.id)) findsAdded++; }
-        } else {
-          const cur = dexState(dex);
-          if (MOD_STATE_RANK[next] > MOD_STATE_RANK[cur]) { setDexState(dex, next); upgraded++; }
-          else already++;
-          // Back-fill a finds-log row for every shiny without one (idempotent).
-          if (next === "shiny" || next === "boxed") { if (logFindFromMod(dex)) findsAdded++; }
-        }
-      }
-
-      if (upgraded || variantsUp || findsAdded) {
-        save();
-        renderDex(); renderForms(); renderVariants(); renderLegendary(); renderBerries();
-        renderBoxes(); renderDashboard(); renderStats(); renderLog(); renderBackupCard();
-      }
-      const parts = [`Synced from mod — ${upgraded} updated`];
-      if (variantsUp) parts.push(`${variantsUp} variants`);
-      if (findsAdded) parts.push(`${findsAdded} finds logged`);
-      if (already) parts.push(`${already} already current`);
-      if (unknown) {
-        const sample = [...unknownNames].slice(0, 3).join(", ");
-        parts.push(`${unknown} unrecognized${sample ? ` (${sample}${unknownNames.size > 3 ? "…" : ""})` : ""}`);
-      }
-      show(parts.join(" · "), true);
-    } catch (e) { show("Mod import failed: " + e.message, false); }
+      showModStatus(mergeSummaryText(mergeModEntries(entries), "Synced from mod"), true);
+    } catch (e) { showModStatus("Mod import failed: " + e.message, false); }
   };
   reader.readAsText(file);
+}
+
+/* ---------- Cobblemon Pokédex (.nbt) import ----------
+ * The server writes one `<player-uuid>.nbt` per player holding their whole Pokédex.
+ * js/pokedex-nbt.js flattens it into the same entries the mod export yields (one per
+ * form record, so ✨shiny and regional forms are attributed to the right form), then
+ * it rides the exact same upgrade-only merge — safe to re-import. */
+async function importPokedexNbt(file) {
+  try {
+    if (!window.ShinyDexNbt) throw new Error("js/pokedex-nbt.js didn't load");
+    const { uuid, entries, summary } = await window.ShinyDexNbt.parsePokedexFile(file, { species: SPECIES });
+    if (!entries.length) throw new Error("that Pokédex has no seen/caught records");
+    const label = `Pokédex .nbt (${summary.entries} records${uuid ? `, ${uuid.slice(0, 8)}…` : ""})`;
+    showModStatus(mergeSummaryText(mergeModEntries(entries), label), true);
+  } catch (e) { showModStatus("Pokédex import failed: " + e.message, false); }
 }
 
 /* ---------- element refs + wiring ---------- */
@@ -5692,6 +5718,8 @@ function grabEls() {
     modImportBtn: document.getElementById("mod-import-btn"),
     modImportFile: document.getElementById("mod-import-file"),
     modImportStatus: document.getElementById("mod-import-status"),
+    pokedexNbtBtn: document.getElementById("pokedex-nbt-btn"),
+    pokedexNbtFile: document.getElementById("pokedex-nbt-file"),
     modLinkBtn: document.getElementById("mod-link-btn"),
     modPullBtn: document.getElementById("mod-pull-btn"),
     modPushBtn: document.getElementById("mod-push-btn"),
@@ -6363,6 +6391,8 @@ function wire() {
   els.importFile.addEventListener("change", (e) => { if (e.target.files[0]) importData(e.target.files[0]); });
   if (els.modImportBtn) els.modImportBtn.addEventListener("click", () => els.modImportFile.click());
   if (els.modImportFile) els.modImportFile.addEventListener("change", (e) => { if (e.target.files[0]) { importModSync(e.target.files[0]); e.target.value = ""; } });
+  if (els.pokedexNbtBtn) els.pokedexNbtBtn.addEventListener("click", () => els.pokedexNbtFile.click());
+  if (els.pokedexNbtFile) els.pokedexNbtFile.addEventListener("change", (e) => { if (e.target.files[0]) { importPokedexNbt(e.target.files[0]); e.target.value = ""; } });
   if (els.modLinkBtn) els.modLinkBtn.addEventListener("click", generateLinkCode);
   if (els.modPullBtn) els.modPullBtn.addEventListener("click", () => pullModDex({ silent: false }));
   if (els.modPushBtn) els.modPushBtn.addEventListener("click", () => pushModDex({ silent: false }));

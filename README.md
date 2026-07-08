@@ -18,7 +18,7 @@ deploys straight to GitHub Pages. All progress is **manual** and stored in your 
 | **Hunt** | ✅ Phase 2 | Chain (Unchained), Breeding (Cobbreeding Masuda), and raw-encounter logger with editable mod odds. |
 | **Spawns** | ✅ Phase 3 | Forward (by Pokémon → biomes/rarity/time + best AFK spot) and reverse (by biome → species) lookup. Complements the in-game PokéNav. |
 | **Farm** | ✅ Phase 4 | Apricorn-farm sizing (apricorns & balls/hr, time-to-target) + encounter-farm time-to-shiny (50/90/99% counts and ETAs). Generic — no mod-specific recipes. |
-| **Data** | ✅ | Export / import / reset your progress, **optional** account sign-in for cloud sync, and **Minecraft mod sync** — import a **ShinyDex Link** mod export file, or link your server for **live** caught/✨shiny updates ([setup](SETUP-MOD-SYNC.md)). |
+| **Data** | ✅ | Export / import / reset your progress, **optional** account sign-in for cloud sync, and **Minecraft sync** — import Cobblemon's own **Pokédex `.nbt`** straight off the server (no mod needed), import a **ShinyDex Link** mod export file, or link your server for **live** caught/✨shiny updates ([setup](SETUP-MOD-SYNC.md)). |
 
 ## Accounts & cloud sync (optional)
 
@@ -120,6 +120,18 @@ and retire Pages.
   `spawn_pool_world`, so they're carried over by dex from the prior data (shown as a 🧩 *Quest summon* note).
   `scripts/build-spawns-wiki.js` (the older community-wiki parser) and `scripts/build-spawns.js` (raw
   `spawn_pool_world` parser) are kept for reference.
+- `js/pokedex-nbt.js` parses Cobblemon's per-player Pokédex save — `<world>/pokedex/<xx>/<player-uuid>.nbt`
+  (`xx` = the UUID's first two characters) — with a small dependency-free NBT reader, and flattens it into the
+  same entry shape the ShinyDex Link mod export uses, so **Data → Import Pokédex .nbt** rides the existing
+  upgrade-only merge. Two details it exists to get right:
+  1. A species' top-level `aspects` list is a **union across all its forms**, so it can't be trusted for
+     shininess or region. Galarian Meowth's record carries `shiny` because the *normal* Meowth is shiny;
+     Gimmighoul's carries it because the *roaming* one is. Everything is therefore read per-`formRecords`
+     entry — which is also what routes regional forms to the Variants tab and base forms to the national dex.
+  2. Cobblemon stores `knowledge` (`NONE`/`ENCOUNTERED`/`CAUGHT`) per form and, separately, which shiny states
+     were **seen**. It never records "the shiny was caught". So a species is only marked ✨ when the form is
+     `CAUGHT` *and* a shiny of it was seen (`shinyRequiresCaught`, on by default) — the merge is upgrade-only,
+     so a false ✨ couldn't be undone by re-importing.
 - `js/data/forms.json` is the Mega/Primal/GMax list from the **Mega Showdown** mod (hand-authored; verify
   against your installed version).
 - Sprites are loaded on demand from the public PokeAPI sprite repo and cached by the service worker.

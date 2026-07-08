@@ -758,7 +758,15 @@
         <div class="controls">
           <button id="mod-import-btn" class="ctrl-btn good">🔗 Import mod export</button>
           <input type="file" id="mod-import-file" accept="application/json,.json" hidden />
+          <button id="pokedex-nbt-btn" class="ctrl-btn good">📖 Import Pokédex .nbt</button>
+          <input type="file" id="pokedex-nbt-file" accept=".nbt,application/octet-stream" hidden />
         </div>
+        <p class="hint">No mod? Cobblemon already keeps a full Pokédex per player on the server, at
+          <code>&lt;world&gt;/pokedex/&lt;xx&gt;/&lt;player-uuid&gt;.nbt</code> (<code>xx</code> = the UUID's first two
+          characters). Grab that file and load it with <strong>Import Pokédex .nbt</strong> — same upgrade-only
+          merge, and regional forms (Galarian Meowth, Hisuian Sneasel…) land on the Variants tab. One caveat:
+          Cobblemon records <em>“a shiny of this form was seen”</em>, not <em>“the shiny was caught”</em> — so a
+          species is only marked ✨ when that form is caught <em>and</em> a shiny of it was seen.</p>
         <div id="mod-import-status" class="hint" hidden></div>
 
         <hr class="card-sep" />
@@ -887,6 +895,8 @@
   <datalist id="moves-list"></datalist>
   <datalist id="held-items-list"></datalist>
 
+  <!-- Cobblemon Pokédex .nbt reader. Plain script, no deps; must precede app.js. -->
+  <script src="js/pokedex-nbt.js"></script>
   <script src="js/app.js"></script>
   <!-- Optional cloud sync. ES module so it can import the Firebase SDK with no build
        step; stays dormant until js/firebase-config.js is filled in (see SETUP-CLOUD.md). -->

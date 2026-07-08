@@ -115,39 +115,66 @@ pairs** — the complete set of keys the parser can ever see. Sweeping all of th
 | Outcome | Count |
 |---|---|
 | → national-dex slot (base form, Mega/GMax/Primal/Eternamax, battle-only state) | 1163 |
-| → routed to a `variants.json` entry | 275 |
-| → **unroutable**, falls back to the base dex | 34 |
+| → routed to a `variants.json` entry | 309 |
+| → unroutable | **0** ✅ |
 
-The 34 are exactly the data gaps below — the parser is doing the right thing; `variants.json` just has
-no entry to route them to. Pikachu ×13, Mewtwo `shadow`/`armored`/`mega-sx`/`mega-sy`, Lugia `shadow`,
-Groudon `virus`, Lucario ×11 (9 costumes + 2 scarves), Riolu ×2 scarves, Floette `ange`,
-Bergmite `hisui-bias`.
-
-⚠ Until they're added, a **shiny Shadow Mewtwo marks base Mewtwo ✨** (upgrade-only merge, so it can't
-be undone by re-importing). Same for the other 33.
-
-Two real bugs surfaced by the sweep and fixed in passing — both also affected the **live mod sync**,
-not just `.nbt` import:
+Getting to zero took 32 new `variants.json` entries (§ below) plus three bug fixes. All three also
+affected the **live mod sync**, not just `.nbt` import:
 
 - **Unown `!` and `?` collided.** `norm("character-!")` and `norm("character-?")` both stripped to
   `"character"`, so `VARIANT_BY_DEXFORM["201|character"]` only ever held `!` — catching Unown `?` marked
   Unown `!`. `normSpeciesName()` now spells them `em`/`qm` (matching the sprite slugs) before stripping.
-  All 28 Unown are now reachable.
+  All 28 Unown are reachable again.
 - **Genesect's drives were unreachable.** Its dex forms are Fire/Ice/Water/Electric; the variants are
-  keyed `burn-drive`/`chill-drive`/`douse-drive`/`shock-drive`. Now aliased.
+  keyed `burn-drive`/`chill-drive`/`douse-drive`/`shock-drive`. Now aliased in the parser.
+- **Multi-aspect variants lost to less specific ones.** A Cobblemon catch carries every aspect at once
+  (`["paldean","aqua-breed","male",…]`), and `modEntryVariant()` returned the *first* token that hit —
+  so Paldean **Aqua** Tauros was recorded as Paldean **Combat**, and all three Tera Ogerpon collapsed
+  onto Cornerstone Tera. It now prefers the variant whose aspects are *all* present, most first. 4
+  variants were misrouted; now 0, with all 408 reachable by their own name/aspects.
 
-## Judgment calls worth a human decision
+### Behavior change worth knowing
 
-1. **Lucario Mega-`<costume>` ×9** — the DP defines nine `mega + <x>-costume` forms. These are just
-   Mega Lucario wearing a costume, not nine distinct Megas. Recommend: track the 9 costumes as
-   variants, and keep **one** Mega Lucario. (Excluded from the 42 above.)
-2. **Pikachu `cosmetic_item-*` caps** (Original/Hoenn/Sinnoh/Unova/Kalos/Alola/World) — driven by a
-   *held cosmetic item* (Rage Candy Bar, Lava Cookie…), not a persistent species form. Recommend
-   excluding; the Cosplay set (`cosplay`, `rock_star`, `pop_star`, `phd`, `libre`, `belle`) are real
-   aspects and should be variants. Note base Cobblemon's `Partner` (`partner-cap`) is already tracked,
-   and MSD re-adds a `Partner` under `cosmetic_item-pewter_crunchies`.
-3. **Mewtwo Mega-SX/SY/AX/AY** — Mega ∘ variant. `forms.json` is keyed by base dex, so it can't express
-   "Mega of the Shadow form" without a schema change.
+The site's rule is that a regional/cosmetic form updates **only** the Variants tab, never the base-dex
+slot (an Alolan Rattata doesn't fill Rattata's national-dex square). Now that Shadow/Armored Mewtwo are
+variants, a save that has *only* those two — as this one does — no longer marks **Mewtwo** caught on the
+national dex. That is the rule applied consistently, and the merge is upgrade-only, so it never *removes*
+a Mewtwo you already had. It just stops crediting one you don't.
+
+The upside is the bug it kills: a shiny Shadow Mewtwo used to mark **base Mewtwo ✨**, permanently
+(upgrade-only merge — re-importing couldn't undo it). It now marks Mewtwo-Shadow ✨.
+
+## The 32 variants added
+
+Every one is reachable both from a `.nbt` dex form key and from a mod-sync aspect list.
+
+| Group | Entries |
+|---|---|
+| `cosmetic` | **Pikachu ×13** — the Cosplay set (Cosplay/Rock-Star/Pop-Star/PhD/Libre/Belle) and the 7 travel caps. Showdown ships a normal *and* shiny sprite for all 13. |
+| `regional.hisuian` | **Bergmite** `region-bias-hisui` — plain base-Cobblemon omission. |
+| `cobbleverse` *(new group)* | **18**: Mewtwo Shadow + Armored, Lugia Shadow, Groudon Virus, Lucario ×9 costumes, Riolu + Lucario PMD/PSMD scarves, Floette Ange. |
+
+The `cobbleverse` group's art ships only in the **ATM x MSD resourcepack** — no public sprite host has
+it — so those entries carry no `slug`/`wikiFile` and `variantArt()` falls back to the base Pokémon's
+sprite. No broken images.
+
+PMD vs PSMD scarf was settled from the resourcepack's own resolver
+(`0447_riolu/1_riolu_scarf.json`): `cosmetic_item-red_scarf` / `-atmxmsd` → `riolupmd.png`,
+`cosmetic_item-green_scarf` / `-atmxmsd2` → `riolupsmd.png`. (Its *shiny* rows swap the two — an RP bug,
+cosmetic only.)
+
+Decisions taken along the way:
+
+1. **Pikachu's 7 `cosmetic_item-*` caps** are held-item driven, not persistent forms — but Cobblemon
+   *does* give each its own dex entry, so the Pokédex records them and leaving them out would mean 7
+   permanently unroutable keys. Included.
+2. **Lucario Mega-`<costume>` ×9** are just Mega Lucario in a costume, not nine Megas — and they have no
+   dex entry, so they never reach the Pokédex. The 9 costumes are variants; Mega Lucario stays one entry.
+3. **Mewtwo Mega-SX/SY/AX/AY** — Mega ∘ variant. `forms.json` is keyed by base dex and can't express
+   "Mega of the Shadow form", so the parser maps these dex keys onto the underlying **Shadow**/**Armored**
+   variant instead of inventing a Mega entry.
+4. **Zygarde `Core`** and the ZA Mega `MegaE`/`MegaD`/`MegaS`/`MegaO`/`MegaC` forms have no dex entry of
+   their own beyond the mega keys, which are aliased to their underlying variant.
 
 ## Reproducing
 

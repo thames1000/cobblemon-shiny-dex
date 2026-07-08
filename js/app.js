@@ -975,7 +975,8 @@ function allVariants() {
   if (!VARIANTS) return [];
   return [...VARIANTS.regional.alolan, ...VARIANTS.regional.galarian,
     ...VARIANTS.regional.hisuian, ...VARIANTS.regional.paldean,
-    ...VARIANTS.cosmetic, ...(VARIANTS.unown || []), ...(VARIANTS.cobblemon || [])];
+    ...VARIANTS.cosmetic, ...(VARIANTS.unown || []), ...(VARIANTS.cobblemon || []),
+    ...(VARIANTS.cobbleverse || [])];
 }
 // Variant art for a given shininess. Cobblemon-original variants use the wiki
 // render; regional/cosmetic use Showdown by slug; the base national-dex sprite
@@ -991,18 +992,20 @@ function variantArt(v, shiny) {
 }
 // Match a spawn entry's form (e.g. "Galarian", "Blue-Striped") to a tracked variant
 // so the card can show that variant's art. Keyed by dex + normalized aspect/name.
-let VARIANT_BY_DEXFORM = null, VARIANT_BY_ID = {};
+let VARIANT_BY_DEXFORM = null, VARIANT_BY_ID = {}, VARIANT_BY_DEX = {};
 function allVariantObjs() {
   if (!VARIANTS) return [];
-  return [...Object.values(VARIANTS.regional || {}).flat(), ...(VARIANTS.cosmetic || []), ...(VARIANTS.unown || []), ...(VARIANTS.cobblemon || [])];
+  return [...Object.values(VARIANTS.regional || {}).flat(), ...(VARIANTS.cosmetic || []), ...(VARIANTS.unown || []), ...(VARIANTS.cobblemon || []), ...(VARIANTS.cobbleverse || [])];
 }
 function buildVariantLookup() {
   VARIANT_BY_DEXFORM = {};
   VARIANT_BY_ID = {};
+  VARIANT_BY_DEX = {};
   if (!VARIANTS) return;
   for (const v of allVariantObjs()) VARIANT_BY_ID[v.id] = v;
   const norm = normSpeciesName; // shared: keeps Unown !/? distinct (see its comment)
   const add = (v) => {
+    (VARIANT_BY_DEX[v.dex] || (VARIANT_BY_DEX[v.dex] = [])).push(v);
     for (const t of new Set([norm(v.name), ...(v.aspects || []).map(norm)])) {
       const k = v.dex + "|" + t;
       if (t && !(k in VARIANT_BY_DEXFORM)) VARIANT_BY_DEXFORM[k] = v;
@@ -1012,6 +1015,7 @@ function buildVariantLookup() {
   (VARIANTS.cosmetic || []).forEach(add);
   (VARIANTS.unown || []).forEach(add);
   (VARIANTS.cobblemon || []).forEach(add);
+  (VARIANTS.cobbleverse || []).forEach(add);
 }
 function spawnVariant(dex, form) {
   if (!form || !VARIANT_BY_DEXFORM) return null;
@@ -1068,6 +1072,7 @@ function renderVariants() {
   renderVariantGrid("variants-grid-cosmetic", VARIANTS.cosmetic);
   renderVariantGrid("variants-grid-unown", VARIANTS.unown || []);
   renderVariantGrid("variants-grid-cobblemon", VARIANTS.cobblemon || []);
+  renderVariantGrid("variants-grid-cobbleverse", VARIANTS.cobbleverse || []);
   renderVariantsStats();
 }
 function renderVariantsStats() {
@@ -1079,6 +1084,7 @@ function renderVariantsStats() {
     ...VARIANTS.regional.hisuian, ...VARIANTS.regional.paldean];
   const regHave = regional.filter((v) => state.variants[v.id]).length;
   const cob = VARIANTS.cobblemon || [];
+  const cv = VARIANTS.cobbleverse || [];
   const unown = VARIANTS.unown || [];
   els.variantsStats.innerHTML =
     `<span class="stat"><b>${have}</b>/${all.length} caught (${pct}%)</span>` +
@@ -1087,7 +1093,8 @@ function renderVariantsStats() {
     `<span class="stat">Regional ${regHave}/${regional.length}</span>` +
     `<span class="stat">Cosmetic ${VARIANTS.cosmetic.filter((v) => state.variants[v.id]).length}/${VARIANTS.cosmetic.length}</span>` +
     `<span class="stat">Unown ${unown.filter((v) => state.variants[v.id]).length}/${unown.length}</span>` +
-    `<span class="stat">Cobblemon ${cob.filter((v) => state.variants[v.id]).length}/${cob.length}</span>`;
+    `<span class="stat">Cobblemon ${cob.filter((v) => state.variants[v.id]).length}/${cob.length}</span>` +
+    `<span class="stat">Cobbleverse ${cv.filter((v) => state.variants[v.id]).length}/${cv.length}</span>`;
 }
 
 /* ---------- legendary tab (shiny tracker + summon/reset calculator) ---------- */
@@ -5519,6 +5526,23 @@ function modEntryVariant(e, dex) {
   const tokens = [];
   if (Array.isArray(e.aspects)) tokens.push(...e.aspects);
   if (e.form) { tokens.push(e.form); tokens.push(String(e.form).split(" / ")[0]); }
+
+  // Most-specific match first: a Cobblemon catch carries every aspect at once
+  // (["paldean","aqua-breed","male",…]), so a variant matches when ALL of its aspects
+  // are present, and the one with the most aspects wins. Scanning tokens in order
+  // instead would let Tauros-paldean (Combat) beat Tauros-paldean-aqua-breed, and
+  // collapse all three Tera Ogerpon onto whichever shares "embody-aspect" first.
+  const have = new Set(tokens.map(normSpeciesName));
+  let best = null;
+  for (const v of VARIANT_BY_DEX[dex] || []) {
+    const asp = v.aspects || [];
+    if (!asp.length || (best && asp.length <= best.aspects.length)) continue;
+    if (asp.every((a) => have.has(normSpeciesName(a)))) best = v;
+  }
+  if (best) return best;
+
+  // Fallback: single-token lookup. Covers the .nbt importer (which passes one form
+  // token and no aspects) and the `cobblemon` group, whose entries carry no aspects.
   for (const t of tokens) {
     const v = VARIANT_BY_DEXFORM[dex + "|" + normSpeciesName(t)];
     if (v) return v;

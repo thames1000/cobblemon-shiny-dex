@@ -423,7 +423,8 @@
         <p class="hint" style="margin-top:0">Enter a fishable target — I'll search every biome it's caught in and every
           seasoning combo (up to 3) for the bait that lands a shiny in the fewest catches, balancing catch rate against
           the shiny reroll. Only the golden foods shift the bucket, so a rarer fish leans on those.</p>
-        <input list="species-list" id="bait-best-input" class="search" placeholder="Target Pokémon (name or #dex)…" style="width:100%" />
+        <input list="bait-search-list" id="bait-best-input" class="search" placeholder="Target Pokémon or variant (e.g. Saucy Blue Magikarp)…" style="width:100%" />
+        <datalist id="bait-search-list"></datalist>
         <div class="controls" style="margin-top:8px"><button id="bait-best-go" class="ctrl-btn good">Find best bait</button></div>
         <div id="bait-best-out" style="margin-top:12px"></div>
       </div>

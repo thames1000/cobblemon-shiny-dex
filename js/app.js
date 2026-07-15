@@ -4557,9 +4557,11 @@ let FISHING = null;        // js/data/fishing-pool.json — full fishing spawn p
 let BAITS_S = [];          // js/data/bait-seasonings.json — [{id,name,group,rarity?,shiny?,type?,eggGroups?,ev?,biteTime?,traits?}]
 let BAIT_BY_ID = {};
 let FISHING_DEX = {};      // dex -> [biome labels it's fished in] (for the optimiser)
+let FISHING_VAR = {};      // variantId -> [biome labels] (fishable variants, for the optimiser)
 let baitCalc = { biome: "ocean", scen: "surface", lure: 1, luck: 0 };
 let baitTarget = "any";
 let baitRanked = [];
+let baitVariantP = new Map();   // variantId -> per-hook catch chance in the current spot/bait
 
 const baitById = (id) => BAIT_BY_ID[id] || null;
 function selectedBaitSeasonings() {
@@ -4591,7 +4593,7 @@ function baitPool(biome, scen, lure) {
     if (e.ml && L < e.ml) continue;                        // Lure-gated spawn (minLureLevel)
     let w = e.w;
     if (e.lm) for (const [x, mn, mx] of e.lm) if (L >= mn && L <= mx) w *= x;
-    if (w > 0) out.push({ dex: e.d, r: e.r, w });
+    if (w > 0) out.push({ dex: e.d, r: e.r, w, v: e.v || null });
   }
   return out;
 }
@@ -4618,39 +4620,51 @@ function baitShinyProb(seasonings, rate = baitRateInput()) {
   return 1 - notShiny;
 }
 
-// Per-species catch probability for a spot + bait. Ranked [{dex, p, boosted}]; p is
-// the per-hook chance (bucket odds × within-bucket weight share).
+// Per-species catch probability for a spot + bait. Returns { ranked, variantP }:
+// ranked = [{dex, p, boosted, hasVar}] (p = per-hook chance = bucket odds × within-
+// bucket weight share); variantP = Map(variantId -> per-hook chance of that specific
+// variant, e.g. a single Magikarp Jump pattern), so variants are searchable too.
 function computeBaitCatches(biome, scen, lure, seasonings) {
   const pool = baitPool(biome, scen, lure);
-  if (!pool.length) return [];
+  if (!pool.length) return { ranked: [], variantP: new Map() };
   const tier = seasonings.reduce((a, s) => a + (s.rarity || 0), 0) + Number(baitCalc.luck);
   const odds = baitBucketOdds(tier);
   const evReqs = evRequirements(seasonings);
   const buckets = { common: [], uncommon: [], rare: [], "ultra-rare": [] };
-  const agg = new Map();                                    // "bucket:dex" -> summed weight
-  for (const { dex, r, w } of pool) {
+  const aggDex = new Map();                                 // "bucket:dex" -> summed weight
+  const aggVar = new Map();                                 // "bucket:variantId" -> summed weight
+  for (const { dex, r, w, v } of pool) {
     if (!buckets[r]) continue;
     if (!passesEvGate(DEX_BY_NUM[dex], evReqs)) continue;    // EV seasoning filters the pool
-    const k = r + ":" + dex;
-    const cur = agg.get(k) || { dex, r, w: 0 }; cur.w += w; agg.set(k, cur);
+    const kd = r + ":" + dex;
+    const cd = aggDex.get(kd) || { dex, r, w: 0 }; cd.w += w; aggDex.set(kd, cd);
+    if (v) { const kv = r + ":" + v; const cv = aggVar.get(kv) || { vid: v, dex, r, w: 0 }; cv.w += w; aggVar.set(kv, cv); }
   }
-  for (const { dex, r, w } of agg.values()) {
+  for (const { dex, r, w } of aggDex.values()) {
     const mult = baitMult(DEX_BY_NUM[dex], seasonings);
     const wm = w * mult;
     if (wm > 0) buckets[r].push({ dex, w: wm, boosted: mult > 1 || evReqs.length > 0 });
   }
   const present = BUCKETS.filter((b) => buckets[b].length);
+  const bucketTot = {};
+  for (const b of present) bucketTot[b] = buckets[b].reduce((a, x) => a + x.w, 0) || 1;
   const catches = {};
-  for (const b of present) {
-    const tot = buckets[b].reduce((a, x) => a + x.w, 0) || 1;
-    const bp = odds[b];
-    for (const x of buckets[b]) {
-      const cur = catches[x.dex] || (catches[x.dex] = { p: 0, boosted: false });
-      cur.p += bp * (x.w / tot);
-      if (x.boosted) cur.boosted = true;
-    }
+  for (const b of present) for (const x of buckets[b]) {
+    const cur = catches[x.dex] || (catches[x.dex] = { p: 0, boosted: false, hasVar: false });
+    cur.p += odds[b] * (x.w / bucketTot[b]);
+    if (x.boosted) cur.boosted = true;
   }
-  return Object.entries(catches).map(([dex, v]) => ({ dex: Number(dex), ...v })).sort((a, b) => b.p - a.p);
+  // A variant's share is a slice of its species' bucket weight (same type/egg mult).
+  const variantP = new Map();
+  for (const { vid, dex, r, w } of aggVar.values()) {
+    if (bucketTot[r] == null) continue;
+    const p = odds[r] * (w * baitMult(DEX_BY_NUM[dex], seasonings) / bucketTot[r]);
+    if (p <= 0) continue;
+    variantP.set(vid, (variantP.get(vid) || 0) + p);
+    if (catches[dex]) catches[dex].hasVar = true;
+  }
+  const ranked = Object.entries(catches).map(([dex, v]) => ({ dex: Number(dex), ...v })).sort((a, b) => b.p - a.p);
+  return { ranked, variantP };
 }
 
 function baitTotals(seasonings) {
@@ -4719,7 +4733,8 @@ function renderBaitResults(ranked, note = "") {
       <img loading="lazy" src="${spriteUrl(r.dex)}" alt="${sp ? sp.name : r.dex}" />
       <div class="snack-row-main">
         <div class="snack-row-name">${sp ? sp.name.replace(/-/g, " ") : "#" + r.dex} ${types}
-          ${r.boosted ? '<span class="snack-boost">▲ favoured</span>' : ""}</div>
+          ${r.boosted ? '<span class="snack-boost">▲ favoured</span>' : ""}
+          ${r.hasVar ? '<span class="bait-var-chip" title="Has fishable variants — search or target them below">🎨 variants</span>' : ""}</div>
         <div class="bar"><i style="width:${(r.p / max) * 100}%"></i></div>
       </div>
       <div class="snack-pct">${(r.p * 100).toFixed(1)}%</div>
@@ -4729,16 +4744,22 @@ function renderBaitResults(ranked, note = "") {
   box.innerHTML = `${note}<div class="card snack-list">${rows}</div>${more}`;
 }
 
-function populateBaitTargets(ranked) {
+function populateBaitTargets(ranked, variantP) {
   const sel = document.getElementById("bait-target");
   if (!sel) return;
   const prev = baitTarget;
-  sel.innerHTML = `<option value="any">Any species (any shiny)</option>` +
-    ranked.slice(0, 30).map((r) => {
-      const sp = DEX_BY_NUM[r.dex];
-      return `<option value="${r.dex}">${(sp ? sp.name.replace(/-/g, " ") : "#" + r.dex)} — ${(r.p * 100).toFixed(1)}%</option>`;
-    }).join("");
-  if (prev !== "any" && ranked.some((r) => String(r.dex) === String(prev))) sel.value = prev;
+  const spOpts = ranked.slice(0, 30).map((r) => {
+    const sp = DEX_BY_NUM[r.dex];
+    return `<option value="${r.dex}">${(sp ? sp.name.replace(/-/g, " ") : "#" + r.dex)} — ${(r.p * 100).toFixed(1)}%</option>`;
+  }).join("");
+  // Fishable variants (Magikarp Jump patterns, stripes, seas, Hisuian) as "v:<id>".
+  const vs = baitVariantOptions();
+  const pct = (p) => (p * 100 >= 0.1 ? (p * 100).toFixed(1) + "%" : (p * 100).toFixed(2) + "%");
+  const vOpts = vs.length
+    ? `<optgroup label="🎨 Variants">` + vs.map((v) => `<option value="v:${v.id}">${v.base} — ${v.name} — ${pct(v.p)}</option>`).join("") + `</optgroup>` : "";
+  sel.innerHTML = `<option value="any">Any species (any shiny)</option>` + spOpts + vOpts;
+  const ok = prev === "any" || (prev.startsWith("v:") ? variantP.has(prev.slice(2)) : ranked.some((r) => String(r.dex) === String(prev)));
+  if (ok && prev !== "any") sel.value = prev;
   else { baitTarget = "any"; sel.value = "any"; }
 }
 
@@ -4750,10 +4771,14 @@ function renderBaitShiny(seasonings) {
   const shiny = baitShinyProb(seasonings);                  // P(a hooked mon is shiny)
   if (!baitRanked.length) { out.innerHTML = `<span class="muted">Pick a spot with a fishing pool to estimate catches.</span>`; return; }
   let p = 1, label = "Any shiny (whole pool)";
-  if (baitTarget !== "any") {
+  if (baitTarget.startsWith("v:")) {                         // a specific variant
+    const v = VARIANT_BY_ID[baitTarget.slice(2)]; p = baitVariantP.get(baitTarget.slice(2)) || 0;
+    if (v) label = `${v.base} — ${v.name} · ${(p * 100).toFixed(p * 100 >= 0.1 ? 1 : 2)}% of catches`;
+  } else if (baitTarget !== "any") {
     const r = baitRanked.find((x) => String(x.dex) === String(baitTarget));
     if (r) { p = r.p; const sp = DEX_BY_NUM[r.dex]; label = `${sp ? sp.name.replace(/-/g, " ") : "#" + r.dex} · ${(p * 100).toFixed(1)}% of catches`; }
   }
+  if (p <= 0) { out.innerHTML = `<span class="muted">${label} — can't be hooked with this bait here.</span>`; return; }
   const perCatch = shiny * p;                                // P(a hook is a shiny of the target)
   const targetOdds = 1 / perCatch;
   const rows = [
@@ -4783,11 +4808,20 @@ function renderBait() {
     const has = Object.keys(FISHING.pools[baitCalc.biome] || {});
     if (has.length) { baitCalc.scen = has[0]; document.getElementById("bait-scen").value = has[0]; }
   }
-  baitRanked = computeBaitCatches(baitCalc.biome, baitCalc.scen, baitCalc.lure, seasonings);
+  const res = computeBaitCatches(baitCalc.biome, baitCalc.scen, baitCalc.lure, seasonings);
+  baitRanked = res.ranked;
+  baitVariantP = res.variantP;
   renderBaitSummary(seasonings);
   renderBaitResults(baitRanked);
-  populateBaitTargets(baitRanked);
+  populateBaitTargets(baitRanked, baitVariantP);
   renderBaitShiny(seasonings);
+}
+
+// A fishable variant present in the current spot's ranking, as {id, dex, name, base, p}.
+function baitVariantOptions() {
+  return [...baitVariantP.entries()]
+    .map(([id, p]) => { const v = VARIANT_BY_ID[id]; return v ? { id, dex: v.dex, name: v.name, base: v.base, p } : null; })
+    .filter(Boolean).sort((a, b) => b.p - a.p);
 }
 
 /* ---------- best bait optimiser ---------- */
@@ -4822,10 +4856,32 @@ function bestBaitFor(dex, allowRarity) {
   for (const biome of biomes) {
     for (const scen of Object.keys(FISHING.pools[biome] || {})) {
       for (const combo of combos) {
-        const r = computeBaitCatches(biome, scen, 3, combo).find((x) => x.dex === dex);   // Lure III = every spawn available
+        const r = computeBaitCatches(biome, scen, 3, combo).ranked.find((x) => x.dex === dex);   // Lure III = every spawn available
         if (!r || r.p <= 0) continue;
         const metric = 1 / (r.p * baitShinyProb(combo, rate));                            // ∝ catches-to-shiny
         if (!best || metric < best.metric) best = { biome, scen, combo, p: r.p, shiny: baitShinyProb(combo, rate), metric };
+      }
+    }
+  }
+  return best;
+}
+
+// Same search, but for a specific fishable variant (its per-hook chance from variantP).
+function bestBaitVariantFor(variantId, allowRarity) {
+  const v = VARIANT_BY_ID[variantId];
+  const biomes = FISHING_VAR[variantId] || [];
+  if (!v || !biomes.length) return null;
+  const sp = DEX_BY_NUM[v.dex] || { types: [], eggGroups: [], ev: [] };
+  const combos = multisetCombos(relevantBaitSeasonings(sp, allowRarity), 3);
+  const rate = baitRateInput();
+  let best = null;
+  for (const biome of biomes) {
+    for (const scen of Object.keys(FISHING.pools[biome] || {})) {
+      for (const combo of combos) {
+        const p = computeBaitCatches(biome, scen, 3, combo).variantP.get(variantId);
+        if (!p || p <= 0) continue;
+        const metric = 1 / (p * baitShinyProb(combo, rate));
+        if (!best || metric < best.metric) best = { biome, scen, combo, p, shiny: baitShinyProb(combo, rate), metric };
       }
     }
   }
@@ -4839,23 +4895,77 @@ function fmtBaitCombo(combo) {
   return Object.entries(c).map(([id, n]) => `${n > 1 ? n + "× " : ""}${BAIT_BY_ID[id].name}`).join(" + ");
 }
 
-function baitPlanCard(title, plan, sp) {
+function baitPlanCard(title, plan, dex) {
   if (!plan) return "";
   return `<div class="snack-plan">
     <h3>${title}</h3>
     <div class="plan-row"><span>Spot</span><b style="text-transform:capitalize">${plan.biome} · ${(FISHING.scenarios[plan.scen] || plan.scen)}</b></div>
     <div class="plan-row"><span>Bait</span><b>${fmtBaitCombo(plan.combo)}</b></div>
-    <div class="plan-row"><span>Catch rate</span><b>${(plan.p * 100).toFixed(1)}%</b> per hook</div>
+    <div class="plan-row"><span>Catch rate</span><b>${(plan.p * 100).toFixed(plan.p * 100 >= 0.1 ? 1 : 2)}%</b> per hook</div>
     <div class="plan-row"><span>Shiny odds</span><b>1/${Math.round(1 / plan.shiny).toLocaleString()}</b> per catch</div>
     <div class="plan-row"><span>Catches to shiny</span><b>~${Math.round(1 / (plan.p * plan.shiny)).toLocaleString()}</b> <span class="muted">(${Math.max(1, Math.ceil(1 / (plan.p * plan.shiny) / 4)).toLocaleString()} baits)</span></div>
-    <button class="ctrl-btn bait-apply" data-biome="${plan.biome}" data-scen="${plan.scen}" data-combo="${plan.combo.map((b) => b.id).join(",")}" data-dex="${sp.dex}">Load into builder</button>
+    <button class="ctrl-btn bait-apply" data-biome="${plan.biome}" data-scen="${plan.scen}" data-combo="${plan.combo.map((b) => b.id).join(",")}" data-dex="${dex}"${plan.variantId ? ` data-variant="${plan.variantId}"` : ""}>Load into builder</button>
   </div>`;
+}
+
+// Resolve a best-bait query to a fishable variant (preferred when it matches more than
+// just the species name) or a base species — so you can search "Saucy Blue Magikarp",
+// "Hisuian Oshawott", "Hisui Bias Oshawott", "Blue Striped Basculin", or "feebas".
+const BAIT_SYN = [["hisuian", "hisui"], ["galarian", "galar"], ["alolan", "alola"], ["paldean", "paldea"]];
+function baitNorm(s) {
+  let t = " " + String(s).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim() + " ";
+  for (const [a, b] of BAIT_SYN) t = t.replace(new RegExp(`\\b${a}\\b`, "g"), b);
+  return t.trim();
+}
+function resolveBaitQuery(raw) {
+  const q = String(raw || "").trim();
+  if (!q) return null;
+  const qWords = baitNorm(q).split(" ").filter(Boolean);
+  const sp = findSpecies(raw);
+  let vExact = null, vLoose = null;
+  for (const id in FISHING_VAR) {
+    const v = VARIANT_BY_ID[id]; if (!v) continue;
+    const text = baitNorm(`${v.base} ${v.name} ${(v.aspects || []).join(" ")}`);
+    const toks = new Set(text.split(" ").filter(Boolean));
+    if (qWords.every((w) => toks.has(w))) {
+      if (!vExact || `${v.base} ${v.name}`.length < `${vExact.base} ${vExact.name}`.length) vExact = v;
+    } else if (!vLoose && qWords.length >= 2 && qWords.every((w) => text.includes(w))) vLoose = v;
+  }
+  // A bare species name (one word that is a species) stays the species; a multi-word
+  // query that fully matches a variant's form words prefers the variant.
+  if (vExact && (!sp || qWords.length > 1)) return { variant: vExact };
+  if (sp) return { sp };
+  if (vLoose) return { variant: vLoose };
+  return null;
 }
 
 function renderBestBait(raw) {
   const out = document.getElementById("bait-best-out");
-  const sp = findSpecies(raw);
-  if (!sp) { out.innerHTML = `<p class="hint">No species matching "${raw}".</p>`; return; }
+  const hit = resolveBaitQuery(raw);
+  if (!hit) { out.innerHTML = `<p class="hint">No species or fishable variant matching "${raw}".</p>`; return; }
+
+  if (hit.variant) {
+    const v = hit.variant;
+    const budget = bestBaitVariantFor(v.id, false);
+    const premium = bestBaitVariantFor(v.id, true);
+    if (!budget) { out.innerHTML = `<p class="hint">${v.base} — ${v.name} can't be hooked with any bait in the pool.</p>`; return; }
+    const same = premium && fmtBaitCombo(budget.combo) === fmtBaitCombo(premium.combo) && budget.biome === premium.biome && budget.scen === premium.scen;
+    [budget, premium].forEach((p) => p && (p.variantId = v.id));
+    const art = (typeof variantArt === "function") ? variantArt(v, true) : { src: spriteUrl(v.dex, true), fb: spriteUrl(v.dex, true) };
+    out.innerHTML =
+      `<div class="find-row" style="border:0;padding:0 0 8px"><img src="${art.src}" onerror="this.src='${art.fb}'" alt=""/>
+         <span class="find-name">Best bait · ${v.base} — ${v.name} <span class="bait-var-chip">🎨 variant</span></span></div>` +
+      `<div class="snack-best-grid">` +
+        baitPlanCard("Budget · no golden foods", budget, v.dex) +
+        (same ? "" : baitPlanCard("Premium · golden foods allowed", premium, v.dex)) +
+      `</div>` +
+      (same ? `<p class="hint">Golden foods don't help this variant here — the bucket shift costs more catch-share than the shiny reroll gains.</p>` : "") +
+      `<p class="hint">Optimised for the fewest catches to a <em>shiny of this variant</em>, searching every biome it's fished in at Lure III.
+        Its share is a slice of ${v.base}'s bucket weight. Base shiny rate ${baitRateInput()} (edit in "Catches to a shiny").</p>`;
+    return;
+  }
+
+  const sp = hit.sp;
   if (!(FISHING_DEX[sp.dex] || []).length) {
     out.innerHTML = `<p class="hint">${sp.name.replace(/-/g, " ")} isn't in the COBBLEVERSE fishing pool, so no bait can hook it. (Try the PokéSnack tab for a land lure.)</p>`;
     return;
@@ -4867,21 +4977,21 @@ function renderBestBait(raw) {
     `<div class="find-row" style="border:0;padding:0 0 8px"><img src="${spriteUrl(sp.dex, true)}" alt=""/>
        <span class="find-name">Best bait · ${sp.name.replace(/-/g, " ")}</span></div>` +
     `<div class="snack-best-grid">` +
-      baitPlanCard("Budget · no golden foods", budget, sp) +
-      (same ? "" : baitPlanCard("Premium · golden foods allowed", premium, sp)) +
+      baitPlanCard("Budget · no golden foods", budget, sp.dex) +
+      (same ? "" : baitPlanCard("Premium · golden foods allowed", premium, sp.dex)) +
     `</div>` +
     (same ? `<p class="hint">Golden foods don't help ${sp.name.replace(/-/g, " ")} here — the bucket shift costs more catch-share than the shiny reroll gains.</p>` : "") +
     `<p class="hint">Optimised for the fewest catches to a <em>shiny of this species</em> (catch rate × shiny reroll), searching every
       biome it's fished in at Lure III. Base shiny rate ${baitRateInput()} (edit in "Catches to a shiny"). "Load into builder" fills the controls above.</p>`;
 }
 
-function applyBaitPlan(biome, scen, ids, dex) {
+function applyBaitPlan(biome, scen, ids, dex, variantId) {
   document.getElementById("bait-biome").value = biome;
   document.getElementById("bait-scen").value = scen;
   ["bait-s0", "bait-s1", "bait-s2"].forEach((s, i) => { document.getElementById(s).value = ids[i] || ""; });
-  baitTarget = String(dex);
+  baitTarget = variantId ? "v:" + variantId : String(dex);
   renderBait();
-  const tgt = document.getElementById("bait-target"); if (tgt) tgt.value = String(dex);
+  const tgt = document.getElementById("bait-target"); if (tgt) tgt.value = baitTarget;
   renderBaitShiny(selectedBaitSeasonings());
   document.getElementById("bait-biome").scrollIntoView({ behavior: "smooth", block: "center" });
 }
@@ -6869,7 +6979,7 @@ function wire() {
   const baitBestOut = document.getElementById("bait-best-out");
   if (baitBestOut) baitBestOut.addEventListener("click", (e) => {
     const btn = e.target.closest(".bait-apply"); if (!btn) return;
-    applyBaitPlan(btn.dataset.biome, btn.dataset.scen, btn.dataset.combo ? btn.dataset.combo.split(",") : [], Number(btn.dataset.dex));
+    applyBaitPlan(btn.dataset.biome, btn.dataset.scen, btn.dataset.combo ? btn.dataset.combo.split(",") : [], Number(btn.dataset.dex), btn.dataset.variant || null);
   });
   const baitResults = document.getElementById("bait-results");
   if (baitResults) baitResults.addEventListener("click", (e) => {
@@ -7108,12 +7218,13 @@ async function boot() {
   BAITS_S = baitSeasonings;
   BAIT_BY_ID = {};
   BAITS_S.forEach((b) => (BAIT_BY_ID[b.id] = b));
-  // Index which biomes each dex is fished in (any scenario) — for the best-bait optimiser.
-  FISHING_DEX = {};
+  // Index which biomes each dex / variant is fished in (any scenario) — for the optimiser.
+  FISHING_DEX = {}; FISHING_VAR = {};
   if (FISHING) for (const [biome, scens] of Object.entries(FISHING.pools)) {
-    const seen = new Set();
-    for (const rows of Object.values(scens)) for (const e of rows) seen.add(e.d);
-    for (const d of seen) (FISHING_DEX[d] || (FISHING_DEX[d] = [])).push(biome);
+    const seenD = new Set(), seenV = new Set();
+    for (const rows of Object.values(scens)) for (const e of rows) { seenD.add(e.d); if (e.v) seenV.add(e.v); }
+    for (const d of seenD) (FISHING_DEX[d] || (FISHING_DEX[d] = [])).push(biome);
+    for (const v of seenV) (FISHING_VAR[v] || (FISHING_VAR[v] = [])).push(biome);
   }
   BIOME_SPAWNS = biomeSpawns;
   SPECIES = sp;
@@ -7203,6 +7314,17 @@ async function boot() {
       BAITS_S.filter((b) => b.group === g).map((b) => { const tag = baitTag(b); return `<option value="${b.id}">${b.name}${tag ? ` — ${tag}` : ""}</option>`; }).join("") +
       `</optgroup>`).join("");
     ["bait-s0", "bait-s1", "bait-s2"].forEach((id) => { document.getElementById(id).innerHTML = baitOpts; });
+
+    // Best-bait search datalist: fishable species + fishable variants (so you can type
+    // "Saucy Blue Magikarp" or "Hisuian Oshawott").
+    const bsl = document.getElementById("bait-search-list");
+    if (bsl) {
+      const spOpts = SPECIES.filter((s) => (FISHING_DEX[s.dex] || []).length)
+        .map((s) => `<option value="${s.name}">#${String(s.dex).padStart(4, "0")} ${s.name}</option>`).join("");
+      const vOpts = Object.keys(FISHING_VAR).map((id) => VARIANT_BY_ID[id]).filter(Boolean).map((v) =>
+        `<option value="${`${v.base} ${v.name}`.replace(/"/g, "")}">🎨 ${v.base} · ${v.name}</option>`).join("");
+      bsl.innerHTML = spOpts + vOpts;
+    }
   }
 
   // Legendary calculator target dropdown — grouped by re-spawn tier.

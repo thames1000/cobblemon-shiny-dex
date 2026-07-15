@@ -28,6 +28,8 @@ const path = require("path");
 const POOLDIR = process.argv[2] || "/home/user/TempCheck/COBBLEVERSE-DP-v29-Apex/data/cobblemon/spawn_pool_world";
 const ROOT = path.join(__dirname, "..");
 const BIOMES = path.join(ROOT, "js", "data", "biome-spawns.json");
+const VARIANTS = path.join(ROOT, "js", "data", "variants.json");
+const KARP = path.join(ROOT, "js", "data", "karp-patterns.json");
 const OUT = process.argv[3] || path.join(ROOT, "js", "data", "fishing-pool.json");
 
 // Verified against config/cobblemon/spawning/best-spawner-config.json in the pack.
@@ -66,8 +68,45 @@ function multipliers(s) {
   });
 }
 
+// Resolve a fishing spawn's `pokemon=aspect` into the app's variant id, so the
+// Poké Bait tab can rank / search variant catches (Magikarp Jump patterns,
+// Basculin stripes, Shellos/Gastrodon seas, Hisuian region-bias fish). Magikarp
+// patterns come straight from karp-patterns.json (which already dealiases the
+// blue-saucy↔saucy-blue naming); everything else matches the variant's own aspect
+// tokens / name for that dex.
+function makeVariantResolver() {
+  let V, K;
+  try { V = JSON.parse(fs.readFileSync(VARIANTS, "utf8")); } catch { V = null; }
+  try { K = JSON.parse(fs.readFileSync(KARP, "utf8")); } catch { K = null; }
+  const allV = V ? [...Object.values(V.regional || {}).flat(), ...(V.cosmetic || []), ...(V.unown || []), ...(V.cobblemon || []), ...(V.cobbleverse || [])] : [];
+  const byDex = {};
+  for (const v of allV) (byDex[v.dex] || (byDex[v.dex] = [])).push(v);
+  const karpByAspect = {};
+  if (K) for (const p of K.patterns || []) karpByAspect[p.aspect] = p.magikarp;
+  const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
+  return (dex, aspect) => {
+    if (!aspect) return null;
+    const eq = aspect.indexOf("=");
+    const key = eq < 0 ? "" : aspect.slice(0, eq);
+    const val = eq < 0 ? aspect : aspect.slice(eq + 1);
+    if (key === "magikarp_jump") return karpByAspect[val] || null;
+    const cands = [val, key + "-" + val, val + "-" + key];
+    if (key === "striped") cands.push(val + "striped");
+    else if (key === "sea") cands.push(val + "-sea");
+    else if (key === "region_bias") cands.push(val === "hisui" ? "hisuian" : val);
+    const cset = new Set(cands.map(norm));
+    for (const v of byDex[dex] || []) {
+      const toks = [v.name, ...(v.aspects || [])].map(norm);
+      if (toks.some((t) => cset.has(t))) return v.id;
+    }
+    return null;
+  };
+}
+
 function main() {
   const B = JSON.parse(fs.readFileSync(BIOMES, "utf8"));
+  const variantOf = makeVariantResolver();
+  const unresolved = new Set();
   const overworld = Object.keys(B)
     .filter((id) => id.startsWith("minecraft:") && B[id].includes("any overworld"))
     .sort();
@@ -124,7 +163,11 @@ function main() {
         const lm = lureMults(s);
         if (lm.length) e.lm = lm;                             // [x, minLure, maxLure]
         const a = aspectOf(s.pokemon || "");
-        if (a) e.a = a;
+        if (a) {
+          e.a = a;
+          const vid = variantOf(s.__dex, a);
+          if (vid) e.v = vid; else unresolved.add(s.__dex + " " + a);
+        }
         return e;
       }).filter((e) => e.w > 0);
       if (entries.length) { byScen[scName] = entries; rowCount += entries.length; }
@@ -137,7 +180,8 @@ function main() {
       "Full COBBLEVERSE-DP-v29 fishing spawn pool for the Poké Bait tab. `pools[biome][scenario]` lists every " +
       "fishable spawn row: d=dex, r=bucket, w=biome-resolved base weight, ml=minLureLevel gate (omitted when 0), " +
       "lm=[x,minLure,maxLure] Lure-conditioned weight multipliers (applied at runtime for the chosen Lure), " +
-      "a=aspect. Scenarios are sky-light bands (surface/covered/deep). Base bucket weights are the server's " +
+      "a=aspect, v=resolved variant id (VARIANT_BY_ID — Magikarp Jump patterns, Basculin stripes, seas, Hisuian). " +
+      "Scenarios are sky-light bands (surface/covered/deep). Base bucket weights are the server's " +
       "Rarity Overhaul (88.5/10/1.2/0.3). Fishing applies ONE BucketNormalizingInfluence(tier=Σ bait rarity_bucket " +
       "+ Luck of the Sea, gradient 0.2, firstTier 1.29) — NO BucketMultiplying (that's Poké Snack only). Spawns " +
       "gated on structure / bobber / rodType / a specific bait are excluded. Decompiled from " +
@@ -150,5 +194,6 @@ function main() {
   fs.writeFileSync(OUT, JSON.stringify(out));
   const kb = (fs.statSync(OUT).size / 1024).toFixed(0);
   console.log(`${Object.keys(pools).length} biomes · ${rowCount} pool rows · ${excluded} excluded (structure/bobber/rod/bait-gated) -> ${OUT} (${kb} KB)`);
+  if (unresolved.size) console.log(`  aspects with no variant match (left as base species): ${[...unresolved].join(", ")}`);
 }
 main();

@@ -446,6 +446,8 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .bait-buckets td { font-weight: 700; }
 .bait-up { color: #4ade80; font-size: .72rem; }
 .bait-dn { color: #f87171; font-size: .72rem; }
+.bait-var-chip { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent);
+  border-radius: 6px; padding: 0 6px; font-size: .66rem; font-weight: 700; white-space: nowrap; }
 .snack-plan { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
 .snack-plan h3 { margin: 0 0 8px; font-size: .95rem; color: var(--accent); }
 .plan-row { display: flex; justify-content: space-between; gap: 10px; align-items: baseline;

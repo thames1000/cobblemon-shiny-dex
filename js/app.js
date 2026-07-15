@@ -236,7 +236,7 @@ function applyRemoteState(json) {
 }
 function renderAll() {
   renderDex(); renderForms(); renderVariants(); renderLegendary(); renderBerries(); renderParty();
-  fillConfigInputs(); renderHunt(); renderBoxes(); renderSnack();
+  fillConfigInputs(); renderHunt(); renderBoxes(); renderSnack(); renderBait();
   renderDashboard(); renderStats(); renderLog();
 }
 
@@ -4542,6 +4542,350 @@ function applySnackPlan(biome, ids, dex) {
   els.snackBiome.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
+/* ---------- pokébait tab ---------- */
+/* A Poké Bait is cooked like a Poké Snack (base recipe + up to 3 seasonings) but is
+ * attached to a Poké Rod and biases what you FISH UP. Decompiled from Cobblemon
+ * 1.7.3 (PokeRodFishingBobberEntity.planSpawn, SpawnBaitInfluence — see the
+ * fishing-bait-bucket-math memory): the bobber sums every seasoning's `rarity_bucket`
+ * value into a tier, adds Luck of the Sea, and applies ONE BucketNormalizingInfluence
+ * (gradient 0.2, firstTier 1.29) to the base bucket weights — NO BucketMultiplying
+ * (that's Poké Snack only). Type/egg seasonings ×10 a matching species WITHIN its
+ * bucket; EV seasonings hard-filter the pool; shiny_reroll seasonings each add an
+ * independent reroll. Lure ENCHANT level isn't in the tier — it only gates a few
+ * spawns and scales Lure-conditioned weights (both handled in fishing-pool.json). */
+let FISHING = null;        // js/data/fishing-pool.json — full fishing spawn pool
+let BAITS_S = [];          // js/data/bait-seasonings.json — [{id,name,group,rarity?,shiny?,type?,eggGroups?,ev?,biteTime?,traits?}]
+let BAIT_BY_ID = {};
+let FISHING_DEX = {};      // dex -> [biome labels it's fished in] (for the optimiser)
+let baitCalc = { biome: "ocean", scen: "surface", lure: 1, luck: 0 };
+let baitTarget = "any";
+let baitRanked = [];
+
+const baitById = (id) => BAIT_BY_ID[id] || null;
+function selectedBaitSeasonings() {
+  return ["bait-s0", "bait-s1", "bait-s2"]
+    .map((id) => (document.getElementById(id) || {}).value)
+    .filter(Boolean).map(baitById).filter(Boolean);
+}
+
+// Fishing bucket odds after the bobber's BucketNormalizingInfluence: tier = Σ bait
+// rarity_bucket + Luck of the Sea. Fishing applies ONLY the normalize (no multiply).
+function baitBucketOdds(tier) {
+  const w = {};
+  for (const b of BUCKETS) w[b] = FISHING.buckets[b];
+  const t = Math.max(0, Math.round(tier));
+  if (t > 0) { const d = FISHING.normalize.firstTier + FISHING.normalize.gradient * (t - 1); for (const b of BUCKETS) w[b] = Math.pow(w[b], 1 / d); }
+  const sum = BUCKETS.reduce((a, b) => a + w[b], 0) || 1;
+  const out = {};
+  for (const b of BUCKETS) out[b] = w[b] / sum;
+  return out;
+}
+
+// The fishing spawn rows for a spot, with Lure-level gating + Lure-conditioned weight
+// multipliers resolved (both baked into fishing-pool.json as ml / lm).
+function baitPool(biome, scen, lure) {
+  const rows = (FISHING.pools[biome] || {})[scen] || [];
+  const L = Number(lure);
+  const out = [];
+  for (const e of rows) {
+    if (e.ml && L < e.ml) continue;                        // Lure-gated spawn (minLureLevel)
+    let w = e.w;
+    if (e.lm) for (const [x, mn, mx] of e.lm) if (L >= mn && L <= mx) w *= x;
+    if (w > 0) out.push({ dex: e.d, r: e.r, w });
+  }
+  return out;
+}
+
+// Type/egg-group seasonings ×10 a matching species within its bucket (Cobblemon's
+// SpawnBaitInfluence.affectWeight applies one type group and one egg group). EV
+// seasonings aren't a multiplier — they hard-filter the pool (reused snack gate).
+function baitMult(sp, seasonings) {
+  if (!sp) return 1;
+  let m = 1;
+  const typeS = seasonings.find((s) => s.type);
+  if (typeS && sp.types.includes(typeS.type)) m *= 10;
+  const eggS = seasonings.find((s) => s.eggGroups && sp.eggGroups && s.eggGroups.some((g) => sp.eggGroups.includes(g)));
+  if (eggS) m *= 10;
+  return m;
+}
+
+const baitRateInput = () => Number((document.getElementById("bait-base-rate") || {}).value) || (state.config && state.config.baseShinyRate) || 8192;
+// Base roll + one independent reroll per shiny_reroll seasoning (affectSpawn applies
+// each raw effect): P(shiny) = 1 − (1−1/rate)·Π(1 − (value+1)/(rate+1)).
+function baitShinyProb(seasonings, rate = baitRateInput()) {
+  let notShiny = 1 - 1 / rate;
+  for (const s of seasonings) if (s.shiny) notShiny *= 1 - (s.shiny + 1) / (rate + 1);
+  return 1 - notShiny;
+}
+
+// Per-species catch probability for a spot + bait. Ranked [{dex, p, boosted}]; p is
+// the per-hook chance (bucket odds × within-bucket weight share).
+function computeBaitCatches(biome, scen, lure, seasonings) {
+  const pool = baitPool(biome, scen, lure);
+  if (!pool.length) return [];
+  const tier = seasonings.reduce((a, s) => a + (s.rarity || 0), 0) + Number(baitCalc.luck);
+  const odds = baitBucketOdds(tier);
+  const evReqs = evRequirements(seasonings);
+  const buckets = { common: [], uncommon: [], rare: [], "ultra-rare": [] };
+  const agg = new Map();                                    // "bucket:dex" -> summed weight
+  for (const { dex, r, w } of pool) {
+    if (!buckets[r]) continue;
+    if (!passesEvGate(DEX_BY_NUM[dex], evReqs)) continue;    // EV seasoning filters the pool
+    const k = r + ":" + dex;
+    const cur = agg.get(k) || { dex, r, w: 0 }; cur.w += w; agg.set(k, cur);
+  }
+  for (const { dex, r, w } of agg.values()) {
+    const mult = baitMult(DEX_BY_NUM[dex], seasonings);
+    const wm = w * mult;
+    if (wm > 0) buckets[r].push({ dex, w: wm, boosted: mult > 1 || evReqs.length > 0 });
+  }
+  const present = BUCKETS.filter((b) => buckets[b].length);
+  const catches = {};
+  for (const b of present) {
+    const tot = buckets[b].reduce((a, x) => a + x.w, 0) || 1;
+    const bp = odds[b];
+    for (const x of buckets[b]) {
+      const cur = catches[x.dex] || (catches[x.dex] = { p: 0, boosted: false });
+      cur.p += bp * (x.w / tot);
+      if (x.boosted) cur.boosted = true;
+    }
+  }
+  return Object.entries(catches).map(([dex, v]) => ({ dex: Number(dex), ...v })).sort((a, b) => b.p - a.p);
+}
+
+function baitTotals(seasonings) {
+  let tier = 0, biteKeep = 1;
+  const traits = [];
+  for (const s of seasonings) { tier += s.rarity || 0; if (s.biteTime) biteKeep *= 1 - s.biteTime; if (s.traits) traits.push(...s.traits); }
+  return { tier, biteReduction: Math.round((1 - biteKeep) * 100), traits: [...new Set(traits)] };
+}
+
+function renderBaitSummary(seasonings) {
+  const wrap = document.getElementById("bait-summary");
+  if (!wrap) return;
+  const tier = seasonings.reduce((a, s) => a + (s.rarity || 0), 0) + Number(baitCalc.luck);
+  const odds = baitBucketOdds(tier);
+  const base = baitBucketOdds(0);
+  const t = baitTotals(seasonings);
+  const shiny = baitShinyProb(seasonings);
+
+  // Bucket-odds readout — the headline: how the golden foods (and Luck) reshape which
+  // bucket you hook. Uncommon is where every Magikarp Jump pattern lives.
+  const bucketRow = BUCKETS.map((b) => {
+    const now = odds[b] * 100, was = base[b] * 100;
+    const up = now > was + 0.05, dn = now < was - 0.05;
+    const arrow = up ? ' <span class="bait-up">▲</span>' : dn ? ' <span class="bait-dn">▼</span>' : "";
+    return `<td>${now.toFixed(now < 1 ? 2 : 1)}%${arrow}</td>`;
+  }).join("");
+
+  const head = [];
+  if (t.tier > 0) head.push(`<span class="snack-stat">Bucket tier <b>${t.tier}</b> ${Number(baitCalc.luck) ? `(rarity ${t.tier - Number(baitCalc.luck)} + luck ${baitCalc.luck})` : ""}</span>`);
+  const types = [...new Set(seasonings.filter((s) => s.type).map((s) => s.type))];
+  const eggs = [...new Set(seasonings.flatMap((s) => s.eggGroups || []))];
+  const evs = [...new Set(seasonings.filter((s) => s.ev).map((s) => s.ev))];
+  if (shiny > 1 / baitRateInput() + 1e-9) head.push(`<span class="snack-stat">✨ shiny <b>1/${Math.round(1 / shiny).toLocaleString()}</b> per catch</span>`);
+  if (types.length) head.push(`<span class="snack-stat">Type bias ${types.map(typeChip).join(" ")}</span>`);
+  if (eggs.length) head.push(`<span class="snack-stat">Egg group ${eggs.map(typeChip).join(" ")}</span>`);
+  if (evs.length) head.push(`<span class="snack-stat">Only EV yield ${evs.map(typeChip).join(" ")}</span>`);
+  if (t.biteReduction > 0) head.push(`<span class="snack-stat">Bite time <b>−${t.biteReduction}%</b></span>`);
+
+  const chips = seasonings.length
+    ? seasonings.map((s) => `<div class="snack-chip"><b>${s.name}</b><span class="muted">${s.effect}</span></div>`).join("")
+    : `<span class="muted">No seasonings — a plain Poké Bait (or bare rod) fishes the natural pool.</span>`;
+  const traitNote = t.traits.length
+    ? `<p class="hint" style="margin-bottom:0">Post-catch traits (don't change which species bite): ${t.traits.join(", ")}.</p>` : "";
+
+  wrap.innerHTML =
+    `<h2>This bait fishes up</h2>` +
+    `<table class="karp-table bait-buckets"><thead><tr><th></th>` +
+      BUCKETS.map((b) => `<th>${b}</th>`).join("") + `</tr></thead>` +
+      `<tbody><tr><td class="muted">per hook</td>${bucketRow}</tr></tbody></table>` +
+    `<p class="hint" style="margin:6px 0 10px">Uncommon holds every <b>Magikarp Jump</b> pattern — rarity seasonings (Enchanted Golden
+      Apple +10, Golden Apple/Melon/Carrot +1) and Luck of the Sea are the <em>only</em> things that lift it. ${t.tier > 0 ? `Tier <b>${t.tier}</b> → uncommon <b>${(odds.uncommon * 100).toFixed(1)}%</b> (was ${(base.uncommon * 100).toFixed(1)}%).` : "Add a golden food to shift it."}</p>` +
+    (head.length ? `<div class="snack-head">${head.join("")}</div>` : "") +
+    `<div class="snack-chips">${chips}</div>${traitNote}`;
+}
+
+function renderBaitResults(ranked, note = "") {
+  const box = document.getElementById("bait-results");
+  if (!box) return;
+  if (!ranked.length) { box.innerHTML = `<div class="card"><p class="hint">${note || "No fishing pool for this spot — pick another biome or scenario."}</p></div>`; return; }
+  const max = ranked[0].p || 1;
+  const top = ranked.slice(0, 30);
+  const rows = top.map((r) => {
+    const sp = DEX_BY_NUM[r.dex];
+    const types = sp ? sp.types.map(typeChip).join(" ") : "";
+    return `<div class="snack-row" data-dex="${r.dex}">
+      <img loading="lazy" src="${spriteUrl(r.dex)}" alt="${sp ? sp.name : r.dex}" />
+      <div class="snack-row-main">
+        <div class="snack-row-name">${sp ? sp.name.replace(/-/g, " ") : "#" + r.dex} ${types}
+          ${r.boosted ? '<span class="snack-boost">▲ favoured</span>' : ""}</div>
+        <div class="bar"><i style="width:${(r.p / max) * 100}%"></i></div>
+      </div>
+      <div class="snack-pct">${(r.p * 100).toFixed(1)}%</div>
+    </div>`;
+  }).join("");
+  const more = ranked.length > top.length ? `<p class="hint">…and ${ranked.length - top.length} more rarer catches.</p>` : "";
+  box.innerHTML = `${note}<div class="card snack-list">${rows}</div>${more}`;
+}
+
+function populateBaitTargets(ranked) {
+  const sel = document.getElementById("bait-target");
+  if (!sel) return;
+  const prev = baitTarget;
+  sel.innerHTML = `<option value="any">Any species (any shiny)</option>` +
+    ranked.slice(0, 30).map((r) => {
+      const sp = DEX_BY_NUM[r.dex];
+      return `<option value="${r.dex}">${(sp ? sp.name.replace(/-/g, " ") : "#" + r.dex)} — ${(r.p * 100).toFixed(1)}%</option>`;
+    }).join("");
+  if (prev !== "any" && ranked.some((r) => String(r.dex) === String(prev))) sel.value = prev;
+  else { baitTarget = "any"; sel.value = "any"; }
+}
+
+function renderBaitShiny(seasonings) {
+  const out = document.getElementById("bait-shiny-out");
+  if (!out) return;
+  const rateEl = document.getElementById("bait-base-rate");
+  if (rateEl && !rateEl.value) rateEl.value = (state.config && state.config.baseShinyRate) || 8192;
+  const shiny = baitShinyProb(seasonings);                  // P(a hooked mon is shiny)
+  if (!baitRanked.length) { out.innerHTML = `<span class="muted">Pick a spot with a fishing pool to estimate catches.</span>`; return; }
+  let p = 1, label = "Any shiny (whole pool)";
+  if (baitTarget !== "any") {
+    const r = baitRanked.find((x) => String(x.dex) === String(baitTarget));
+    if (r) { p = r.p; const sp = DEX_BY_NUM[r.dex]; label = `${sp ? sp.name.replace(/-/g, " ") : "#" + r.dex} · ${(p * 100).toFixed(1)}% of catches`; }
+  }
+  const perCatch = shiny * p;                                // P(a hook is a shiny of the target)
+  const targetOdds = 1 / perCatch;
+  const rows = [
+    ["Expected (avg)", Math.round(targetOdds)],
+    ["50% chance", encountersForProb(0.5, targetOdds)],
+    ["90% chance", encountersForProb(0.9, targetOdds)],
+    ["99% chance", encountersForProb(0.99, targetOdds)],
+  ];
+  out.innerHTML =
+    `Shiny odds <b>1/${Math.round(1 / shiny).toLocaleString()}</b> per catch` +
+    (shiny > 1 / baitRateInput() + 1e-9 ? ` <span class="muted">(base + reroll)</span>` : "") + `<br>` +
+    `<span class="muted">Target: ${label} → 1 shiny per <b>${Math.round(targetOdds).toLocaleString()}</b> catches</span>` +
+    `<table class="farm-tbl" style="margin-top:10px"><tr><th></th><th>Catches</th><th>Baits (÷4)</th></tr>` +
+    rows.map(([l, n]) => `<tr><td>${l}</td><td><b>${n.toLocaleString()}</b></td><td>${Math.max(1, Math.ceil(n / 4)).toLocaleString()}</td></tr>`).join("") +
+    `</table>`;
+}
+
+function renderBait() {
+  if (!FISHING || !document.getElementById("bait-biome")) return;
+  baitCalc.biome = document.getElementById("bait-biome").value || baitCalc.biome;
+  baitCalc.scen = document.getElementById("bait-scen").value || baitCalc.scen;
+  baitCalc.lure = document.getElementById("bait-lure").value;
+  baitCalc.luck = document.getElementById("bait-luck").value;
+  const seasonings = selectedBaitSeasonings();
+  // A scenario with no pool for this biome falls back to any present one.
+  if (!(FISHING.pools[baitCalc.biome] || {})[baitCalc.scen]) {
+    const has = Object.keys(FISHING.pools[baitCalc.biome] || {});
+    if (has.length) { baitCalc.scen = has[0]; document.getElementById("bait-scen").value = has[0]; }
+  }
+  baitRanked = computeBaitCatches(baitCalc.biome, baitCalc.scen, baitCalc.lure, seasonings);
+  renderBaitSummary(seasonings);
+  renderBaitResults(baitRanked);
+  populateBaitTargets(baitRanked);
+  renderBaitShiny(seasonings);
+}
+
+/* ---------- best bait optimiser ---------- */
+// Seasonings that can improve a target's catch: matching type/egg/EV berries, the
+// shiny-reroll berries, and (optionally) the rarity golden foods. Interchangeable
+// boosters are collapsed so the combo search stays small.
+function relevantBaitSeasonings(sp, allowRarity) {
+  const out = [], seen = new Set();
+  for (const b of BAITS_S) {
+    let keep = false;
+    if (b.type) keep = sp.types.includes(b.type);
+    else if (b.eggGroups) keep = !!(sp.eggGroups && b.eggGroups.some((g) => sp.eggGroups.includes(g)));
+    else if (b.ev) keep = !!(sp.ev && sp.ev.includes(b.ev));
+    else if (b.rarity) keep = allowRarity;
+    else if (b.shiny) keep = true;
+    if (!keep) continue;
+    const sig = b.type || (b.eggGroups && b.eggGroups.join("/")) || b.ev || `boost:${b.rarity || 0}:${b.shiny || 0}`;
+    if (seen.has(sig)) continue;
+    seen.add(sig); out.push(b);
+  }
+  return out;
+}
+
+function bestBaitFor(dex, allowRarity) {
+  const sp = DEX_BY_NUM[dex];
+  if (!sp) return null;
+  const biomes = FISHING_DEX[dex] || [];
+  if (!biomes.length) return null;
+  const combos = multisetCombos(relevantBaitSeasonings(sp, allowRarity), 3);
+  const rate = baitRateInput();
+  let best = null;
+  for (const biome of biomes) {
+    for (const scen of Object.keys(FISHING.pools[biome] || {})) {
+      for (const combo of combos) {
+        const r = computeBaitCatches(biome, scen, 3, combo).find((x) => x.dex === dex);   // Lure III = every spawn available
+        if (!r || r.p <= 0) continue;
+        const metric = 1 / (r.p * baitShinyProb(combo, rate));                            // ∝ catches-to-shiny
+        if (!best || metric < best.metric) best = { biome, scen, combo, p: r.p, shiny: baitShinyProb(combo, rate), metric };
+      }
+    }
+  }
+  return best;
+}
+
+function fmtBaitCombo(combo) {
+  if (!combo.length) return "no seasonings (plain bait)";
+  const c = {};
+  combo.forEach((b) => (c[b.id] = (c[b.id] || 0) + 1));
+  return Object.entries(c).map(([id, n]) => `${n > 1 ? n + "× " : ""}${BAIT_BY_ID[id].name}`).join(" + ");
+}
+
+function baitPlanCard(title, plan, sp) {
+  if (!plan) return "";
+  return `<div class="snack-plan">
+    <h3>${title}</h3>
+    <div class="plan-row"><span>Spot</span><b style="text-transform:capitalize">${plan.biome} · ${(FISHING.scenarios[plan.scen] || plan.scen)}</b></div>
+    <div class="plan-row"><span>Bait</span><b>${fmtBaitCombo(plan.combo)}</b></div>
+    <div class="plan-row"><span>Catch rate</span><b>${(plan.p * 100).toFixed(1)}%</b> per hook</div>
+    <div class="plan-row"><span>Shiny odds</span><b>1/${Math.round(1 / plan.shiny).toLocaleString()}</b> per catch</div>
+    <div class="plan-row"><span>Catches to shiny</span><b>~${Math.round(1 / (plan.p * plan.shiny)).toLocaleString()}</b> <span class="muted">(${Math.max(1, Math.ceil(1 / (plan.p * plan.shiny) / 4)).toLocaleString()} baits)</span></div>
+    <button class="ctrl-btn bait-apply" data-biome="${plan.biome}" data-scen="${plan.scen}" data-combo="${plan.combo.map((b) => b.id).join(",")}" data-dex="${sp.dex}">Load into builder</button>
+  </div>`;
+}
+
+function renderBestBait(raw) {
+  const out = document.getElementById("bait-best-out");
+  const sp = findSpecies(raw);
+  if (!sp) { out.innerHTML = `<p class="hint">No species matching "${raw}".</p>`; return; }
+  if (!(FISHING_DEX[sp.dex] || []).length) {
+    out.innerHTML = `<p class="hint">${sp.name.replace(/-/g, " ")} isn't in the COBBLEVERSE fishing pool, so no bait can hook it. (Try the PokéSnack tab for a land lure.)</p>`;
+    return;
+  }
+  const budget = bestBaitFor(sp.dex, false);
+  const premium = bestBaitFor(sp.dex, true);
+  const same = budget && premium && fmtBaitCombo(budget.combo) === fmtBaitCombo(premium.combo) && budget.biome === premium.biome && budget.scen === premium.scen;
+  out.innerHTML =
+    `<div class="find-row" style="border:0;padding:0 0 8px"><img src="${spriteUrl(sp.dex, true)}" alt=""/>
+       <span class="find-name">Best bait · ${sp.name.replace(/-/g, " ")}</span></div>` +
+    `<div class="snack-best-grid">` +
+      baitPlanCard("Budget · no golden foods", budget, sp) +
+      (same ? "" : baitPlanCard("Premium · golden foods allowed", premium, sp)) +
+    `</div>` +
+    (same ? `<p class="hint">Golden foods don't help ${sp.name.replace(/-/g, " ")} here — the bucket shift costs more catch-share than the shiny reroll gains.</p>` : "") +
+    `<p class="hint">Optimised for the fewest catches to a <em>shiny of this species</em> (catch rate × shiny reroll), searching every
+      biome it's fished in at Lure III. Base shiny rate ${baitRateInput()} (edit in "Catches to a shiny"). "Load into builder" fills the controls above.</p>`;
+}
+
+function applyBaitPlan(biome, scen, ids, dex) {
+  document.getElementById("bait-biome").value = biome;
+  document.getElementById("bait-scen").value = scen;
+  ["bait-s0", "bait-s1", "bait-s2"].forEach((s, i) => { document.getElementById(s).value = ids[i] || ""; });
+  baitTarget = String(dex);
+  renderBait();
+  const tgt = document.getElementById("bait-target"); if (tgt) tgt.value = String(dex);
+  renderBaitShiny(selectedBaitSeasonings());
+  document.getElementById("bait-biome").scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
 /* ---------- spawn simulator tab ---------- */
 /* Gate the structured Cobbleverse spawn pool by everything you can control at a
  * spot — biome, Y, vertical clearance (vs the mon's hitbox), placed/underfoot
@@ -5599,6 +5943,7 @@ function showTab(name) {
   if (name === "home") renderDashboard();
   if (name === "stats") renderStats();
   if (name === "sim") renderSim();
+  if (name === "bait") renderBait();
   if (name === "data") renderBackupCard();
   location.hash = name;
 }
@@ -5631,7 +5976,7 @@ function importData(file) {
       metaSet(META.backup, Date.now());
       metaSet(META.snooze, 0);
       renderDex(); renderForms(); renderVariants(); renderLegendary(); renderBerries(); renderParty();
-      fillConfigInputs(); renderHunt(); renderBoxes(); renderSnack();
+      fillConfigInputs(); renderHunt(); renderBoxes(); renderSnack(); renderBait();
       renderDashboard(); renderStats(); renderLog(); renderBackupCard();
       const dexN = Object.keys(state.dex).length;
       const varN = Object.keys(state.variants).length;
@@ -6509,6 +6854,33 @@ function wire() {
     showTab("spawns");
   });
 
+  // PokéBait tab
+  ["bait-biome", "bait-scen", "bait-lure", "bait-luck", "bait-s0", "bait-s1", "bait-s2"].forEach((id) => {
+    const el = document.getElementById(id); if (el) el.addEventListener("change", renderBait);
+  });
+  const baitTargetEl = document.getElementById("bait-target");
+  if (baitTargetEl) baitTargetEl.addEventListener("change", () => { baitTarget = baitTargetEl.value; renderBaitShiny(selectedBaitSeasonings()); });
+  const baitRateEl = document.getElementById("bait-base-rate");
+  if (baitRateEl) baitRateEl.addEventListener("input", () => renderBaitShiny(selectedBaitSeasonings()));
+  const baitBestGo = document.getElementById("bait-best-go");
+  if (baitBestGo) baitBestGo.addEventListener("click", () => renderBestBait(document.getElementById("bait-best-input").value));
+  const baitBestInput = document.getElementById("bait-best-input");
+  if (baitBestInput) baitBestInput.addEventListener("keydown", (e) => { if (e.key === "Enter") renderBestBait(baitBestInput.value); });
+  const baitBestOut = document.getElementById("bait-best-out");
+  if (baitBestOut) baitBestOut.addEventListener("click", (e) => {
+    const btn = e.target.closest(".bait-apply"); if (!btn) return;
+    applyBaitPlan(btn.dataset.biome, btn.dataset.scen, btn.dataset.combo ? btn.dataset.combo.split(",") : [], Number(btn.dataset.dex));
+  });
+  const baitResults = document.getElementById("bait-results");
+  if (baitResults) baitResults.addEventListener("click", (e) => {
+    const row = e.target.closest(".snack-row[data-dex]");
+    if (!row) return;
+    setSpawnMode("mon");
+    els.spawnInput.value = DEX_BY_NUM[Number(row.dataset.dex)].name;
+    findSpawnByInput(els.spawnInput.value);
+    showTab("spawns");
+  });
+
   // Spawn Sim tab: any control change re-runs the simulation.
   if (els.simBiome) {
     [els.simBiome, els.simY, els.simHeight, els.simLight, els.simTime, els.simWeather, els.simBase,
@@ -6645,7 +7017,7 @@ function wire() {
     if (confirm("Erase ALL progress? Export first if unsure.")) {
       state = freshState();
       save(); renderDex(); renderForms(); renderVariants(); renderLegendary(); renderBerries(); renderParty();
-      fillConfigInputs(); renderHunt(); renderBoxes(); renderSnack(); renderDashboard(); renderStats(); renderLog();
+      fillConfigInputs(); renderHunt(); renderBoxes(); renderSnack(); renderBait(); renderDashboard(); renderStats(); renderLog();
       renderBackupCard();
     }
   });
@@ -6716,7 +7088,7 @@ async function boot() {
     showAccountView();
   });
   showAccountView();
-  const [sp, fm, spawns, berries, variants, berryGuide, moves, coach, legends, biomeSpawns, karp] = await Promise.all([
+  const [sp, fm, spawns, berries, variants, berryGuide, moves, coach, legends, biomeSpawns, karp, fishing, baitSeasonings] = await Promise.all([
     fetch("js/data/species.json").then((r) => r.json()),
     fetch("js/data/forms.json").then((r) => r.json()),
     fetch("js/data/spawns.json").then((r) => r.json()).catch(() => ({})),
@@ -6728,8 +7100,21 @@ async function boot() {
     fetch("js/data/legendaries.json").then((r) => r.json()).catch(() => ({ tiers: [], list: [] })),
     fetch("js/data/biome-spawns.json").then((r) => r.json()).catch(() => ({})),
     fetch("js/data/karp-patterns.json").then((r) => r.json()).catch(() => null),
+    fetch("js/data/fishing-pool.json").then((r) => r.json()).catch(() => null),
+    fetch("js/data/bait-seasonings.json").then((r) => r.json()).catch(() => []),
   ]);
   KARP = karp;
+  FISHING = fishing;
+  BAITS_S = baitSeasonings;
+  BAIT_BY_ID = {};
+  BAITS_S.forEach((b) => (BAIT_BY_ID[b.id] = b));
+  // Index which biomes each dex is fished in (any scenario) — for the best-bait optimiser.
+  FISHING_DEX = {};
+  if (FISHING) for (const [biome, scens] of Object.entries(FISHING.pools)) {
+    const seen = new Set();
+    for (const rows of Object.values(scens)) for (const e of rows) seen.add(e.d);
+    for (const d of seen) (FISHING_DEX[d] || (FISHING_DEX[d] = [])).push(biome);
+  }
   BIOME_SPAWNS = biomeSpawns;
   SPECIES = sp;
   MOVES = moves;
@@ -6803,6 +7188,22 @@ async function boot() {
     `</optgroup>`).join("");
   ["snack-s0", "snack-s1", "snack-s2"].forEach((id) => { document.getElementById(id).innerHTML = seasoningOpts; });
   populateSimControls(biomeOpts, seasoningOpts);
+
+  // PokéBait tab: biome (readable fishing-pool labels), scenario, seasonings.
+  if (FISHING && document.getElementById("bait-biome")) {
+    const biomes = Object.keys(FISHING.pools).sort();
+    document.getElementById("bait-biome").innerHTML = biomes
+      .map((b) => `<option value="${b}"${b === baitCalc.biome ? " selected" : ""}>${b} (${(FISHING.pools[b].surface || FISHING.pools[b][Object.keys(FISHING.pools[b])[0]] || []).length})</option>`).join("");
+    document.getElementById("bait-scen").innerHTML = Object.entries(FISHING.scenarios)
+      .map(([k, v]) => `<option value="${k}"${k === baitCalc.scen ? " selected" : ""}>${v}</option>`).join("");
+    const baitTag = (b) => b.type || b.ev || (b.eggGroups && b.eggGroups.join("/")) || (b.rarity ? `rarity +${b.rarity}` : "") || (b.shiny ? `✨ +${b.shiny + 1}` : "") || (b.biteTime ? `−${Math.round(b.biteTime * 100)}% bite` : "");
+    const bgroups = [...new Set(BAITS_S.map((b) => b.group))];
+    const baitOpts = `<option value="">— none —</option>` + bgroups.map((g) =>
+      `<optgroup label="${g}">` +
+      BAITS_S.filter((b) => b.group === g).map((b) => { const tag = baitTag(b); return `<option value="${b.id}">${b.name}${tag ? ` — ${tag}` : ""}</option>`; }).join("") +
+      `</optgroup>`).join("");
+    ["bait-s0", "bait-s1", "bait-s2"].forEach((id) => { document.getElementById(id).innerHTML = baitOpts; });
+  }
 
   // Legendary calculator target dropdown — grouped by re-spawn tier.
   if (els.legCalcTarget && LEGENDS) {

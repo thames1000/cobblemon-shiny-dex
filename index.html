@@ -34,6 +34,7 @@
       <button class="tab" data-tab="stats" title="Stats"><span class="tab-ico">📊</span><span class="tab-lbl">Stats</span></button>
       <button class="tab" data-tab="spawns" title="Spawns"><span class="tab-ico">🗺️</span><span class="tab-lbl">Spawns</span></button>
       <button class="tab" data-tab="snack" title="PokéSnack"><span class="tab-ico">🍪</span><span class="tab-lbl">PokéSnack</span></button>
+      <button class="tab" data-tab="bait" title="PokéBait"><span class="tab-ico">🎣</span><span class="tab-lbl">PokéBait</span></button>
       <button class="tab" data-tab="sim" title="Spawn Sim"><span class="tab-ico">🧪</span><span class="tab-lbl">Spawn Sim</span></button>
       <button class="tab" data-tab="berries" title="Berries"><span class="tab-ico">🫐</span><span class="tab-lbl">Berries</span></button>
       <button class="tab" data-tab="farm" title="Farm"><span class="tab-ico">🌾</span><span class="tab-lbl">Farm</span></button>
@@ -407,6 +408,71 @@
 
       <h2 class="section-h">Most likely visitors</h2>
       <div id="snack-results"></div>
+    </section>
+
+    <!-- ============ POKÉBAIT TAB ============ -->
+    <section class="panel" id="panel-bait">
+      <p class="hint">PokéBait builder (Cobblemon 1.7). A <strong>Poké Bait</strong> is cooked like a Poké Snack —
+        a base recipe plus up to <strong>3 seasonings</strong> — but you attach it to a <strong>Poké Rod</strong> and
+        it biases what you <em>fish up</em>. Pick a spot and seasonings to rank the most likely catches. Catch % =
+        chance the next Pokémon you hook is that species. Decompiled from the 1.7.3 jar, so
+        <strong>Enchanted Golden Apple &amp; the golden foods really do shift the fishing bucket</strong> (see below).</p>
+
+      <div class="card">
+        <h2>🏆 Best bait for a catch</h2>
+        <p class="hint" style="margin-top:0">Enter a fishable target — I'll search every biome it's caught in and every
+          seasoning combo (up to 3) for the bait that lands a shiny in the fewest catches, balancing catch rate against
+          the shiny reroll. Only the golden foods shift the bucket, so a rarer fish leans on those.</p>
+        <input list="species-list" id="bait-best-input" class="search" placeholder="Target Pokémon (name or #dex)…" style="width:100%" />
+        <div class="controls" style="margin-top:8px"><button id="bait-best-go" class="ctrl-btn good">Find best bait</button></div>
+        <div id="bait-best-out" style="margin-top:12px"></div>
+      </div>
+
+      <div class="card">
+        <h2>🎣 Build your bait</h2>
+        <div class="karp-controls">
+          <label>Biome <select id="bait-biome" class="select" data-bait="biome"></select></label>
+          <label>Where <select id="bait-scen" class="select" data-bait="scen"></select></label>
+          <label>Rod Lure level <select id="bait-lure" class="select" data-bait="lure">
+            <option value="0">None</option><option value="1" selected>Lure I</option>
+            <option value="2">Lure II</option><option value="3">Lure III</option></select></label>
+          <label>Luck of the Sea <select id="bait-luck" class="select" data-bait="luck">
+            <option value="0" selected>None</option><option value="1">Level 1</option>
+            <option value="2">Level 2</option><option value="3">Level 3</option></select></label>
+        </div>
+        <p class="hint" style="margin:10px 0">Base recipe (fixed): Honey Bottle · Mushroom · Wheat → 4× Poké Bait.
+          It carries no effect on its own — the seasonings below do. Lure level speeds bites and gates a few spawns
+          (it does <em>not</em> shift the bucket); only <strong>rarity</strong> seasonings + Luck of the Sea do that.</p>
+        <div class="field">Seasonings <span class="muted">(up to 3)</span>
+          <div class="seasoning-slots">
+            <select id="bait-s0" class="select snack-slot"></select>
+            <select id="bait-s1" class="select snack-slot"></select>
+            <select id="bait-s2" class="select snack-slot"></select>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" id="bait-summary"></div>
+
+      <details class="card">
+        <summary class="summary-h">✨ Catches to a shiny</summary>
+        <div class="seasoning-slots" style="margin-top:12px">
+          <label class="field" style="margin:0">Base shiny rate (1 / N)
+            <input type="number" id="bait-base-rate" class="search" min="1" />
+          </label>
+          <label class="field" style="margin:0">Target
+            <select id="bait-target" class="select" style="width:100%"></select>
+          </label>
+        </div>
+        <div id="bait-shiny-out" class="odds-readout"></div>
+        <p class="hint">Each Pokémon you hook is rolled at your base shiny rate, plus an extra reroll for every
+          shiny-reroll seasoning on the bait (Starf +5/8193, Golden Apple +2, Enchanted Golden Apple +10). Pick a
+          target to fold in how often it bites; "Any shiny" counts a shiny of <em>any</em> catch. One craft makes
+          <strong>4 baits</strong>.</p>
+      </details>
+
+      <h2 class="section-h">Most likely catches</h2>
+      <div id="bait-results"></div>
     </section>
 
     <!-- ============ SPAWN SIM TAB ============ -->

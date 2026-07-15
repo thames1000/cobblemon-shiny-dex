@@ -3791,7 +3791,20 @@ const KARP_SCEN = { surface: "Open sky", underground: "Underground (sky light �
 // shinyRate is null until first shown, then seeded from the site's global base rate
 // (state.config.baseShinyRate) so the fishing math matches the rest of the app; the
 // user can still override it just for this section.
-let karpCalc = { biome: "dark forest", scen: "surface", lure: true, luck: 0, bait: "none", shinyRate: null };
+// baits[] = up to 3 Poké Bait seasoning ids (from bait-seasonings.json). Only the
+// bucket-shifting (rarity) and shiny-reroll seasonings matter to patterns, so those
+// are what the slots offer — e.g. an Enchanted Golden Apple + Starf Berry bait.
+let karpCalc = { biome: "dark forest", scen: "surface", lure: true, luck: 0, baits: ["", "", ""], shinyRate: null };
+// Fishing seasonings that change pattern odds: rarity_bucket (bucket shift) + shiny_reroll.
+function karpSeasoningList() {
+  const list = (typeof BAITS_S !== "undefined" && BAITS_S || []).filter((s) => s.rarity || s.shiny);
+  if (list.length) return list.slice().sort((a, b) => (a.rarity || 0) - (b.rarity || 0) || (b.shiny || 0) - (a.shiny || 0));
+  // Fallback to the guide's own preset baits if bait-seasonings.json didn't load.
+  return (KARP.baits || []).filter((b) => b.id !== "none").map((b) => ({ id: b.id, name: b.label, rarity: b.rarity, shiny: b.shiny }));
+}
+const karpSeasonings = () => karpCalc.baits.map((id) => (typeof BAIT_BY_ID !== "undefined" && BAIT_BY_ID[id]) || (KARP.baits || []).find((b) => b.id === id)).filter(Boolean);
+const karpBaitRarity = () => karpSeasonings().reduce((a, s) => a + (s.rarity || 0), 0);
+const karpBaitRerolls = () => karpSeasonings().map((s) => s.shiny).filter((v) => v != null);
 function karpShinyRate() {
   const r = Number(karpCalc.shinyRate);
   if (r >= 1) return Math.round(r);
@@ -3811,16 +3824,15 @@ function karpBucketOdds(tier) {
   const total = Object.values(w).reduce((a, b) => a + b, 0);
   return w[KARP.bucket] / total;
 }
-// Normal roll, plus the bait's extra roll: shinyReroll() picks Random(0..shinyRate)
-// and shinifies when roll <= value, i.e. (value+1)/(shinyRate+1).
-function karpShinyOdds(bait) {
+// Normal roll, plus one extra roll per shiny_reroll seasoning: each shinyReroll()
+// picks Random(0..shinyRate) and shinifies when roll <= value, i.e. (value+1)/(rate+1).
+// Rerolls apply independently, so combine as 1 − (1−base)·Π(1−extra_i).
+function karpShinyOdds(rerolls) {
   const rate = karpShinyRate();
-  const base = 1 / rate;
-  if (!bait || bait.shiny == null) return base;
-  const extra = (bait.shiny + 1) / (rate + 1);
-  return 1 - (1 - base) * (1 - extra);
+  let notShiny = 1 - 1 / rate;
+  for (const v of (rerolls || [])) if (v != null) notShiny *= 1 - (v + 1) / (rate + 1);
+  return 1 - notShiny;
 }
-const karpBait = (id) => KARP.baits.find((b) => b.id === id) || KARP.baits[0];
 
 /* Per-pattern odds in the current scenario. Returns null if you can't fish patterns
  * there at all (no water pool, or no Lure). */
@@ -3829,11 +3841,10 @@ function karpOdds(pattern) {
   if (!pool || !karpCalc.lure) return null;
   const w = pool.w[pattern.aspect];
   if (!w) return null;
-  const bait = karpBait(karpCalc.bait);
-  const pBucket = karpBucketOdds(bait.rarity + Number(karpCalc.luck));
+  const pBucket = karpBucketOdds(karpBaitRarity() + Number(karpCalc.luck));
   const share = w / pool.total;
   const p = pBucket * share;
-  const pShiny = karpShinyOdds(bait);
+  const pShiny = karpShinyOdds(karpBaitRerolls());
   return { w, share, p, pShiny, catches: 1 / p, shinyCatches: 1 / (p * pShiny), mult: w / pattern.base };
 }
 const karpNum = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1000 ? Math.round(n / 100) / 10 + "k" : Math.round(n));
@@ -3841,11 +3852,18 @@ const karpNum = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1000 ? Math
 function karpControlsHtml() {
   const biomes = Object.keys(KARP.pools).sort();
   const opt = (v, sel, label) => `<option value="${v}"${v === sel ? " selected" : ""}>${label || v}</option>`;
+  const seas = karpSeasoningList();
+  const seasTag = (s) => [s.rarity ? `+${s.rarity} rarity` : "", s.shiny ? `✨+${s.shiny + 1}` : ""].filter(Boolean).join(" ");
+  const baitSlot = (i) => `<select class="select" data-karp="bait${i}">` +
+    `<option value="">— none —</option>` +
+    seas.map((s) => `<option value="${s.id}"${karpCalc.baits[i] === s.id ? " selected" : ""}>${s.name}${seasTag(s) ? ` — ${seasTag(s)}` : ""}</option>`).join("") +
+    `</select>`;
   return `<div class="karp-controls">
     <label>Biome <select class="select" data-karp="biome">${biomes.map((b) => opt(b, karpCalc.biome)).join("")}</select></label>
     <label>Where <select class="select" data-karp="scen">${Object.entries(KARP_SCEN).map(([k, v]) => opt(k, karpCalc.scen, v)).join("")}</select></label>
     <label>Luck of the Sea <select class="select" data-karp="luck">${[0, 1, 2, 3].map((l) => opt(l, Number(karpCalc.luck), l ? "Level " + l : "None")).join("")}</select></label>
-    <label>Bait <select class="select" data-karp="bait">${KARP.baits.map((b) => opt(b.id, karpCalc.bait, b.label + (b.berry ? " 🫐" : ""))).join("")}</select></label>
+    <label class="karp-bait">Poké Bait <span class="muted">(up to 3 seasonings)</span>
+      <span class="karp-bait-slots">${baitSlot(0)}${baitSlot(1)}${baitSlot(2)}</span></label>
     <label>Base shiny rate 1/<input type="number" class="select karp-rate" data-karp="shinyRate" min="1" step="1" value="${karpShinyRate()}" /></label>
     <label class="karp-check"><input type="checkbox" data-karp="lure"${karpCalc.lure ? " checked" : ""}/> Rod has Lure I+</label>
   </div>`;
@@ -3855,8 +3873,9 @@ function karpControlsHtml() {
  * catches and expected catches to a shiny. `focus` highlights one pattern's row. */
 function karpGuideHtml(focus) {
   if (!KARP) return "";
-  const bait = karpBait(karpCalc.bait);
-  const tier = bait.rarity + Number(karpCalc.luck);
+  const seasonings = karpSeasonings();
+  const baitRarity = karpBaitRarity();
+  const tier = baitRarity + Number(karpCalc.luck);
   const pBucket = karpBucketOdds(tier);
   const rate = karpShinyRate();
   const pool = (KARP.pools[karpCalc.biome] || {})[karpCalc.scen];
@@ -3877,7 +3896,8 @@ function karpGuideHtml(focus) {
 
   const noPool = !pool ? `<p class="hint">No uncommon fishing pool in <b>${karpCalc.biome}</b> ${karpCalc.scen === "underground" ? "underground" : "under open sky"} — pick another spot.</p>` : "";
   const noLure = !karpCalc.lure ? `<p class="hint">⚠ Patterns need a Poké Rod with <b>Lure I or better</b> (<code>minLureLevel: 1</code>). Without it you can only fish plain Magikarp.</p>` : "";
-  const shiny = karpShinyOdds(bait);
+  const shiny = karpShinyOdds(karpBaitRerolls());
+  const baitLabel = seasonings.length ? seasonings.map((s) => s.name).join(" + ") : null;
 
   return `<div class="card">
     <h2>🎣 Magikarp &amp; Gyarados fishing guide</h2>
@@ -3887,21 +3907,22 @@ function karpGuideHtml(focus) {
       <b>Gyarados patterns aren't fished</b> — evolve a patterned Magikarp.</p>
     ${karpControlsHtml()}
     <p class="hint">Uncommon bucket: <b>${(pBucket * 100).toFixed(2)}%</b> per catch
-      (tier ${tier}${tier ? ` — Luck ${karpCalc.luck} + bait ${bait.rarity}` : ""}) ·
-      Shiny: <b>1 / ${Math.round(1 / shiny)}</b>${bait.shiny != null ? ` (${bait.label} reroll)` : ""}
+      (tier ${tier}${tier ? ` — Luck ${karpCalc.luck} + bait ${baitRarity}` : ""}) ·
+      Shiny: <b>1 / ${Math.round(1 / shiny)}</b>${baitLabel ? ` (${baitLabel})` : ""}
       ${pool ? `· pool weight ${pool.total}` : ""}</p>
     <p class="hint" style="margin-top:-4px">The Cobblemon wiki quotes a <b>flat 5%</b> (+2.5%/Lure&nbsp;level, max 12.5%). That's
       base Cobblemon; <b>this server's Rarity Overhaul makes the base 10%</b> (bucket weights 88.5/10/1.2/0.3). The real Luck
-      curve is also exponential, not linear — Luck I/II/III give ${[1, 2, 3].map((t) => (karpBucketOdds(bait.rarity + t) * 100).toFixed(1)).join(" / ")}%.</p>
+      curve is also exponential, not linear — Luck I/II/III give ${[1, 2, 3].map((t) => (karpBucketOdds(baitRarity + t) * 100).toFixed(1)).join(" / ")}%.</p>
     ${noLure}${noPool}
     <div class="karp-wrap"><table class="karp-table">
       <thead><tr><th>Pattern</th><th>Boost here</th><th>Per catch</th><th>Catches</th><th>→ ✨ shiny</th></tr></thead>
       <tbody>${rows}</tbody></table></div>
     <p class="hint"><b>Catches</b> = expected Pokémon hooked before that pattern shows up.
-      <b>→ ✨ shiny</b> folds in the shiny roll. <b>Starf Berry</b> 🫐 is the only <i>berry</i> with a shiny reroll
-      (+5/${rate + 1}); Enchanted Golden Apple is stronger (+10/${rate + 1}) and also shifts the bucket, but isn't a berry.
-      Typing / egg-group baits also reweight the pool and aren't modelled here.
-      Base shiny rate is editable above (defaults to your config's 1/${(state.config && state.config.baseShinyRate) || KARP.shinyRate}).</p>
+      <b>→ ✨ shiny</b> folds in the shiny roll. Cook a <b>Poké Bait</b> with up to 3 seasonings and stack them:
+      <b>Starf Berry</b> adds a shiny reroll (+5/${rate + 1}), <b>Enchanted Golden Apple</b> a bigger one (+10/${rate + 1})
+      <i>and</i> shifts the bucket (+10 rarity) — so an <b>EGA + Starf</b> bait does both at once. Type / egg-group /
+      EV seasonings reweight the pool differently and aren't modelled here. Base shiny rate is editable above
+      (defaults to your config's 1/${(state.config && state.config.baseShinyRate) || KARP.shinyRate}).</p>
   </div>`;
 }
 
@@ -6922,7 +6943,9 @@ function wire() {
   els.spawnResults.addEventListener("change", (e) => {
     const c = e.target.closest("[data-karp]");
     if (!c) return;
-    karpCalc[c.dataset.karp] = c.dataset.karp === "lure" ? c.checked : c.value;
+    const m = c.dataset.karp.match(/^bait(\d)$/);
+    if (m) karpCalc.baits[Number(m[1])] = c.value;
+    else karpCalc[c.dataset.karp] = c.dataset.karp === "lure" ? c.checked : c.value;
     els.spawnResults.innerHTML = karpFocusId
       ? renderSpawnByVariant(karpFocusId)
       : karpGuideHtml(null);

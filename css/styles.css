@@ -924,6 +924,9 @@ code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
 .karp-controls .select { min-width: 140px; text-transform: capitalize; }
 .karp-controls .karp-rate { min-width: 0; width: 92px; text-transform: none; }
 .karp-controls .karp-check { flex-direction: row; align-items: center; gap: 6px; padding-bottom: 8px; }
+.karp-controls .karp-bait { flex: 1 1 100%; }
+.karp-bait-slots { display: flex; flex-wrap: wrap; gap: 6px; }
+.karp-bait-slots .select { min-width: 150px; flex: 1 1 150px; text-transform: none; }
 .karp-wrap { overflow-x: auto; margin-top: 8px; }
 .karp-table { width: 100%; border-collapse: collapse; font-size: .84rem; }
 .karp-table th, .karp-table td { padding: 6px 10px; text-align: right; white-space: nowrap; }

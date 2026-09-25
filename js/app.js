@@ -4795,19 +4795,29 @@ function computeBaitCatches(biome, scen, lure, seasonings) {
   const odds = baitBucketOdds(tier);
   const evReqs = evRequirements(seasonings);
   const buckets = { common: [], uncommon: [], rare: [], "ultra-rare": [] };
-  const aggDex = new Map();                                 // "bucket:dex" -> summed weight
-  const aggVar = new Map();                                 // "bucket:variantId" -> summed weight
+  const aggDex = new Map();                                 // "bucket:dex" -> summed (mult-weighted) weight
+  const aggVar = new Map();                                 // "bucket:variantId" -> summed (mult-weighted) weight
   for (const { dex, r, w, v } of pool) {
     if (!buckets[r]) continue;
-    if (!passesEvGate(DEX_BY_NUM[dex], evReqs)) continue;    // EV seasoning filters the pool
-    const kd = r + ":" + dex;
-    const cd = aggDex.get(kd) || { dex, r, w: 0 }; cd.w += w; aggDex.set(kd, cd);
-    if (v) { const kv = r + ":" + v; const cv = aggVar.get(kv) || { vid: v, dex, r, w: 0 }; cv.w += w; aggVar.set(kv, cv); }
-  }
-  for (const { dex, r, w } of aggDex.values()) {
-    const mult = baitMult(DEX_BY_NUM[dex], seasonings);
+    const sp = DEX_BY_NUM[dex];
+    if (!passesEvGate(sp, evReqs)) continue;                // EV seasoning filters the pool
+    // A fishable variant can have its OWN typing (e.g. a differently-typed regional
+    // form), so a type berry's bias must be checked against ITS real type, not the
+    // base species' — same fix as PokéSnack's computeAttraction.
+    const vObj = v ? VARIANT_BY_ID[v] : null;
+    const effSp = vObj && vObj.types ? { ...sp, types: vObj.types } : sp;
+    const mult = baitMult(effSp, seasonings);
     const wm = w * mult;
-    if (wm > 0) buckets[r].push({ dex, w: wm, boosted: mult > 1 || evReqs.length > 0 });
+    if (wm <= 0) continue;
+    const boosted = mult > 1 || evReqs.length > 0;
+    const kd = r + ":" + dex;
+    const cd = aggDex.get(kd) || { dex, r, w: 0, boosted: false };
+    cd.w += wm; if (boosted) cd.boosted = true;
+    aggDex.set(kd, cd);
+    if (v) { const kv = r + ":" + v; const cv = aggVar.get(kv) || { vid: v, dex, r, w: 0 }; cv.w += wm; aggVar.set(kv, cv); }
+  }
+  for (const { dex, r, w, boosted } of aggDex.values()) {
+    if (w > 0) buckets[r].push({ dex, w, boosted });
   }
   const present = BUCKETS.filter((b) => buckets[b].length);
   const bucketTot = {};
@@ -4818,11 +4828,11 @@ function computeBaitCatches(biome, scen, lure, seasonings) {
     cur.p += odds[b] * (x.w / bucketTot[b]);
     if (x.boosted) cur.boosted = true;
   }
-  // A variant's share is a slice of its species' bucket weight (same type/egg mult).
+  // A variant's share is a slice of its species' bucket weight (mult already applied above).
   const variantP = new Map();
   for (const { vid, dex, r, w } of aggVar.values()) {
     if (bucketTot[r] == null) continue;
-    const p = odds[r] * (w * baitMult(DEX_BY_NUM[dex], seasonings) / bucketTot[r]);
+    const p = odds[r] * (w / bucketTot[r]);
     if (p <= 0) continue;
     variantP.set(vid, (variantP.get(vid) || 0) + p);
     if (catches[dex]) catches[dex].hasVar = true;
@@ -5036,7 +5046,11 @@ function bestBaitVariantFor(variantId, allowRarity) {
   const biomes = FISHING_VAR[variantId] || [];
   if (!v || !biomes.length) return null;
   const sp = DEX_BY_NUM[v.dex] || { types: [], eggGroups: [], ev: [] };
-  const combos = multisetCombos(relevantBaitSeasonings(sp, allowRarity), 3);
+  // Search seasonings against the variant's own type when it differs from its base
+  // species (e.g. a differently-typed regional form) so the optimiser tries the
+  // berries that actually boost it — same fix as PokéSnack's bestSnackVariantFor.
+  const effSp = v.types ? { ...sp, types: v.types } : sp;
+  const combos = multisetCombos(relevantBaitSeasonings(effSp, allowRarity), 3);
   const rate = baitRateInput();
   let best = null;
   for (const biome of biomes) {

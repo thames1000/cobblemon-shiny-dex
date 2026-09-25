@@ -3182,7 +3182,7 @@ function huntSuggestions(biome, limit = 8) {
   const formsByDex = {};    // dex -> Set of forms that spawn here ("" = base form)
   const dpHere = {};        // dex -> datapack id if ALL its spawns here need a datapack
   if (biome && (BIOME_INDEX[biome] || isIngameBiome(biome))) {
-    for (const a of computeAttraction(biome, [], true)) attr[a.dex] = a.p;
+    for (const a of computeAttraction(biome, [], true).ranked) attr[a.dex] = a.p;
     // Only count species that EXPLICITLY list this biome — not the "any overworld"
     // / "any biome" wildcards (biomePool folds those in). Those pseudo-spawns are
     // too generic and would put mons like Terapagos/Meltan on every biome's list.
@@ -4106,6 +4106,18 @@ const SNACK_BLACKLIST = new Set([144, 145, 146, 150, 151, 243, 244, 245, 249, 25
 const ASSUME_ALL_LURABLE = true;
 const isSnackBlacklisted = (dex) => !ASSUME_ALL_LURABLE && SNACK_BLACKLIST.has(Number(dex));
 const SNACK_LURE_NOTE = "Cobbleverse blocks Poké Snack lures for this Pokémon by default (lumymon blacklist); this plan assumes that's been turned off.";
+// Regional/cosmetic-form spawn rows (spawns.json's `f` field, e.g. "Alolan") that
+// resolve to a tracked variant — i.e. lurable forms, not just base species. Built
+// once at load (buildSnackVarIndex) once SPAWNS + the variant lookup are ready.
+let SNACK_VAR = {};
+function buildSnackVarIndex() {
+  SNACK_VAR = {};
+  for (const dex in SPAWNS) for (const e of SPAWNS[dex]) {
+    if (!e.f) continue;
+    const v = spawnVariant(Number(dex), e.f);
+    if (v) SNACK_VAR[v.id] = true;
+  }
+}
 const BUCKETS = ["common", "uncommon", "rare", "ultra-rare"];
 // Poké Snack bucket math — decompiled exactly from Cobblemon's PokeSnackBlockEntity
 // (Cobblemon-fabric-1.7.3+1.21.1). A placed snack adds two influences on top of the
@@ -4243,12 +4255,15 @@ function renderSnackSummary(seasonings) {
     `<div class="snack-chips">${chips}</div>${note}`;
 }
 
-// Per-species attraction probability for a biome + seasonings. Returns a ranked
-// array [{dex, p, boosted}]. p is the per-roll spawn chance (matches PokéNav:
-// bucket odds × within-bucket weight share), so it can sum to <1 across the pool.
+// Per-species attraction probability for a biome + seasonings. Returns
+// { ranked, variantP }: ranked = [{dex, p, boosted, hasVar}] (p is the per-roll
+// spawn chance — matches PokéNav: bucket odds × within-bucket weight share, so it
+// can sum to <1 across the pool); variantP = Map(variantId -> per-roll chance of
+// that specific regional/cosmetic form, e.g. Alolan Rattata), so forms are
+// searchable/targetable too, same as PokéBait's fishable variants.
 function computeAttraction(biome, seasonings, nearWater = true) {
   const pool = biomePool(biome);
-  if (!pool.length) return [];
+  if (!pool.length) return { ranked: [], variantP: new Map() };
   const odds = bucketOdds(seasonings.reduce((a, s) => a + (s.rarityTier || 0), 0), true);
 
   // Bucket each spawn entry, weighted by spawn weight × type/egg multiplier.
@@ -4256,6 +4271,7 @@ function computeAttraction(biome, seasonings, nearWater = true) {
   // Water-only spawns are gated on placement: dropped if the snack isn't near water.
   const evReqs = evRequirements(seasonings);
   const buckets = { common: [], uncommon: [], rare: [], "ultra-rare": [] };
+  const aggVar = new Map(); // "bucket:variantId" -> { vid, dex, r, w }
   for (const { dex, entry } of pool) {
     if (!buckets[entry.r]) continue;
     if (isSnackBlacklisted(dex)) continue;              // lumymon: can't be lured by a snack (off by default — we assume all lurable)
@@ -4267,25 +4283,47 @@ function computeAttraction(biome, seasonings, nearWater = true) {
     if (w <= 0) continue;
     // A type/egg ×10 OR surviving an EV gate both mean the snack deliberately favours this species.
     buckets[entry.r].push({ dex, w, boosted: mult > 1 || evReqs.length > 0 });
+    // This row is a regional/cosmetic form (e.g. "Alolan") — track its slice of the
+    // species' weight separately so it can be targeted/searched as its own variant.
+    if (entry.f) {
+      const v = spawnVariant(dex, entry.f);
+      if (v) {
+        const kv = entry.r + ":" + v.id;
+        const cv = aggVar.get(kv) || { vid: v.id, dex, r: entry.r, w: 0 };
+        cv.w += w; aggVar.set(kv, cv);
+      }
+    }
   }
   // Cobblemon rolls a bucket by weight then a species within it; an empty bucket
   // just yields no spawn, so we use the raw bucket odds (no renormalising over
   // present buckets) — p is the true per-roll chance, matching PokéNav.
   const present = BUCKETS.filter((b) => buckets[b].length);
 
-  const attraction = {}; // dex -> { p, boosted }
+  const attraction = {}; // dex -> { p, boosted, hasVar }
+  const bucketTot = {};
   for (const b of present) {
     const tot = buckets[b].reduce((a, x) => a + x.w, 0) || 1;
+    bucketTot[b] = tot;
     const bucketProb = odds[b];
     for (const x of buckets[b]) {
-      const cur = attraction[x.dex] || (attraction[x.dex] = { p: 0, boosted: false });
+      const cur = attraction[x.dex] || (attraction[x.dex] = { p: 0, boosted: false, hasVar: false });
       cur.p += bucketProb * (x.w / tot);
       if (x.boosted) cur.boosted = true;
     }
   }
-  return Object.entries(attraction)
+  // A variant's share is a slice of its species' bucket weight (same type/egg mult).
+  const variantP = new Map();
+  for (const { vid, dex, r, w } of aggVar.values()) {
+    if (bucketTot[r] == null) continue;
+    const p = odds[r] * (w / bucketTot[r]);
+    if (p <= 0) continue;
+    variantP.set(vid, (variantP.get(vid) || 0) + p);
+    if (attraction[dex]) attraction[dex].hasVar = true;
+  }
+  const ranked = Object.entries(attraction)
     .map(([dex, v]) => ({ dex: Number(dex), ...v }))
     .sort((a, b) => b.p - a.p);
+  return { ranked, variantP };
 }
 
 function renderSnackResults(ranked, note = "") {
@@ -4304,7 +4342,8 @@ function renderSnackResults(ranked, note = "") {
       <img loading="lazy" src="${spriteUrl(r.dex)}" alt="${sp ? sp.name : r.dex}" />
       <div class="snack-row-main">
         <div class="snack-row-name">${sp ? sp.name.replace(/-/g, " ") : "#" + r.dex} ${types}
-          ${r.boosted ? '<span class="snack-boost">▲ lured</span>' : ""}</div>
+          ${r.boosted ? '<span class="snack-boost">▲ lured</span>' : ""}
+          ${r.hasVar ? '<span class="bait-var-chip" title="Has lurable regional/cosmetic forms — search or target them below">🎨 variants</span>' : ""}</div>
         <div class="bar"><i style="width:${(r.p / max) * 100}%"></i></div>
       </div>
       <div class="snack-pct">${pct}%</div>
@@ -4317,17 +4356,31 @@ function renderSnackResults(ranked, note = "") {
 
 const SNACK_BITES = 9; // a Poké Snack is eaten in 9 bites = 9 attracted Pokémon.
 let snackRanked = [];  // current ranked attraction (cached so target/rate changes are cheap)
+let snackVariantP = new Map(); // current variantId -> per-roll attraction chance
 let snackTarget = "any";
 
+// A lurable regional/cosmetic-form variant present in the current ranking, as
+// {id, dex, name, base, p} — mirrors PokéBait's baitVariantOptions().
+function snackVariantOptions(variantP) {
+  return [...variantP.entries()]
+    .map(([id, p]) => { const v = VARIANT_BY_ID[id]; return v ? { id, dex: v.dex, name: v.name, base: v.base, p } : null; })
+    .filter(Boolean).sort((a, b) => b.p - a.p);
+}
+
 // Rebuild the target dropdown from the current ranking, preserving the pick if still present.
-function populateSnackTargets(ranked) {
+function populateSnackTargets(ranked, variantP) {
   const prev = snackTarget;
-  els.snackTarget.innerHTML = `<option value="any">Any species (any shiny)</option>` +
-    ranked.slice(0, 30).map((r) => {
-      const sp = DEX_BY_NUM[r.dex];
-      return `<option value="${r.dex}">${(sp ? sp.name.replace(/-/g, " ") : "#" + r.dex)} — ${(r.p * 100).toFixed(1)}%</option>`;
-    }).join("");
-  if (prev !== "any" && ranked.some((r) => String(r.dex) === String(prev))) els.snackTarget.value = prev;
+  const spOpts = ranked.slice(0, 30).map((r) => {
+    const sp = DEX_BY_NUM[r.dex];
+    return `<option value="${r.dex}">${(sp ? sp.name.replace(/-/g, " ") : "#" + r.dex)} — ${(r.p * 100).toFixed(1)}%</option>`;
+  }).join("");
+  // Lurable regional/cosmetic forms (Alolan, Galarian, Hisuian…) as "v:<id>".
+  const vs = snackVariantOptions(variantP);
+  const vOpts = vs.length
+    ? `<optgroup label="🎨 Variants">` + vs.map((v) => `<option value="v:${v.id}">${v.base} — ${v.name} — ${(v.p * 100).toFixed(1)}%</option>`).join("") + `</optgroup>` : "";
+  els.snackTarget.innerHTML = `<option value="any">Any species (any shiny)</option>` + spOpts + vOpts;
+  const ok = prev === "any" || (prev.startsWith("v:") ? variantP.has(prev.slice(2)) : ranked.some((r) => String(r.dex) === String(prev)));
+  if (ok && prev !== "any") els.snackTarget.value = prev;
   else { snackTarget = "any"; els.snackTarget.value = "any"; }
 }
 
@@ -4341,12 +4394,16 @@ function renderSnackShiny(seasonings) {
     els.snackShinyOut.innerHTML = `<span class="muted">Pick a biome with spawn data to estimate snacks.</span>`;
     return;
   }
-  // Whole-pool ("any shiny") uses p = 1; a target species folds in how often it shows up.
+  // Whole-pool ("any shiny") uses p = 1; a target species/variant folds in how often it shows up.
   let p = 1, label = "Any shiny (whole pool)";
-  if (snackTarget !== "any") {
+  if (snackTarget.startsWith("v:")) {
+    const v = VARIANT_BY_ID[snackTarget.slice(2)]; p = snackVariantP.get(snackTarget.slice(2)) || 0;
+    if (v) label = `${v.base} — ${v.name} · ${(p * 100).toFixed(1)}% of visitors`;
+  } else if (snackTarget !== "any") {
     const r = snackRanked.find((x) => String(x.dex) === String(snackTarget));
     if (r) { p = r.p; const sp = DEX_BY_NUM[r.dex]; label = `${(sp ? sp.name.replace(/-/g, " ") : "#" + r.dex)} · ${(p * 100).toFixed(1)}% of visitors`; }
   }
+  if (p <= 0) { els.snackShinyOut.innerHTML = `<span class="muted">${label} — can't be lured with this snack here.</span>`; return; }
   const targetOdds = effOdds / p;                     // 1-in-N that a bite is a shiny of the target
   const snacks = (enc) => Math.max(1, Math.ceil(enc / SNACK_BITES));
   const rows = [
@@ -4381,10 +4438,12 @@ function renderSnack() {
   const biome = els.snackBiome.value;
   const seasonings = selectedSeasonings();
   const nearWater = !els.snackNearWater || els.snackNearWater.checked;
-  snackRanked = computeAttraction(biome, seasonings, nearWater);
+  const res = computeAttraction(biome, seasonings, nearWater);
+  snackRanked = res.ranked;
+  snackVariantP = res.variantP;
   renderSnackSummary(seasonings);
   renderSnackResults(snackRanked, waterNote(biome, nearWater));
-  populateSnackTargets(snackRanked);
+  populateSnackTargets(snackRanked, snackVariantP);
   renderSnackShiny(seasonings);
 }
 
@@ -4456,14 +4515,13 @@ function egaNoteText(note, name) {
   return "";
 }
 
-function bestSnackFor(dex, egaCap) {
-  const sp = DEX_BY_NUM[dex];
-  if (!sp) return null;
-  const labels = [...new Set((SPAWNS[dex] || []).flatMap((e) => e.b))];
-  // Search the IN-GAME biomes this species can spawn in, not the tag labels: the lure
-  // odds depend on the WHOLE pool sharing a biome (everything tagged forest + temperate +
-  // any-overworld), and a single label like "temperate" undercounts that competition, so
-  // it over-states the spawn rate. In-game biomes give the accurate pool.
+// Resolve a set of "b" spawn labels (from SPAWNS entries) to the actual in-game
+// biomes they cover, collapsing biomes that share an identical spawn pool. Search
+// the IN-GAME biomes, not the tag labels: the lure odds depend on the WHOLE pool
+// sharing a biome (everything tagged forest + temperate + any-overworld), and a
+// single label like "temperate" undercounts that competition, so it over-states
+// the spawn rate. In-game biomes give the accurate pool.
+function biomesForLabels(labels) {
   let biomes;
   if (LABEL_BIOMES && BIOME_SPAWNS) {
     const set = new Set();
@@ -4481,7 +4539,6 @@ function bestSnackFor(dex, egaCap) {
       biomes = [...new Set(biomes.concat(Object.keys(BIOME_INDEX).filter((b) => anyB || isOverworldBiome(b))))];
     }
   }
-  if (!biomes.length) return null;
   // Collapse biomes with an identical spawn pool (same label set) — same odds, so this
   // avoids recomputing for the many real biomes that share a pool (e.g. any-overworld mons).
   const bySig = new Map();
@@ -4489,16 +4546,49 @@ function bestSnackFor(dex, egaCap) {
     const sig = isIngameBiome(id) ? ingameLabels(id).slice().sort().join("|") + (biomeIsOverworld(id) ? "#ow" : "") : id;
     if (!bySig.has(sig)) bySig.set(sig, id);
   }
-  biomes = [...bySig.values()];
+  return [...bySig.values()];
+}
+
+function bestSnackFor(dex, egaCap) {
+  const sp = DEX_BY_NUM[dex];
+  if (!sp) return null;
+  const labels = [...new Set((SPAWNS[dex] || []).flatMap((e) => e.b))];
+  const biomes = biomesForLabels(labels);
+  if (!biomes.length) return null;
   const combos = combosFor(sp, egaCap);
   let best = null;
   for (const biome of biomes) {
     for (const combo of combos) {
-      const r = computeAttraction(biome, combo).find((x) => x.dex === dex);
+      const r = computeAttraction(biome, combo).ranked.find((x) => x.dex === dex);
       if (!r || r.p <= 0) continue;
       const shiny = snackTotals(combo).shiny;
       const metric = 1 / (r.p * shiny); // ∝ snacks-to-shiny (baseRate is a constant scale)
       if (!best || metric < best.metric) best = { biome, combo, p: r.p, shiny, metric };
+    }
+  }
+  return best;
+}
+
+// Same search, but for a specific lurable regional/cosmetic-form variant (its
+// per-roll chance from computeAttraction's variantP) — mirrors bestBaitVariantFor.
+function bestSnackVariantFor(variantId, egaCap) {
+  const v = VARIANT_BY_ID[variantId];
+  const sp = v && DEX_BY_NUM[v.dex];
+  if (!sp) return null;
+  const labels = [...new Set((SPAWNS[v.dex] || [])
+    .filter((e) => e.f && spawnVariant(v.dex, e.f) && spawnVariant(v.dex, e.f).id === variantId)
+    .flatMap((e) => e.b))];
+  const biomes = biomesForLabels(labels);
+  if (!biomes.length) return null;
+  const combos = combosFor(sp, egaCap);
+  let best = null;
+  for (const biome of biomes) {
+    for (const combo of combos) {
+      const p = computeAttraction(biome, combo).variantP.get(variantId);
+      if (!p || p <= 0) continue;
+      const shiny = snackTotals(combo).shiny;
+      const metric = 1 / (p * shiny);
+      if (!best || metric < best.metric) best = { biome, combo, p, shiny, metric, variantId };
     }
   }
   return best;
@@ -4524,13 +4614,61 @@ function planCard(title, plan, sp, baseRate) {
     <div class="plan-row"><span>Shiny odds</span><b>1/${Math.round(eff).toLocaleString()}</b> (✨×${plan.shiny})</div>
     <div class="plan-row"><span>Snacks to shiny</span><b>~${snacks.toLocaleString()}</b> <span class="muted">expected</span></div>
     ${spawnConditionsHtml(sp.dex, plan.biome)}
-    <button class="ctrl-btn plan-apply" data-biome="${plan.biome}" data-combo="${plan.combo.map((b) => b.id).join(",")}" data-dex="${sp.dex}">Load into builder</button>
+    <button class="ctrl-btn plan-apply" data-biome="${plan.biome}" data-combo="${plan.combo.map((b) => b.id).join(",")}" data-dex="${sp.dex}"${plan.variantId ? ` data-variant="${plan.variantId}"` : ""}>Load into builder</button>
   </div>`;
 }
 
-function renderBestSnack(raw) {
+// Resolve a best-snack query to a lurable regional/cosmetic-form variant (preferred
+// when it matches more than just the species name) or a base species — so you can
+// search "Alolan Rattata" / "Hisuian Zorua" / "Galarian Meowth" as well as a plain
+// name. Mirrors PokéBait's resolveBaitQuery, reusing its text/synonym normalization
+// (baitNorm/BAIT_SYN handle "hisuian"/"hisui" etc. — not fishing-specific).
+function resolveSnackQuery(raw) {
+  const q = String(raw || "").trim();
+  if (!q) return null;
+  const qWords = baitNorm(q).split(" ").filter(Boolean);
   const sp = findSpecies(raw);
-  if (!sp) { els.snackBestOut.innerHTML = `<p class="hint">No species matching "${raw}".</p>`; return; }
+  let vExact = null, vLoose = null;
+  for (const id in SNACK_VAR) {
+    const v = VARIANT_BY_ID[id]; if (!v) continue;
+    const text = baitNorm(`${v.base} ${v.name} ${(v.aspects || []).join(" ")}`);
+    const toks = new Set(text.split(" ").filter(Boolean));
+    if (qWords.every((w) => toks.has(w))) {
+      if (!vExact || `${v.base} ${v.name}`.length < `${vExact.base} ${vExact.name}`.length) vExact = v;
+    } else if (!vLoose && qWords.length >= 2 && qWords.every((w) => text.includes(w))) vLoose = v;
+  }
+  if (vExact && (!sp || qWords.length > 1)) return { variant: vExact };
+  if (sp) return { sp };
+  if (vLoose) return { variant: vLoose };
+  return null;
+}
+
+function renderBestSnack(raw) {
+  const hit = resolveSnackQuery(raw);
+  if (!hit) { els.snackBestOut.innerHTML = `<p class="hint">No species or lurable variant matching "${raw}".</p>`; return; }
+
+  if (hit.variant) {
+    const v = hit.variant;
+    const b0 = bestSnackVariantFor(v.id, 0);
+    if (!b0) {
+      els.snackBestOut.innerHTML = `<p class="hint">${v.base} — ${v.name} has no natural Poké Snack spawn indexed, so a snack can't lure it.</p>`;
+      return;
+    }
+    const baseRate = Number(els.snackBaseRate.value) || state.config.baseShinyRate;
+    const { tiers, note } = egaTiers(b0, bestSnackVariantFor(v.id, 1), bestSnackVariantFor(v.id, 3));
+    const art = variantArt(v, true);
+    els.snackBestOut.innerHTML =
+      `<div class="find-row" style="border:0;padding:0 0 8px"><img src="${art.src}" onerror="this.src='${art.fb}'" alt=""/>
+         <span class="find-name">Best plan · ${v.base} — ${v.name} <span class="bait-var-chip">🎨 variant</span></span></div>` +
+      `<div class="snack-best-grid">` +
+        tiers.map(([title, plan]) => planCard(title, plan, DEX_BY_NUM[v.dex], baseRate)).join("") +
+      `</div>${egaNoteText(note, `${v.base} — ${v.name}`)}` +
+      `<p class="hint">Optimised for the fewest snacks to a <em>shiny of this variant</em> (spawn rate × shiny boost).
+        Its share is a slice of ${v.base}'s bucket weight. Base shiny rate ${baseRate} (edit it in "Snacks to a shiny").</p>`;
+    return;
+  }
+
+  const sp = hit.sp;
   const b0 = bestSnackFor(sp.dex, 0);
   if (!b0) {
     els.snackBestOut.innerHTML = `<p class="hint">${sp.name.replace(/-/g, " ")} has no natural Poké Snack spawn in base
@@ -4551,14 +4689,14 @@ function renderBestSnack(raw) {
 }
 
 // Apply a recommended plan to the manual builder so the full visitor list + estimate show.
-function applySnackPlan(biome, ids, dex) {
+function applySnackPlan(biome, ids, dex, variantId) {
   els.snackBiome.value = biome;
   // The optimiser assumes ideal placement (water included), so reflect that here.
   if (els.snackNearWater) els.snackNearWater.checked = true;
   ["snack-s0", "snack-s1", "snack-s2"].forEach((s, i) => { document.getElementById(s).value = ids[i] || ""; });
-  snackTarget = String(dex);
+  snackTarget = variantId ? "v:" + variantId : String(dex);
   renderSnack();
-  els.snackTarget.value = String(dex);
+  els.snackTarget.value = snackTarget;
   renderSnackShiny(selectedSeasonings());
   els.snackBiome.scrollIntoView({ behavior: "smooth", block: "center" });
 }
@@ -6976,7 +7114,7 @@ function wire() {
   els.snackBestInput.addEventListener("keydown", (e) => { if (e.key === "Enter") renderBestSnack(els.snackBestInput.value); });
   els.snackBestOut.addEventListener("click", (e) => {
     const btn = e.target.closest(".plan-apply"); if (!btn) return;
-    applySnackPlan(btn.dataset.biome, btn.dataset.combo ? btn.dataset.combo.split(",") : [], Number(btn.dataset.dex));
+    applySnackPlan(btn.dataset.biome, btn.dataset.combo ? btn.dataset.combo.split(",") : [], Number(btn.dataset.dex), btn.dataset.variant);
   });
   els.snackResults.addEventListener("click", (e) => {
     const row = e.target.closest(".snack-row[data-dex]");
@@ -7272,6 +7410,7 @@ async function boot() {
   buildBiomeIndex();
   buildLabelBiomes();
   buildVariantLookup();
+  buildSnackVarIndex();
   SIM = await fetch("js/data/sim-spawns.json").then((r) => r.json())
     .catch(() => ({ spawns: {}, items: [], baseBlocks: [], hitbox: {} }));
 
@@ -7321,6 +7460,15 @@ async function boot() {
     }).join("") +
     `</optgroup>`).join("");
   ["snack-s0", "snack-s1", "snack-s2"].forEach((id) => { document.getElementById(id).innerHTML = seasoningOpts; });
+
+  // Best-snack search datalist: species + lurable regional/cosmetic-form variants
+  // (so you can type "Alolan Rattata" or "Hisuian Zorua"), same pattern as PokéBait's.
+  const ssl = document.getElementById("snack-search-list");
+  if (ssl) {
+    const vOpts = Object.keys(SNACK_VAR).map((id) => VARIANT_BY_ID[id]).filter(Boolean).map((v) =>
+      `<option value="${`${v.base} ${v.name}`.replace(/"/g, "")}">🎨 ${v.base} · ${v.name}</option>`).join("");
+    ssl.innerHTML = els.speciesList.innerHTML + vOpts;
+  }
   populateSimControls(biomeOpts, seasoningOpts);
 
   // PokéBait tab: biome (readable fishing-pool labels), scenario, seasonings.

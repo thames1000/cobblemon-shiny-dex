@@ -4278,20 +4278,22 @@ function computeAttraction(biome, seasonings, nearWater = true) {
     if (!nearWater && needsWater(entry)) continue;      // dry land — aquatic spawns can't roll
     const sp = DEX_BY_NUM[dex];
     if (!passesEvGate(sp, evReqs)) continue;            // forced out — can't be lured
-    const mult = snackMult(sp, seasonings);
+    // This row is a regional/cosmetic form (e.g. "Alolan") — a form can have its OWN
+    // typing (Hisuian Zorua is Normal/Ghost, not base Zorua's Dark), so a type-berry's
+    // bias must be checked against the form's real type, not the base species'.
+    const v = entry.f ? spawnVariant(dex, entry.f) : null;
+    const effSp = v && v.types ? { ...sp, types: v.types } : sp;
+    const mult = snackMult(effSp, seasonings);
     const w = (entry.w || 0) * mult;   // weight-0 spawns don't roll, so they can't be lured
     if (w <= 0) continue;
     // A type/egg ×10 OR surviving an EV gate both mean the snack deliberately favours this species.
     buckets[entry.r].push({ dex, w, boosted: mult > 1 || evReqs.length > 0 });
-    // This row is a regional/cosmetic form (e.g. "Alolan") — track its slice of the
-    // species' weight separately so it can be targeted/searched as its own variant.
-    if (entry.f) {
-      const v = spawnVariant(dex, entry.f);
-      if (v) {
-        const kv = entry.r + ":" + v.id;
-        const cv = aggVar.get(kv) || { vid: v.id, dex, r: entry.r, w: 0 };
-        cv.w += w; aggVar.set(kv, cv);
-      }
+    // Track this form's slice of the species' weight separately so it can be
+    // targeted/searched as its own variant.
+    if (v) {
+      const kv = entry.r + ":" + v.id;
+      const cv = aggVar.get(kv) || { vid: v.id, dex, r: entry.r, w: 0 };
+      cv.w += w; aggVar.set(kv, cv);
     }
   }
   // Cobblemon rolls a bucket by weight then a species within it; an empty bucket
@@ -4580,7 +4582,10 @@ function bestSnackVariantFor(variantId, egaCap) {
     .flatMap((e) => e.b))];
   const biomes = biomesForLabels(labels);
   if (!biomes.length) return null;
-  const combos = combosFor(sp, egaCap);
+  // Search seasonings against the FORM's own type (Hisuian Zorua is Normal/Ghost, not
+  // base Zorua's Dark) so the optimiser actually tries the berries that really boost it.
+  const effSp = v.types ? { ...sp, types: v.types } : sp;
+  const combos = combosFor(effSp, egaCap);
   let best = null;
   for (const biome of biomes) {
     for (const combo of combos) {

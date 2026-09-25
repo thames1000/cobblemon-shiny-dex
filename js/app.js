@@ -4277,12 +4277,13 @@ function computeAttraction(biome, seasonings, nearWater = true) {
     if (isSnackBlacklisted(dex)) continue;              // lumymon: can't be lured by a snack (off by default — we assume all lurable)
     if (!nearWater && needsWater(entry)) continue;      // dry land — aquatic spawns can't roll
     const sp = DEX_BY_NUM[dex];
-    if (!passesEvGate(sp, evReqs)) continue;            // forced out — can't be lured
     // This row is a regional/cosmetic form (e.g. "Alolan") — a form can have its OWN
-    // typing (Hisuian Zorua is Normal/Ghost, not base Zorua's Dark), so a type-berry's
-    // bias must be checked against the form's real type, not the base species'.
+    // typing AND EV yield (Hisuian Zorua is Normal/Ghost + Speed EVs, not base Zorua's
+    // Dark + Sp. Atk), so a type berry's bias and an EV berry's gate must both be
+    // checked against the form's real data, not the base species'.
     const v = entry.f ? spawnVariant(dex, entry.f) : null;
-    const effSp = v && v.types ? { ...sp, types: v.types } : sp;
+    const effSp = v && (v.types || v.ev) ? { ...sp, types: v.types || sp.types, ev: v.ev || sp.ev } : sp;
+    if (!passesEvGate(effSp, evReqs)) continue;         // forced out — can't be lured
     const mult = snackMult(effSp, seasonings);
     const w = (entry.w || 0) * mult;   // weight-0 spawns don't roll, so they can't be lured
     if (w <= 0) continue;
@@ -4582,9 +4583,10 @@ function bestSnackVariantFor(variantId, egaCap) {
     .flatMap((e) => e.b))];
   const biomes = biomesForLabels(labels);
   if (!biomes.length) return null;
-  // Search seasonings against the FORM's own type (Hisuian Zorua is Normal/Ghost, not
-  // base Zorua's Dark) so the optimiser actually tries the berries that really boost it.
-  const effSp = v.types ? { ...sp, types: v.types } : sp;
+  // Search seasonings against the FORM's own type and EV yield (Hisuian Zorua is
+  // Normal/Ghost + Speed EVs, not base Zorua's Dark + Sp. Atk) so the optimiser
+  // actually tries the berries that really boost/gate it.
+  const effSp = v.types || v.ev ? { ...sp, types: v.types || sp.types, ev: v.ev || sp.ev } : sp;
   const combos = combosFor(effSp, egaCap);
   let best = null;
   for (const biome of biomes) {
@@ -4800,12 +4802,13 @@ function computeBaitCatches(biome, scen, lure, seasonings) {
   for (const { dex, r, w, v } of pool) {
     if (!buckets[r]) continue;
     const sp = DEX_BY_NUM[dex];
-    if (!passesEvGate(sp, evReqs)) continue;                // EV seasoning filters the pool
-    // A fishable variant can have its OWN typing (e.g. a differently-typed regional
-    // form), so a type berry's bias must be checked against ITS real type, not the
-    // base species' — same fix as PokéSnack's computeAttraction.
+    // A fishable variant can have its OWN typing AND EV yield (e.g. a differently-
+    // typed/statted regional form), so a type berry's bias and an EV berry's gate
+    // must both be checked against ITS real data — same fix as PokéSnack's
+    // computeAttraction.
     const vObj = v ? VARIANT_BY_ID[v] : null;
-    const effSp = vObj && vObj.types ? { ...sp, types: vObj.types } : sp;
+    const effSp = vObj && (vObj.types || vObj.ev) ? { ...sp, types: vObj.types || sp.types, ev: vObj.ev || sp.ev } : sp;
+    if (!passesEvGate(effSp, evReqs)) continue;             // EV seasoning filters the pool
     const mult = baitMult(effSp, seasonings);
     const wm = w * mult;
     if (wm <= 0) continue;
@@ -5046,10 +5049,11 @@ function bestBaitVariantFor(variantId, allowRarity) {
   const biomes = FISHING_VAR[variantId] || [];
   if (!v || !biomes.length) return null;
   const sp = DEX_BY_NUM[v.dex] || { types: [], eggGroups: [], ev: [] };
-  // Search seasonings against the variant's own type when it differs from its base
-  // species (e.g. a differently-typed regional form) so the optimiser tries the
-  // berries that actually boost it — same fix as PokéSnack's bestSnackVariantFor.
-  const effSp = v.types ? { ...sp, types: v.types } : sp;
+  // Search seasonings against the variant's own type and EV yield when they differ
+  // from its base species (e.g. a differently-typed/statted regional form) so the
+  // optimiser tries the berries that actually boost/gate it — same fix as
+  // PokéSnack's bestSnackVariantFor.
+  const effSp = v.types || v.ev ? { ...sp, types: v.types || sp.types, ev: v.ev || sp.ev } : sp;
   const combos = multisetCombos(relevantBaitSeasonings(effSp, allowRarity), 3);
   const rate = baitRateInput();
   let best = null;

@@ -4183,11 +4183,13 @@ function passesEvGate(sp, evReqs) {
 
 // Aquatic spawns only roll where there's water at the placement spot, so a snack
 // dropped on dry land can't draw them — only one placed at the water's edge can.
-// Detected from the spawn position (submerged / seafloor / rod-fishing) or a
-// "near <aquatic block>" nearby-block requirement carried in the `bo` notes.
+// Detected from the spawn position (submerged / seafloor) or a "near <aquatic
+// block>" nearby-block requirement carried in the `bo` notes.
 // NOTE: position "surface" is deliberately excluded — land mobs (Grimer, Muk,
-// Dratini…) use it too, so it doesn't reliably mean "on water".
-const WATER_POS = new Set(["submerged", "seafloor", "fishing"]);
+// Dratini…) use it too, so it doesn't reliably mean "on water". Position "fishing"
+// is deliberately NOT included here — see isFishingOnly below, it's a different
+// lure mechanism entirely, not just a placement condition.
+const WATER_POS = new Set(["submerged", "seafloor"]);
 const WATER_BLOCK_RE = /water|kelp|seagrass|sea grass|coral|lily ?pad/i;
 function needsWater(e) {
   if (e.pos && WATER_POS.has(e.pos)) return true;
@@ -4199,6 +4201,29 @@ function biomeWaterShare(biome) {
   const pool = biomeSpecificPool(biome);
   if (!pool.length) return 0;
   return pool.filter(({ entry }) => needsWater(entry)).length / pool.length;
+}
+// A "fishing"-position spawn is only ever hooked with a Poké Rod (see the PokéBait
+// tab's own fishing-pool.json) — a placed Poké Snack can't produce it at all, no
+// matter how close to water it is, so it's always excluded (not toggle-gated).
+function isFishingOnly(e) {
+  return e.pos === "fishing";
+}
+// A "near <specific block>" placement requirement that ISN'T water (redstone gear,
+// specific ores, particular flowers, apricorns…) — there's no control here to say
+// "I have that nearby" (unlike the water toggle), so like structures and rod-only
+// spawns, these are excluded from the default pool rather than silently pooled in
+// as always-present.
+function needsOtherBlock(e) {
+  return !!(e.bo && e.bo.some((n) => /^near /i.test(n) && !WATER_BLOCK_RE.test(n)));
+}
+
+// Structure-bound spawns (a Village, Ruin, Shipwreck, Dungeon…) only roll within
+// range of that specific structure, not just anywhere their biome tag matches — a
+// snack dropped in open Birch Forest can't lure a Gimmighoul that only spawns near
+// a Ruin. There's no "which structure are you near" placement control in this tool
+// (unlike the water toggle), so these are always excluded from the lure pool.
+function needsStructure(e) {
+  return !!(e.st && e.st.length);
 }
 
 function snackTotals(seasonings) {
@@ -4284,6 +4309,9 @@ function computeAttraction(biome, seasonings, nearWater = true) {
     if (!buckets[entry.r]) continue;
     if (isSnackBlacklisted(dex)) continue;              // lumymon: can't be lured by a snack (off by default — we assume all lurable)
     if (!nearWater && needsWater(entry)) continue;      // dry land — aquatic spawns can't roll
+    if (needsStructure(entry)) continue;                // bound to a Village/Ruin/Shipwreck/etc — a snack away from it can't lure it, and there's no way here to say "I'm near one"
+    if (isFishingOnly(entry)) continue;                 // rod-only encounter — a placed snack can never produce it
+    if (needsOtherBlock(entry)) continue;               // needs a specific non-water block nearby we have no control for
     const sp = DEX_BY_NUM[dex];
     // This row is a regional/cosmetic form (e.g. "Alolan") — a form can have its OWN
     // typing AND EV yield (Hisuian Zorua is Normal/Ghost + Speed EVs, not base Zorua's
@@ -4439,8 +4467,33 @@ function waterNote(biome, nearWater) {
   if (!wet) return "";
   const s = wet > 1 ? "s" : "";
   return nearWater
-    ? `<p class="hint">💧 Placed <b>near water</b>: ${wet} aquatic spawn${s} (submerged / fishing / near-water) are in the pool. Untick if you're on dry land.</p>`
+    ? `<p class="hint">💧 Placed <b>near water</b>: ${wet} aquatic spawn${s} (submerged / seafloor / near-water) are in the pool. Untick if you're on dry land.</p>`
     : `<p class="hint">🏜️ Placed on <b>dry land</b>: ${wet} water-only spawn${s} excluded and the odds renormalised. Tick “near water” to include them.</p>`;
+}
+
+// Note covering the three placement conditions this tool can't represent as a
+// toggle, so they're always excluded rather than silently pooled in as
+// always-present: bound to a structure (Village/Ruin/Shipwreck…), rod-only
+// ("fishing"-position, which is the PokéBait tab's job), or needs a specific
+// non-water block nearby (redstone gear, particular ores/flowers…).
+function otherExclusionsNote(biome) {
+  const pool = biomeSpecificPool(biome);
+  const structNames = new Set();
+  let structN = 0, fishN = 0, blockN = 0;
+  for (const { entry } of pool) {
+    if (needsStructure(entry)) { structN++; entry.st.forEach((s) => structNames.add(s)); }
+    if (isFishingOnly(entry)) fishN++;
+    if (needsOtherBlock(entry)) blockN++;
+  }
+  const parts = [];
+  if (structN) {
+    const list = [...structNames].sort().slice(0, 6).join(", ") + (structNames.size > 6 ? "…" : "");
+    parts.push(`🏛 ${structN} bound to a structure (${list})`);
+  }
+  if (fishN) parts.push(`🎣 ${fishN} rod-only (see the PokéBait tab)`);
+  if (blockN) parts.push(`🧱 ${blockN} needing a specific nearby block`);
+  if (!parts.length) return "";
+  return `<p class="hint">Excluded — a placed snack can't produce these: ${parts.join(" · ")}.</p>`;
 }
 
 function renderSnack() {
@@ -4452,7 +4505,7 @@ function renderSnack() {
   snackRanked = res.ranked;
   snackVariantP = res.variantP;
   renderSnackSummary(seasonings);
-  renderSnackResults(snackRanked, waterNote(biome, nearWater));
+  renderSnackResults(snackRanked, waterNote(biome, nearWater) + otherExclusionsNote(biome));
   populateSnackTargets(snackRanked, snackVariantP);
   renderSnackShiny(seasonings);
 }

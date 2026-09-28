@@ -2516,7 +2516,7 @@ function detailSnackHtml(dex) {
     <div class="md-snack">
       <div class="plan-row"><span>Biome</span><b style="text-transform:capitalize">${isIngameBiome(best.biome) ? biomeLabel(best.biome) : best.biome}</b></div>
       <div class="plan-row"><span>Snack</span><b>${fmtCombo(best.combo)}</b></div>
-      <div class="plan-row"><span>Spawn rate</span><b>${(best.p * 100).toFixed(1)}%</b></div>
+      <div class="plan-row"><span>Spawn rate</span><b>${pctFmt(best.p)}</b></div>
       <div class="plan-row"><span>Shiny odds</span><b>1/${Math.round(eff).toLocaleString()}</b> (✨×${best.shiny})</div>
       <div class="plan-row"><span>Snacks to shiny</span><b>~${snacks.toLocaleString()}</b> <span class="muted">expected</span></div>
     </div>
@@ -4216,6 +4216,14 @@ function snackTotals(seasonings) {
 }
 
 const typeChip = (t) => `<span class="type-chip">${t}</span>`;
+// Format a probability as a spawn/catch-rate percentage to 2 decimal places. A
+// nonzero value that would round to "0.00%" shows "<0.01%" instead, so an ultra-rare
+// (but real) spawn doesn't read as literally impossible.
+const pctFmt = (p) => {
+  const n = p * 100;
+  if (n > 0 && n < 0.01) return "<0.01%";
+  return n.toFixed(2) + "%";
+};
 
 function renderSnackSummary(seasonings) {
   const wrap = els.snackSummary;
@@ -4340,7 +4348,6 @@ function renderSnackResults(ranked, note = "") {
   const rows = top.map((r) => {
     const sp = DEX_BY_NUM[r.dex];
     const types = sp ? sp.types.map(typeChip).join(" ") : "";
-    const pct = (r.p * 100).toFixed(1);
     return `<div class="snack-row" data-dex="${r.dex}">
       <img loading="lazy" src="${spriteUrl(r.dex)}" alt="${sp ? sp.name : r.dex}" />
       <div class="snack-row-main">
@@ -4349,7 +4356,7 @@ function renderSnackResults(ranked, note = "") {
           ${r.hasVar ? '<span class="bait-var-chip" title="Has lurable regional/cosmetic forms — search or target them below">🎨 variants</span>' : ""}</div>
         <div class="bar"><i style="width:${(r.p / max) * 100}%"></i></div>
       </div>
-      <div class="snack-pct">${pct}%</div>
+      <div class="snack-pct">${pctFmt(r.p)}</div>
     </div>`;
   }).join("");
 
@@ -4375,12 +4382,12 @@ function populateSnackTargets(ranked, variantP) {
   const prev = snackTarget;
   const spOpts = ranked.slice(0, 30).map((r) => {
     const sp = DEX_BY_NUM[r.dex];
-    return `<option value="${r.dex}">${(sp ? sp.name.replace(/-/g, " ") : "#" + r.dex)} — ${(r.p * 100).toFixed(1)}%</option>`;
+    return `<option value="${r.dex}">${(sp ? sp.name.replace(/-/g, " ") : "#" + r.dex)} — ${pctFmt(r.p)}</option>`;
   }).join("");
   // Lurable regional/cosmetic forms (Alolan, Galarian, Hisuian…) as "v:<id>".
   const vs = snackVariantOptions(variantP);
   const vOpts = vs.length
-    ? `<optgroup label="🎨 Variants">` + vs.map((v) => `<option value="v:${v.id}">${v.base} — ${v.name} — ${(v.p * 100).toFixed(1)}%</option>`).join("") + `</optgroup>` : "";
+    ? `<optgroup label="🎨 Variants">` + vs.map((v) => `<option value="v:${v.id}">${v.base} — ${v.name} — ${pctFmt(v.p)}</option>`).join("") + `</optgroup>` : "";
   els.snackTarget.innerHTML = `<option value="any">Any species (any shiny)</option>` + spOpts + vOpts;
   const ok = prev === "any" || (prev.startsWith("v:") ? variantP.has(prev.slice(2)) : ranked.some((r) => String(r.dex) === String(prev)));
   if (ok && prev !== "any") els.snackTarget.value = prev;
@@ -4401,10 +4408,10 @@ function renderSnackShiny(seasonings) {
   let p = 1, label = "Any shiny (whole pool)";
   if (snackTarget.startsWith("v:")) {
     const v = VARIANT_BY_ID[snackTarget.slice(2)]; p = snackVariantP.get(snackTarget.slice(2)) || 0;
-    if (v) label = `${v.base} — ${v.name} · ${(p * 100).toFixed(1)}% of visitors`;
+    if (v) label = `${v.base} — ${v.name} · ${pctFmt(p)} of visitors`;
   } else if (snackTarget !== "any") {
     const r = snackRanked.find((x) => String(x.dex) === String(snackTarget));
-    if (r) { p = r.p; const sp = DEX_BY_NUM[r.dex]; label = `${(sp ? sp.name.replace(/-/g, " ") : "#" + r.dex)} · ${(p * 100).toFixed(1)}% of visitors`; }
+    if (r) { p = r.p; const sp = DEX_BY_NUM[r.dex]; label = `${(sp ? sp.name.replace(/-/g, " ") : "#" + r.dex)} · ${pctFmt(p)} of visitors`; }
   }
   if (p <= 0) { els.snackShinyOut.innerHTML = `<span class="muted">${label} — can't be lured with this snack here.</span>`; return; }
   const targetOdds = effOdds / p;                     // 1-in-N that a bite is a shiny of the target
@@ -4617,7 +4624,7 @@ function planCard(title, plan, sp, baseRate) {
     <h3>${title}</h3>
     <div class="plan-row"><span>Biome</span><b style="text-transform:capitalize">${isIngameBiome(plan.biome) ? biomeLabel(plan.biome) : plan.biome}</b></div>
     <div class="plan-row"><span>Snack</span><b>${fmtCombo(plan.combo)}</b></div>
-    <div class="plan-row"><span>Spawn rate</span><b>${(plan.p * 100).toFixed(1)}%</b></div>
+    <div class="plan-row"><span>Spawn rate</span><b>${pctFmt(plan.p)}</b></div>
     <div class="plan-row"><span>Shiny odds</span><b>1/${Math.round(eff).toLocaleString()}</b> (✨×${plan.shiny})</div>
     <div class="plan-row"><span>Snacks to shiny</span><b>~${snacks.toLocaleString()}</b> <span class="muted">expected</span></div>
     ${spawnConditionsHtml(sp.dex, plan.biome)}
@@ -4914,7 +4921,7 @@ function renderBaitResults(ranked, note = "") {
           ${r.hasVar ? '<span class="bait-var-chip" title="Has fishable variants — search or target them below">🎨 variants</span>' : ""}</div>
         <div class="bar"><i style="width:${(r.p / max) * 100}%"></i></div>
       </div>
-      <div class="snack-pct">${(r.p * 100).toFixed(1)}%</div>
+      <div class="snack-pct">${pctFmt(r.p)}</div>
     </div>`;
   }).join("");
   const more = ranked.length > top.length ? `<p class="hint">…and ${ranked.length - top.length} more rarer catches.</p>` : "";
@@ -4927,13 +4934,12 @@ function populateBaitTargets(ranked, variantP) {
   const prev = baitTarget;
   const spOpts = ranked.slice(0, 30).map((r) => {
     const sp = DEX_BY_NUM[r.dex];
-    return `<option value="${r.dex}">${(sp ? sp.name.replace(/-/g, " ") : "#" + r.dex)} — ${(r.p * 100).toFixed(1)}%</option>`;
+    return `<option value="${r.dex}">${(sp ? sp.name.replace(/-/g, " ") : "#" + r.dex)} — ${pctFmt(r.p)}</option>`;
   }).join("");
   // Fishable variants (Magikarp Jump patterns, stripes, seas, Hisuian) as "v:<id>".
   const vs = baitVariantOptions();
-  const pct = (p) => (p * 100 >= 0.1 ? (p * 100).toFixed(1) + "%" : (p * 100).toFixed(2) + "%");
   const vOpts = vs.length
-    ? `<optgroup label="🎨 Variants">` + vs.map((v) => `<option value="v:${v.id}">${v.base} — ${v.name} — ${pct(v.p)}</option>`).join("") + `</optgroup>` : "";
+    ? `<optgroup label="🎨 Variants">` + vs.map((v) => `<option value="v:${v.id}">${v.base} — ${v.name} — ${pctFmt(v.p)}</option>`).join("") + `</optgroup>` : "";
   sel.innerHTML = `<option value="any">Any species (any shiny)</option>` + spOpts + vOpts;
   const ok = prev === "any" || (prev.startsWith("v:") ? variantP.has(prev.slice(2)) : ranked.some((r) => String(r.dex) === String(prev)));
   if (ok && prev !== "any") sel.value = prev;
@@ -4950,10 +4956,10 @@ function renderBaitShiny(seasonings) {
   let p = 1, label = "Any shiny (whole pool)";
   if (baitTarget.startsWith("v:")) {                         // a specific variant
     const v = VARIANT_BY_ID[baitTarget.slice(2)]; p = baitVariantP.get(baitTarget.slice(2)) || 0;
-    if (v) label = `${v.base} — ${v.name} · ${(p * 100).toFixed(p * 100 >= 0.1 ? 1 : 2)}% of catches`;
+    if (v) label = `${v.base} — ${v.name} · ${pctFmt(p)} of catches`;
   } else if (baitTarget !== "any") {
     const r = baitRanked.find((x) => String(x.dex) === String(baitTarget));
-    if (r) { p = r.p; const sp = DEX_BY_NUM[r.dex]; label = `${sp ? sp.name.replace(/-/g, " ") : "#" + r.dex} · ${(p * 100).toFixed(1)}% of catches`; }
+    if (r) { p = r.p; const sp = DEX_BY_NUM[r.dex]; label = `${sp ? sp.name.replace(/-/g, " ") : "#" + r.dex} · ${pctFmt(p)} of catches`; }
   }
   if (p <= 0) { out.innerHTML = `<span class="muted">${label} — can't be hooked with this bait here.</span>`; return; }
   const perCatch = shiny * p;                                // P(a hook is a shiny of the target)
@@ -5083,7 +5089,7 @@ function baitPlanCard(title, plan, dex) {
     <h3>${title}</h3>
     <div class="plan-row"><span>Spot</span><b style="text-transform:capitalize">${plan.biome} · ${(FISHING.scenarios[plan.scen] || plan.scen)}</b></div>
     <div class="plan-row"><span>Bait</span><b>${fmtBaitCombo(plan.combo)}</b></div>
-    <div class="plan-row"><span>Catch rate</span><b>${(plan.p * 100).toFixed(plan.p * 100 >= 0.1 ? 1 : 2)}%</b> per hook</div>
+    <div class="plan-row"><span>Catch rate</span><b>${pctFmt(plan.p)}</b> per hook</div>
     <div class="plan-row"><span>Shiny odds</span><b>1/${Math.round(1 / plan.shiny).toLocaleString()}</b> per catch</div>
     <div class="plan-row"><span>Catches to shiny</span><b>~${Math.round(1 / (plan.p * plan.shiny)).toLocaleString()}</b> <span class="muted">(${Math.max(1, Math.ceil(1 / (plan.p * plan.shiny) / 4)).toLocaleString()} baits)</span></div>
     <button class="ctrl-btn bait-apply" data-biome="${plan.biome}" data-scen="${plan.scen}" data-combo="${plan.combo.map((b) => b.id).join(",")}" data-dex="${dex}"${plan.variantId ? ` data-variant="${plan.variantId}"` : ""}>Load into builder</button>
@@ -5281,7 +5287,7 @@ function populateSimTargets(ranked) {
   els.simTarget.innerHTML = `<option value="any">Any species (any shiny)</option>` +
     ranked.slice(0, 40).map((r) => {
       const sp = DEX_BY_NUM[r.dex];
-      return `<option value="${r.dex}">${sp ? sp.name.replace(/-/g, " ") : "#" + r.dex} — ${(r.p * 100).toFixed(1)}%</option>`;
+      return `<option value="${r.dex}">${sp ? sp.name.replace(/-/g, " ") : "#" + r.dex} — ${pctFmt(r.p)}</option>`;
     }).join("");
   if (prev !== "any" && ranked.some((r) => String(r.dex) === String(prev))) els.simTarget.value = prev;
   else { simTarget = "any"; els.simTarget.value = "any"; }
@@ -5298,7 +5304,7 @@ function renderSimShiny() {
   let p = 1, label = "Any shiny (whole spawn pool)";
   if (simTarget !== "any") {
     const r = simRanked.find((x) => String(x.dex) === String(simTarget));
-    if (r) { p = r.p; const sp = DEX_BY_NUM[r.dex]; label = `${sp ? sp.name.replace(/-/g, " ") : "#" + r.dex} · ${(p * 100).toFixed(1)}% of spawns`; }
+    if (r) { p = r.p; const sp = DEX_BY_NUM[r.dex]; label = `${sp ? sp.name.replace(/-/g, " ") : "#" + r.dex} · ${pctFmt(p)} of spawns`; }
   }
   const targetOdds = effOdds / p;
   const snacks = (enc) => Math.max(1, Math.ceil(enc / SNACK_BITES));
@@ -5374,7 +5380,7 @@ function renderSim() {
         <div class="bar"><i style="width:${(r.p / max) * 100}%"></i></div>
         ${note ? `<div class="sim-cond">${note}</div>` : ""}
       </div>
-      <div class="snack-pct">${(r.p * 100).toFixed(1)}%</div>
+      <div class="snack-pct">${pctFmt(r.p)}</div>
     </div>`;
   }).join("");
   const more = ranked.length > 40 ? `<p class="hint">…and ${ranked.length - 40} more rarer options.</p>` : "";
@@ -5507,7 +5513,7 @@ function simPlanCard(title, plan, idx, baseRate) {
     <h3>${title}</h3>
     ${describeSimSpot(plan.spot)}
     <div class="plan-row"><span>Snack</span><b>${fmtCombo(plan.combo)}</b></div>
-    <div class="plan-row"><span>Spawn chance</span><b>${(plan.p * 100).toFixed(1)}%</b></div>
+    <div class="plan-row"><span>Spawn chance</span><b>${pctFmt(plan.p)}</b></div>
     <div class="plan-row"><span>Shiny odds</span><b>1/${Math.round(eff).toLocaleString()}</b> (✨×${plan.shiny})</div>
     <div class="plan-row"><span>Snacks to shiny</span><b>~${snacks.toLocaleString()}</b> <span class="muted">expected</span></div>
     <button class="ctrl-btn good sim-plan-apply" data-plan="${idx}">Load into simulator below</button>

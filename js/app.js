@@ -4372,7 +4372,7 @@ function renderSnackResults(ranked, note = "") {
     return;
   }
   const max = ranked[0].p || 1;
-  const top = ranked.slice(0, 30);
+  const top = snackShowAll ? ranked : ranked.slice(0, 30);
   const rows = top.map((r) => {
     const sp = DEX_BY_NUM[r.dex];
     const types = sp ? sp.types.map(typeChip).join(" ") : "";
@@ -4388,12 +4388,15 @@ function renderSnackResults(ranked, note = "") {
     </div>`;
   }).join("");
 
-  const more = ranked.length > top.length ? `<p class="hint">…and ${ranked.length - top.length} more rarer visitors.</p>` : "";
+  const more = ranked.length > top.length
+    ? `<button class="ctrl-btn ghost list-toggle" data-toggle="snack">…and ${ranked.length - top.length} more rarer visitors — show all</button>`
+    : (snackShowAll && ranked.length > 30 ? `<button class="ctrl-btn ghost list-toggle" data-toggle="snack">Show fewer ▲</button>` : "");
   els.snackResults.innerHTML = `${note}<div class="card snack-list">${rows}</div>${more}`;
 }
 
 const SNACK_BITES = 9; // a Poké Snack is eaten in 9 bites = 9 attracted Pokémon.
 let snackRanked = [];  // current ranked attraction (cached so target/rate changes are cheap)
+let snackShowAll = false; // "show all" toggled on the results list (resets per render call)
 let snackVariantP = new Map(); // current variantId -> per-roll attraction chance
 let snackTarget = "any";
 
@@ -4787,6 +4790,7 @@ let FISHING_VAR = {};      // variantId -> [biome labels] (fishable variants, fo
 let baitCalc = { biome: "ocean", scen: "surface", lure: 1, luck: 0 };
 let baitTarget = "any";
 let baitRanked = [];
+let baitShowAll = false; // "show all" toggled on the results list (resets per render call)
 let baitVariantP = new Map();   // variantId -> per-hook catch chance in the current spot/bait
 
 const baitById = (id) => BAIT_BY_ID[id] || null;
@@ -4962,7 +4966,7 @@ function renderBaitResults(ranked, note = "") {
   if (!box) return;
   if (!ranked.length) { box.innerHTML = `<div class="card"><p class="hint">${note || "No fishing pool for this spot — pick another biome or scenario."}</p></div>`; return; }
   const max = ranked[0].p || 1;
-  const top = ranked.slice(0, 30);
+  const top = baitShowAll ? ranked : ranked.slice(0, 30);
   const rows = top.map((r) => {
     const sp = DEX_BY_NUM[r.dex];
     const types = sp ? sp.types.map(typeChip).join(" ") : "";
@@ -4977,7 +4981,9 @@ function renderBaitResults(ranked, note = "") {
       <div class="snack-pct">${pctFmt(r.p)}</div>
     </div>`;
   }).join("");
-  const more = ranked.length > top.length ? `<p class="hint">…and ${ranked.length - top.length} more rarer catches.</p>` : "";
+  const more = ranked.length > top.length
+    ? `<button class="ctrl-btn ghost list-toggle" data-toggle="bait">…and ${ranked.length - top.length} more rarer catches — show all</button>`
+    : (baitShowAll && ranked.length > 30 ? `<button class="ctrl-btn ghost list-toggle" data-toggle="bait">Show fewer ▲</button>` : "");
   box.innerHTML = `${note}<div class="card snack-list">${rows}</div>${more}`;
 }
 
@@ -5245,6 +5251,7 @@ function applyBaitPlan(biome, scen, ids, dex, variantId) {
 let SIM = { spawns: {}, items: [], baseBlocks: [], hitbox: {} };
 let SIM_LABEL = {};   // block key -> readable label (for condition annotations)
 let simRanked = [];   // last simulated ranking (cached so target/rate tweaks are cheap)
+let simShowAll = false; // "show all" toggled on the results list (resets per render call)
 let simTarget = "any";
 
 const SIM_WATER_POS = new Set(["submerged", "seafloor", "fishing"]); // need water/fishing
@@ -5428,7 +5435,8 @@ function renderSim() {
     return;
   }
   const max = ranked[0].p || 1;
-  const rows = ranked.slice(0, 40).map((r) => {
+  const top = simShowAll ? ranked : ranked.slice(0, 40);
+  const rows = top.map((r) => {
     const sp = DEX_BY_NUM[r.dex];
     const types = sp ? sp.types.map(typeChip).join(" ") : "";
     const note = simCondNote(r.e, SIM.hitbox[r.dex]);
@@ -5443,7 +5451,9 @@ function renderSim() {
       <div class="snack-pct">${pctFmt(r.p)}</div>
     </div>`;
   }).join("");
-  const more = ranked.length > 40 ? `<p class="hint">…and ${ranked.length - 40} more rarer options.</p>` : "";
+  const more = ranked.length > top.length
+    ? `<button class="ctrl-btn ghost list-toggle" data-toggle="sim">…and ${ranked.length - top.length} more rarer options — show all</button>`
+    : (simShowAll && ranked.length > 40 ? `<button class="ctrl-btn ghost list-toggle" data-toggle="sim">Show fewer ▲</button>` : "");
   els.simResults.innerHTML = `<div class="card snack-list">${rows}</div>${more}`;
 }
 
@@ -7206,6 +7216,7 @@ function wire() {
     applySnackPlan(btn.dataset.biome, btn.dataset.combo ? btn.dataset.combo.split(",") : [], Number(btn.dataset.dex), btn.dataset.variant);
   });
   els.snackResults.addEventListener("click", (e) => {
+    if (e.target.closest(".list-toggle")) { snackShowAll = !snackShowAll; renderSnack(); return; }
     const row = e.target.closest(".snack-row[data-dex]");
     if (!row) return;
     setSpawnMode("mon");
@@ -7233,6 +7244,7 @@ function wire() {
   });
   const baitResults = document.getElementById("bait-results");
   if (baitResults) baitResults.addEventListener("click", (e) => {
+    if (e.target.closest(".list-toggle")) { baitShowAll = !baitShowAll; renderBait(); return; }
     const row = e.target.closest(".snack-row[data-dex]");
     if (!row) return;
     setSpawnMode("mon");
@@ -7262,6 +7274,7 @@ function wire() {
       if (btn && simBestPlans[+btn.dataset.plan]) applySimPlan(simBestPlans[+btn.dataset.plan]);
     });
     els.simResults.addEventListener("click", (e) => {
+      if (e.target.closest(".list-toggle")) { simShowAll = !simShowAll; renderSim(); return; }
       const row = e.target.closest(".sim-row[data-dex]");
       if (!row) return;
       setSpawnMode("mon");

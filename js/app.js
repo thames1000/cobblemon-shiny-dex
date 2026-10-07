@@ -5272,7 +5272,14 @@ function computeSpawns(o) {
   const evReqs = evRequirements(o.seasonings);
   const buckets = { common: [], uncommon: [], rare: [], "ultra-rare": [] };
   const excl = { tall: 0, near: 0, base: 0, y: 0, time: 0, weather: 0, sky: 0, water: 0, light: 0 };
-  const ow = isOverworldBiome(o.biome); // "any overworld" spawns count here too
+  const ow = biomeIsOverworld(o.biome); // "any overworld" spawns count here too
+  // Spawn entries are tagged by LABEL ("mountain", "forest"…), never by literal
+  // in-game biome id — so picking a specific in-game biome (e.g. "minecraft:meadow")
+  // has to expand to every label it carries (floral/grassland/hills/mountain/…) and
+  // match against any of them, the same way PokéSnack's biomePool does. Matching the
+  // raw id string directly (the old behaviour) silently matched nothing but "any
+  // overworld"/"any biome" spawns for every in-game biome pick.
+  const simLabels = isIngameBiome(o.biome) ? ingameLabels(o.biome) : [o.biome];
   const snackCtx = o.seasonings.length > 0; // a snack is placed → lumymon blacklist applies
   for (const dex in SIM.spawns) {
     if (snackCtx && isSnackBlacklisted(dex)) continue;          // can't be snack-lured (off by default — we assume all lurable)
@@ -5281,7 +5288,7 @@ function computeSpawns(o) {
     for (const e of SIM.spawns[dex]) {
       if (!buckets[e.r] || !e.w) continue;
       const b = e.b || [];
-      if (!b.includes(o.biome) && !b.includes("any biome") && !(ow && b.includes("any overworld"))) continue;
+      if (!b.includes("any biome") && !(ow && b.includes("any overworld")) && !simLabels.some((l) => b.includes(l))) continue;
       if (!o.byWater && e.pos && SIM_WATER_POS.has(e.pos)) { excl.water++; continue; } // submerged/fishing need water
       if (o.openSky ? e.sky === false : e.sky === true) { excl.sky++; continue; }       // sky requirement vs the spot
       if (e.y && ((e.y[0] != null && o.y < e.y[0]) || (e.y[1] != null && o.y > e.y[1]))) { excl.y++; continue; }
@@ -5411,7 +5418,7 @@ function renderSim() {
   if (excl.weather) blocked.push(`${excl.weather} wrong weather`);
   const space = openSky ? "open sky" : `<b>${o.height}</b> blocks of headroom`;
   els.simSummary.innerHTML = `<div class="card"><p class="hint" style="margin:0">
-    <b>${ranked.length}</b> species can spawn at Y ${o.y} in <b style="text-transform:capitalize">${o.biome}</b>
+    <b>${ranked.length}</b> species can spawn at Y ${o.y} in <b style="text-transform:capitalize">${isIngameBiome(o.biome) ? biomeLabel(o.biome) : o.biome}</b>
     with ${space}${byWater ? ", by water" : ""}${o.items.size && !byWater ? ` and ${o.items.size} placed block${o.items.size > 1 ? "s" : ""}` : ""}.
     ${blocked.length ? `<br><span class="muted">Filtered out: ${blocked.join(" · ")}.</span>` : ""}</p></div>`;
 

@@ -4225,6 +4225,15 @@ function needsOtherBlock(e) {
 function needsStructure(e) {
   return !!(e.st && e.st.length);
 }
+// Preset-gated spawns (a Woodland Mansion, an urban build, a jungle/desert pyramid,
+// a Village's trail ruins…) are the same kind of location lock as a structure site
+// — the `px` field is normally just a 📍 display hint, but these specific presets
+// (unlike the generic "natural"/"wild"/"water" ones, which never make it into `px`
+// — see build-spawns-datapack.js's PRESET_KEEP) mean the spawn can't roll anywhere
+// else, so they're excluded from the pool the same way a structure site is.
+function needsPreset(e) {
+  return !!(e.px && e.px.length);
+}
 
 function snackTotals(seasonings) {
   // Shiny modifiers stack ADDITIVELY: a "Nx" seasoning is a +(N-1) bonus, and the
@@ -4312,6 +4321,7 @@ function computeAttraction(biome, seasonings, nearWater = true) {
     if (needsStructure(entry)) continue;                // bound to a Village/Ruin/Shipwreck/etc — a snack away from it can't lure it, and there's no way here to say "I'm near one"
     if (isFishingOnly(entry)) continue;                 // rod-only encounter — a placed snack can never produce it
     if (needsOtherBlock(entry)) continue;               // needs a specific non-water block nearby we have no control for
+    if (needsPreset(entry)) continue;                   // bound to a Mansion/urban build/pyramid/etc — same as a structure site
     const sp = DEX_BY_NUM[dex];
     // This row is a regional/cosmetic form (e.g. "Alolan") — a form can have its OWN
     // typing AND EV yield (Hisuian Zorua is Normal/Ghost + Speed EVs, not base Zorua's
@@ -4474,24 +4484,25 @@ function waterNote(biome, nearWater) {
     : `<p class="hint">🏜️ Placed on <b>dry land</b>: ${wet} water-only spawn${s} excluded and the odds renormalised. Tick “near water” to include them.</p>`;
 }
 
-// Note covering the three placement conditions this tool can't represent as a
-// toggle, so they're always excluded rather than silently pooled in as
-// always-present: bound to a structure (Village/Ruin/Shipwreck…), rod-only
-// ("fishing"-position, which is the PokéBait tab's job), or needs a specific
-// non-water block nearby (redstone gear, particular ores/flowers…).
+// Note covering the placement conditions this tool can't represent as a toggle, so
+// they're always excluded rather than silently pooled in as always-present: bound
+// to a structure (Village/Ruin/Shipwreck…) or a preset location (Mansion/urban
+// build/pyramid…), rod-only ("fishing"-position, which is the PokéBait tab's job),
+// or needs a specific non-water block nearby (redstone gear, particular ores/flowers…).
 function otherExclusionsNote(biome) {
   const pool = biomeSpecificPool(biome);
   const structNames = new Set();
   let structN = 0, fishN = 0, blockN = 0;
   for (const { entry } of pool) {
     if (needsStructure(entry)) { structN++; entry.st.forEach((s) => structNames.add(s)); }
+    if (needsPreset(entry)) { structN++; entry.px.forEach((s) => structNames.add(s)); }
     if (isFishingOnly(entry)) fishN++;
     if (needsOtherBlock(entry)) blockN++;
   }
   const parts = [];
   if (structN) {
     const list = [...structNames].sort().slice(0, 6).join(", ") + (structNames.size > 6 ? "…" : "");
-    parts.push(`🏛 ${structN} bound to a structure (${list})`);
+    parts.push(`🏛 ${structN} bound to a structure/location (${list})`);
   }
   if (fishN) parts.push(`🎣 ${fishN} rod-only (see the PokéBait tab)`);
   if (blockN) parts.push(`🧱 ${blockN} needing a specific nearby block`);
@@ -5254,7 +5265,10 @@ let simRanked = [];   // last simulated ranking (cached so target/rate tweaks ar
 let simShowAll = false; // "show all" toggled on the results list (resets per render call)
 let simTarget = "any";
 
-const SIM_WATER_POS = new Set(["submerged", "seafloor", "fishing"]); // need water/fishing
+const SIM_WATER_POS = new Set(["submerged", "seafloor"]); // need water, toggle-gated by "by water"
+// Position "fishing" is deliberately NOT in SIM_WATER_POS — it's rod-only (see
+// isFishingOnly/needsStructure, shared with PokéSnack's computeAttraction), always
+// excluded below rather than toggle-gated, since no control here is "I have a rod".
 const SIM_WATER_NEARBY = ["minecraft:water", "#minecraft:water", "minecraft:flowing_water"];
 const TIME_ALIAS = { dawn: "dusk", dusk: "dusk", twilight: "dusk" };
 const normTime = (t) => { t = String(t || "").toLowerCase(); return TIME_ALIAS[t] || t; };
@@ -5278,7 +5292,7 @@ function computeSpawns(o) {
   const odds = bucketOdds(o.seasonings.reduce((a, s) => a + (s.rarityTier || 0), 0), snack);
   const evReqs = evRequirements(o.seasonings);
   const buckets = { common: [], uncommon: [], rare: [], "ultra-rare": [] };
-  const excl = { tall: 0, near: 0, base: 0, y: 0, time: 0, weather: 0, sky: 0, water: 0, light: 0 };
+  const excl = { tall: 0, near: 0, base: 0, y: 0, time: 0, weather: 0, sky: 0, water: 0, light: 0, structure: 0, fishing: 0 };
   const ow = biomeIsOverworld(o.biome); // "any overworld" spawns count here too
   // Spawn entries are tagged by LABEL ("mountain", "forest"…), never by literal
   // in-game biome id — so picking a specific in-game biome (e.g. "minecraft:meadow")
@@ -5296,7 +5310,10 @@ function computeSpawns(o) {
       if (!buckets[e.r] || !e.w) continue;
       const b = e.b || [];
       if (!b.includes("any biome") && !(ow && b.includes("any overworld")) && !simLabels.some((l) => b.includes(l))) continue;
-      if (!o.byWater && e.pos && SIM_WATER_POS.has(e.pos)) { excl.water++; continue; } // submerged/fishing need water
+      if (needsStructure(e)) { excl.structure++; continue; }             // bound to a Village/Ruin/Shipwreck/etc, no control here for "near one"
+      if (isFishingOnly(e)) { excl.fishing++; continue; }                // rod-only encounter, never a block/natural spawn
+      if (needsPreset(e)) { excl.structure++; continue; }                // bound to a Mansion/urban build/pyramid/etc — same as a structure site
+      if (!o.byWater && e.pos && SIM_WATER_POS.has(e.pos)) { excl.water++; continue; } // submerged need water
       if (o.openSky ? e.sky === false : e.sky === true) { excl.sky++; continue; }       // sky requirement vs the spot
       if (e.y && ((e.y[0] != null && o.y < e.y[0]) || (e.y[1] != null && o.y > e.y[1]))) { excl.y++; continue; }
       if (o.light != null && ((e.lt && (o.light < e.lt[0] || o.light > e.lt[1])) || (e.ml != null && o.light > e.ml))) { excl.light++; continue; }
@@ -5414,7 +5431,9 @@ function renderSim() {
   renderSimShiny();
 
   const blocked = [];
-  if (excl.water) blocked.push(`${excl.water} need water / fishing`);
+  if (excl.structure) blocked.push(`${excl.structure} bound to a structure (Village/Ruin/Shipwreck…)`);
+  if (excl.fishing) blocked.push(`${excl.fishing} rod-only (see the PokéBait tab)`);
+  if (excl.water) blocked.push(`${excl.water} need water`);
   if (excl.sky) blocked.push(`${excl.sky} need ${openSky ? "cover (no sky)" : "open sky"}`);
   if (excl.light) blocked.push(`${excl.light} wrong light level`);
   if (excl.tall) blocked.push(`${excl.tall} too tall for ${o.height} block${o.height > 1 ? "s" : ""}`);

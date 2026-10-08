@@ -62,6 +62,27 @@ function blockGroup(key) {
 
 function lvl(s) { return String(s.level || ""); }
 
+// Presets worth treating as a real location lock (same list as
+// build-spawns-datapack.js's PRESET_KEEP — skip the noise: natural/wild/water/etc,
+// which just describe the spawn's flavour, not an actual placement requirement).
+const PRESET_KEEP = {
+  treetop: "treetop", urban: "urban", mansion: "mansion", trail_ruins: "trail ruins",
+  jungle_pyramid: "jungle pyramid", desert_pyramid: "desert pyramid", ocean_ruins: "ocean ruins",
+  ocean_monument: "ocean monument", pillager_outpost: "pillager outpost", ruined_portal: "ruined portal",
+  stronghold: "stronghold", nether_fossil: "nether fossil", ancient_city: "ancient city",
+  end_city: "end city", derelict: "derelict", lava: "lava", webs: "webs", redstone: "redstone",
+  salt: "salt", saccharine_tree: "saccharine tree", foliage: "foliage",
+};
+
+// Structures / custom-spawn sites -> readable labels (same logic as
+// build-spawns-datapack.js's siteLabel, kept in sync so the simulator's "st"
+// field reads identically to spawns.json's and can be excluded the same way).
+function siteLabel(ref) {
+  const noHash = String(ref).replace(/^#/, "");
+  const seg = noHash.replace(/^[a-z0-9_.-]+:/, "").split("/").pop();
+  return readable(seg).replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function main() {
   const research = JSON.parse(fs.readFileSync(RESEARCH, "utf8")).species;
   const spawns = JSON.parse(fs.readFileSync(SPAWNS, "utf8"));
@@ -82,6 +103,10 @@ function main() {
       const biomes = [...new Set((s.biomes.include || []).map(biomeLabel).filter((b) => b && okBiomes.has(b)))];
       if (!biomes.length) continue;
       const e = { b: biomes, r: s.rarity, w: s.weight, lv: lvl(s) };
+      const st = [...new Set((s.sites && s.sites.include || []).map(siteLabel))];
+      if (st.length) e.st = st;
+      const px = [...new Set((s.presets || []).map((p) => PRESET_KEEP[p]).filter(Boolean))];
+      if (px.length) e.px = px;
       if (s.position && s.position !== "grounded") e.pos = s.position;
       if (s.y && (s.y.min != null || s.y.max != null)) e.y = [s.y.min != null ? s.y.min : null, s.y.max != null ? s.y.max : null];
       if (s.nearbyBlocks && s.nearbyBlocks.length) { e.near = s.nearbyBlocks; s.nearbyBlocks.forEach((x) => itemKeys.add(x)); }

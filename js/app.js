@@ -5494,18 +5494,16 @@ function populateSimControls(biomeOpts, seasoningOpts) {
 /* ---------- spawn optimizer (pick the best spot + snack for a target) ---------- */
 let simBestPlans = [];   // one entry per shown EGA tier, indexed by the card's data-plan
 
-// Candidate (entry, concrete-biome) pairs the target can spawn in — wildcards expand.
+// Candidate (entry, concrete in-game biome) pairs the target can spawn in —
+// resolves label tags ("mountain", "any overworld"…) to real in-game biomes via
+// biomesForLabels (the same resolver PokéSnack's optimiser uses), so a plan names
+// an actual place ("Rocky Mountains") rather than the abstract category it's
+// tagged with. biomesForLabels already dedupes biomes that share an identical
+// pool, so this doesn't re-search redundant near-identical spots.
 function simEntriesFor(dex) {
   const out = [];
   for (const e of SIM.spawns[dex] || []) {
-    const bs = e.b || [];
-    let biomes;
-    if (bs.includes("any biome")) biomes = Object.keys(BIOME_INDEX);
-    else {
-      biomes = bs.filter((b) => BIOME_INDEX[b]);
-      if (bs.includes("any overworld")) biomes = biomes.concat(Object.keys(BIOME_INDEX).filter(isOverworldBiome));
-    }
-    [...new Set(biomes)].forEach((b) => out.push({ e, biome: b }));
+    for (const biome of biomesForLabels(e.b || [])) out.push({ e, biome });
   }
   return out;
 }
@@ -5581,7 +5579,7 @@ function optimizeSpawn(dex, egaCap) {
 
 function describeSimSpot(s) {
   const bits = [
-    `<div class="plan-row"><span>Biome</span><b style="text-transform:capitalize">${s.biome}</b></div>`,
+    `<div class="plan-row"><span>Biome</span><b style="text-transform:capitalize">${isIngameBiome(s.biome) ? biomeLabel(s.biome) : s.biome}</b></div>`,
     `<div class="plan-row"><span>Y level</span><b>${s.y}</b></div>`,
     `<div class="plan-row"><span>Light level</span><b>${s.light}</b></div>`,
     `<div class="plan-row"><span>Sky</span><b>${s.openSky ? "open sky" : `covered, ${s.height}-block ceiling`}</b></div>`,

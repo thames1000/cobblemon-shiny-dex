@@ -543,6 +543,16 @@
       </div>
 
       <div class="card">
+        <h2>🍪 Best snack for this spot</h2>
+        <p class="hint" style="margin-top:0">Keeps the biome/Y/light/sky/water/blocks above exactly as set — pick a
+          target and I'll search only the seasonings for the combo that gets the most spawns-to-shiny <em>right
+          here</em>. Unlike "Auto-optimize" above, this won't suggest moving anywhere.</p>
+        <input list="species-list" id="sim-spot-best-input" class="search" placeholder="Target Pokémon (name or #dex)…" style="width:100%" />
+        <div class="controls" style="margin-top:8px"><button id="sim-spot-best-go" class="ctrl-btn good">Find best snack here</button></div>
+        <div id="sim-spot-best-out" style="margin-top:12px"></div>
+      </div>
+
+      <div class="card">
         <h2>🍪 PokéSnack seasonings <span class="muted">(optional, up to 3)</span></h2>
         <div class="seasoning-slots">
           <select id="sim-s0" class="select snack-slot"></select>

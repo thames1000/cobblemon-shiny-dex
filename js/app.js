@@ -5407,14 +5407,16 @@ function renderSimShiny() {
     `</table>`;
 }
 
-function renderSim() {
-  if (!els.simBiome) return;
+// The spot exactly as configured in the "📍 The spot" / "🧱 Blocks placed nearby"
+// cards above, with no seasonings attached — shared by renderSim and the
+// "best snack for this spot" search, so both read the same live spot.
+function currentSimSpot() {
   const openSky = els.simOpenSky.checked;
   const byWater = els.simWater.checked;
   els.simHeight.disabled = openSky;   // open sky = unlimited headroom, height has no effect
   const items = simPlacedItems();
   if (byWater) SIM_WATER_NEARBY.forEach((k) => items.add(k)); // by water => water counts as nearby
-  const o = {
+  return {
     biome: els.simBiome.value,
     y: Number(els.simY.value),
     height: Math.floor(Number(els.simHeight.value)) || 1,   // whole air blocks
@@ -5423,8 +5425,13 @@ function renderSim() {
     weather: els.simWeather.value,
     baseBlock: els.simBase.value,
     openSky, byWater, items,
-    seasonings: simSeasonings(),
   };
+}
+
+function renderSim() {
+  if (!els.simBiome) return;
+  const o = currentSimSpot();
+  o.seasonings = simSeasonings();
   const { ranked, excl } = computeSpawns(o);
   simRanked = ranked;
   populateSimTargets(ranked);
@@ -5434,7 +5441,7 @@ function renderSim() {
   if (excl.structure) blocked.push(`${excl.structure} bound to a structure (Village/Ruin/Shipwreck…)`);
   if (excl.fishing) blocked.push(`${excl.fishing} rod-only (see the PokéBait tab)`);
   if (excl.water) blocked.push(`${excl.water} need water`);
-  if (excl.sky) blocked.push(`${excl.sky} need ${openSky ? "cover (no sky)" : "open sky"}`);
+  if (excl.sky) blocked.push(`${excl.sky} need ${o.openSky ? "cover (no sky)" : "open sky"}`);
   if (excl.light) blocked.push(`${excl.light} wrong light level`);
   if (excl.tall) blocked.push(`${excl.tall} too tall for ${o.height} block${o.height > 1 ? "s" : ""}`);
   if (excl.near) blocked.push(`${excl.near} need a block you haven't placed`);
@@ -5442,10 +5449,10 @@ function renderSim() {
   if (excl.base) blocked.push(`${excl.base} need a specific spawn-area block`);
   if (excl.time) blocked.push(`${excl.time} wrong time`);
   if (excl.weather) blocked.push(`${excl.weather} wrong weather`);
-  const space = openSky ? "open sky" : `<b>${o.height}</b> blocks of headroom`;
+  const space = o.openSky ? "open sky" : `<b>${o.height}</b> blocks of headroom`;
   els.simSummary.innerHTML = `<div class="card"><p class="hint" style="margin:0">
     <b>${ranked.length}</b> species can spawn at Y ${o.y} in <b style="text-transform:capitalize">${isIngameBiome(o.biome) ? biomeLabel(o.biome) : o.biome}</b>
-    with ${space}${byWater ? ", by water" : ""}${o.items.size && !byWater ? ` and ${o.items.size} placed block${o.items.size > 1 ? "s" : ""}` : ""}.
+    with ${space}${o.byWater ? ", by water" : ""}${o.items.size && !o.byWater ? ` and ${o.items.size} placed block${o.items.size > 1 ? "s" : ""}` : ""}.
     ${blocked.length ? `<br><span class="muted">Filtered out: ${blocked.join(" · ")}.</span>` : ""}</p></div>`;
 
   if (!ranked.length) {
@@ -5656,6 +5663,68 @@ function applySimPlan(plan) {
   renderSim();
   if (els.simTarget.querySelector(`option[value="${plan.targetDex}"]`)) { els.simTarget.value = String(plan.targetDex); renderSimShiny(); }
   els.simBiome.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+/* ---------- best snack for the CURRENT spot ---------- */
+/* Unlike optimizeSpawn (which searches every spot a target can appear at), this
+ * holds the spot exactly as configured above and only searches seasonings — "I'm
+ * already standing here, what snack should I cook?" Reuses the same combo search
+ * (combosFor/egaTiers) as every other "best X" feature in the app. */
+function bestSnackForSpot(dex, o, egaCap) {
+  const sp = DEX_BY_NUM[dex];
+  if (!sp) return null;
+  const blacklisted = isSnackBlacklisted(dex);
+  const combos = blacklisted ? [[]] : combosFor(sp, egaCap);
+  let best = null;
+  for (const combo of combos) {
+    const r = computeSpawns({ ...o, seasonings: combo }).ranked.find((x) => x.dex === dex);
+    if (!r || r.p <= 0) continue;
+    const shiny = snackTotals(combo).shiny;
+    const metric = 1 / (r.p * shiny);
+    if (!best || metric < best.metric) best = { combo, p: r.p, shiny, metric };
+  }
+  return best;
+}
+
+function spotSnackPlanCard(title, plan, baseRate) {
+  if (!plan) return "";
+  const eff = baseRate / plan.shiny;
+  const snacks = Math.max(1, Math.ceil((eff / plan.p) / SNACK_BITES));
+  return `<div class="snack-plan">
+    <h3>${title}</h3>
+    <div class="plan-row"><span>Snack</span><b>${fmtCombo(plan.combo)}</b></div>
+    <div class="plan-row"><span>Spawn chance</span><b>${pctFmt(plan.p)}</b></div>
+    <div class="plan-row"><span>Shiny odds</span><b>1/${Math.round(eff).toLocaleString()}</b> (✨×${plan.shiny})</div>
+    <div class="plan-row"><span>Snacks to shiny</span><b>~${snacks.toLocaleString()}</b> <span class="muted">expected</span></div>
+    <button class="ctrl-btn good sim-spot-snack-apply" data-combo="${plan.combo.map((b) => b.id).join(",")}">Use this snack</button>
+  </div>`;
+}
+
+function renderBestSnackForSpot(raw) {
+  const out = document.getElementById("sim-spot-best-out");
+  if (!out) return;
+  const sp = findSpecies(raw);
+  if (!sp) { out.innerHTML = `<p class="hint">No species matching "${raw}".</p>`; return; }
+  const o = currentSimSpot();
+  const b0 = bestSnackForSpot(sp.dex, o, 0);
+  if (!b0) {
+    out.innerHTML = `<p class="hint">${sp.name.replace(/-/g, " ")} can't spawn at this exact spot — check the
+      biome/Y/light/sky/water/blocks above against its conditions in the Spawns tab.</p>`;
+    return;
+  }
+  const blacklisted = isSnackBlacklisted(sp.dex);
+  const { tiers, note } = blacklisted ? { tiers: [["Natural here (no snack)", b0]], note: "" }
+    : egaTiers(b0, bestSnackForSpot(sp.dex, o, 1), bestSnackForSpot(sp.dex, o, 3));
+  if (!els.simBaseRate.value) els.simBaseRate.value = state.config.baseShinyRate;
+  const baseRate = Number(els.simBaseRate.value) || state.config.baseShinyRate;
+  out.innerHTML =
+    `<div class="find-row" style="border:0;padding:0 0 8px"><img src="${spriteUrl(sp.dex, true)}" alt=""/>
+       <span class="find-name">Best snack here · ${sp.name.replace(/-/g, " ")}</span></div>` +
+    `<div class="snack-best-grid">` +
+      tiers.map(([title, plan]) => spotSnackPlanCard(title, plan, baseRate)).join("") +
+    `</div>${egaNoteText(note, sp.name.replace(/-/g, " "))}` +
+    (blacklisted ? `<p class="hint">⛔ ${sp.name.replace(/-/g, " ")} is blacklisted from Poké Snacks (Cobbleverse lumymon config) — this is just its natural chance here, no seasoning can lure it.</p>` : "") +
+    `<p class="hint">Holds the spot above exactly as configured — only seasonings are searched. "Use this snack" fills the seasoning slots below.</p>`;
 }
 
 /* ---------- seed map: live seed → structure coordinates (Chunkbase-style) ---------- */
@@ -7289,6 +7358,20 @@ function wire() {
     els.simBestOut.addEventListener("click", (e) => {
       const btn = e.target.closest(".sim-plan-apply");
       if (btn && simBestPlans[+btn.dataset.plan]) applySimPlan(simBestPlans[+btn.dataset.plan]);
+    });
+    // Best snack for the CURRENT spot: only searches seasonings, never moves you.
+    const simSpotBestInput = document.getElementById("sim-spot-best-input");
+    const simSpotBestGo = document.getElementById("sim-spot-best-go");
+    const simSpotBestOut = document.getElementById("sim-spot-best-out");
+    if (simSpotBestGo) simSpotBestGo.addEventListener("click", () => renderBestSnackForSpot(simSpotBestInput.value));
+    if (simSpotBestInput) simSpotBestInput.addEventListener("keydown", (e) => { if (e.key === "Enter") renderBestSnackForSpot(simSpotBestInput.value); });
+    if (simSpotBestOut) simSpotBestOut.addEventListener("click", (e) => {
+      const btn = e.target.closest(".sim-spot-snack-apply");
+      if (!btn) return;
+      const ids = btn.dataset.combo ? btn.dataset.combo.split(",") : [];
+      ["sim-s0", "sim-s1", "sim-s2"].forEach((id, i) => { document.getElementById(id).value = ids[i] || ""; });
+      renderSim();
+      document.getElementById("sim-s0").scrollIntoView({ behavior: "smooth", block: "center" });
     });
     els.simResults.addEventListener("click", (e) => {
       if (e.target.closest(".list-toggle")) { simShowAll = !simShowAll; renderSim(); return; }

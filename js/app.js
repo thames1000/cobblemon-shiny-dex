@@ -41,6 +41,7 @@ function defaultConfig() {
     masudaMultiplier: 4,
     huntHotkey: "Space", // KeyboardEvent.code that does +1 mid-hunt; "" = disabled
     randomScope: "smart", // pool for 🎲 Surprise me — see randomPool()
+    honorSnackBlacklist: false, // Cobbleverse's lumymon poke_snack_blacklist (legendaries, Paradox mons…) — off by default, since most packs disable it server-side; turn on if yours doesn't
   };
 }
 function defaultHunt() {
@@ -3489,6 +3490,7 @@ function applyConfigInputs() {
     return m ? [Number(m[1]), Number(m[2])] : null;
   }).filter(Boolean);
   if (parsed.length) state.config.unchainedThresholds = parsed.sort((a, b) => a[0] - b[0]);
+  if (els.cfgHonorBlacklist) state.config.honorSnackBlacklist = els.cfgHonorBlacklist.checked;
   save(); fillConfigInputs(); renderHunt();
 }
 function fillConfigInputs() {
@@ -3496,6 +3498,7 @@ function fillConfigInputs() {
   els.cfgMasuda.value = state.config.masudaMultiplier;
   els.cfgThresholds.value = state.config.unchainedThresholds.map(([a, b]) => `${a}:${b}`).join(", ");
   if (els.huntRandomScope) els.huntRandomScope.value = state.config.randomScope || "smart";
+  if (els.cfgHonorBlacklist) els.cfgHonorBlacklist.checked = !!state.config.honorSnackBlacklist;
   refreshHotkeyBtn();
 }
 
@@ -4099,13 +4102,17 @@ const WORLD_BUCKETS = { common: 88.5, uncommon: 10, rare: 1.2, "ultra-rare": 0.3
 // treasures of ruin, Type: Null, Zygarde, and all paradox mons). They still spawn
 // naturally; by default they just can't be lured by a snack.
 const SNACK_BLACKLIST = new Set([144, 145, 146, 150, 151, 243, 244, 245, 249, 250, 251, 377, 378, 379, 380, 381, 382, 383, 384, 385, 386, 480, 481, 482, 483, 484, 485, 486, 487, 488, 489, 490, 491, 492, 493, 718, 772, 890, 894, 895, 896, 897, 898, 984, 985, 986, 987, 988, 989, 990, 991, 992, 993, 994, 995, 1001, 1002, 1003, 1004, 1005, 1006, 1009, 1010, 1020, 1021, 1022, 1023]);
-// We ASSUME the blacklist has been disabled (so every Pokémon — legendaries
-// included — can be snack-lured) and compute plans for all of them. Flip this to
-// false to honour the stock blacklist instead. Mons in SNACK_BLACKLIST still get
-// a small note that luring them is off by default.
-const ASSUME_ALL_LURABLE = true;
-const isSnackBlacklisted = (dex) => !ASSUME_ALL_LURABLE && SNACK_BLACKLIST.has(Number(dex));
-const SNACK_LURE_NOTE = "Cobbleverse blocks Poké Snack lures for this Pokémon by default (lumymon blacklist); this plan assumes that's been turned off.";
+// Whether to honour this blacklist is a per-server fact (many packs disable it),
+// so it's a user setting (Hunt tab → "⚙ Odds settings"), defaulting OFF — i.e.
+// assume every Pokémon is snack-lurable. Blacklisted mons still get a note. This
+// also matters for species that AREN'T the search target: a blacklisted mon left
+// in means it still competes for bucket share, diluting everything else's odds —
+// turning this on removes Paradox/legendary competitors from that math too.
+const isSnackBlacklisted = (dex) => state.config.honorSnackBlacklist && SNACK_BLACKLIST.has(Number(dex));
+// Shown where a plan WAS computed for a stock-blacklisted mon — i.e. reachable
+// only when honorSnackBlacklist is off, since isSnackBlacklisted would otherwise
+// have excluded it from the pool entirely before a plan could be found.
+const SNACK_LURE_NOTE = "Cobbleverse blocks Poké Snack lures for this Pokémon by default (lumymon blacklist); this plan assumes your server has that turned off (your odds settings agree — flip \"Honour the Poké Snack blacklist\" on if it doesn't).";
 // Regional/cosmetic-form spawn rows (spawns.json's `f` field, e.g. "Alolan") that
 // resolve to a tracked variant — i.e. lurable forms, not just base species. Built
 // once at load (buildSnackVarIndex) once SPAWNS + the variant lookup are ready.
@@ -6704,6 +6711,7 @@ function grabEls() {
     cfgMasuda: document.getElementById("cfg-masuda"),
     cfgHotkey: document.getElementById("cfg-hotkey"),
     cfgHotkeyClear: document.getElementById("cfg-hotkey-clear"),
+    cfgHonorBlacklist: document.getElementById("cfg-honor-blacklist"),
     spawnInput: document.getElementById("spawn-input"),
     spawnVariantInput: document.getElementById("spawn-variant-input"),
     spawnBiomeSelect: document.getElementById("spawn-biome-select"),

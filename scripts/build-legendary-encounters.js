@@ -22,7 +22,17 @@ const CONTEXT_PRESETS = new Set([
   "nether_fossil", "mansion", "lava", "water", "webs", "treetop", "urban",
   "redstone", "salt", "saccharine_tree", "derelict",
 ]);
-const cleanBiome = (t) => String(t).replace(/^#/, "").replace(/^[a-z0-9_.-]+:/, "").replace(/^is_/, "").replace(/_/g, " ").trim();
+// A handful of condition.biomes entries are vanilla biome TAGS ("#minecraft:is_x")
+// rather than a literal biome id — this pack only ever uses single-biome tags
+// (one real biome per "is_x" group), so they resolve 1:1 to that biome's id.
+const TAG_TO_BIOME = { "#minecraft:is_deep_ocean": "minecraft:deep_ocean" };
+// Every other spawns.json row keys biomes off abstract LABELS ("mountain",
+// "temperate"); this datapack instead names EXACT biomes ("minecraft:jagged_peaks")
+// — a real, more precise restriction, not a label. Keep the literal id as-is (the
+// app's biome-matching understands an `entry.b` value with a ":" as "this exact
+// biome", same as build-sim-spawns.js's siteLabel), rather than flattening it to a
+// display string like "jagged peaks" that matches no label at all.
+const cleanBiome = (t) => TAG_TO_BIOME[t] || (/^#/.test(t) ? null : String(t));
 
 const ROOT = path.join(__dirname, "..");
 const species = JSON.parse(fs.readFileSync(path.join(ROOT, "js/data/species.json"), "utf8"));

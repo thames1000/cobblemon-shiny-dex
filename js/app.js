@@ -3589,10 +3589,14 @@ function isIngameBiome(sel) { return typeof sel === "string" && sel.includes(":"
 function ingameLabels(id) { return ((BIOME_SPAWNS && BIOME_SPAWNS[id]) || []).filter((l) => l !== "any overworld"); }
 function biomeIsOverworld(sel) { return isIngameBiome(sel) ? ((BIOME_SPAWNS && BIOME_SPAWNS[sel]) || []).includes("any overworld") : isOverworldBiome(sel); }
 // Biome-specific spawn pool (no "any overworld"/"any biome" wildcards) for a label
-// OR an in-game biome id (union of its labels, deduped by spawn entry).
+// OR an in-game biome id (union of its labels, deduped by spawn entry). A few rows
+// (Legendary Encounters) name an exact biome id directly instead of a label — e.g.
+// Latios only in ["minecraft:jagged_peaks", "minecraft:stony_peaks", …], a real,
+// more precise restriction than any label covers — so those are checked too.
 function biomeSpecificPool(sel) {
   if (!isIngameBiome(sel)) return BIOME_INDEX[sel] || [];
   const seen = new Set(), out = [];
+  for (const x of (BIOME_INDEX[sel] || [])) { if (!seen.has(x.entry)) { seen.add(x.entry); out.push(x); } }
   for (const l of ingameLabels(sel)) for (const x of (BIOME_INDEX[l] || [])) {
     if (!seen.has(x.entry)) { seen.add(x.entry); out.push(x); }
   }
@@ -3605,18 +3609,25 @@ function biomePool(biome) {
 }
 // <select> options for biome pickers: in-game biomes (real world) + categories (tags).
 function biomeSelectOptions(selected) {
-  const cat = Object.keys(BIOME_INDEX).sort()
+  // Exclude literal in-game ids a row named directly (Legendary Encounters) — those
+  // already get their own "🌍 In-game biomes" option below; they're not categories.
+  const cat = Object.keys(BIOME_INDEX).filter((b) => !isIngameBiome(b)).sort()
     .map((b) => `<option value="${b}"${b === selected ? " selected" : ""}>${b} (${BIOME_INDEX[b].length})</option>`).join("");
   let ig = "";
   if (BIOME_SPAWNS) ig = Object.keys(BIOME_SPAWNS).filter((id) => ingameLabels(id).length).sort((a, b) => biomeLabel(a).localeCompare(biomeLabel(b)))
     .map((id) => `<option value="${id}"${id === selected ? " selected" : ""}>${biomeLabel(id)} (${biomeSpecificPool(id).length})</option>`).join("");
   return (ig ? `<optgroup label="🌍 In-game biomes">${ig}</optgroup>` : "") + `<optgroup label="🏷 Spawn categories">${cat}</optgroup>`;
 }
-// In-game biomes a spawn entry's labels expand to (for the by-Pokémon view).
+// In-game biomes a spawn entry's labels expand to (for the by-Pokémon view). A row
+// naming an exact biome id directly (Legendary Encounters) contributes just that id.
 function entryIngameBiomes(e) {
   if (!LABEL_BIOMES) return [];
   const s = new Set();
-  for (const b of (e.b || [])) if (!PSEUDO_BIOMES.has(b)) for (const id of (LABEL_BIOMES[b] || [])) s.add(id);
+  for (const b of (e.b || [])) {
+    if (PSEUDO_BIOMES.has(b)) continue;
+    if (isIngameBiome(b)) { if (BIOME_SPAWNS && BIOME_SPAWNS[b]) s.add(b); continue; }
+    for (const id of (LABEL_BIOMES[b] || [])) s.add(id);
+  }
   return [...s].sort((a, b) => biomeLabel(a).localeCompare(biomeLabel(b)));
 }
 
@@ -3636,9 +3647,12 @@ function questHtml(q) {
 }
 function biomeChip(b) {
   // Pseudo-biomes aren't clickable (they aren't in the reverse lookup).
-  return PSEUDO_BIOMES.has(b)
-    ? `<span class="struct-chip">🌍 ${b}</span>`
-    : `<span class="biome-chip" data-biome="${b}">${b}</span>`;
+  if (PSEUDO_BIOMES.has(b)) return `<span class="struct-chip">🌍 ${b}</span>`;
+  // A row can name an exact in-game biome id directly (Legendary Encounters) rather
+  // than a label — show its readable name, but keep the real id as data-biome so
+  // clicking still jumps to that exact biome in the Spawns-by-biome picker.
+  const label = isIngameBiome(b) ? biomeLabel(b) : b;
+  return `<span class="biome-chip" data-biome="${b}">${label}</span>`;
 }
 // Regional / functional form this spawn row belongs to (Galarian, East Sea, …).
 function formChip(f) { return `<span class="form-chip">✦ ${f}</span>`; }
@@ -3725,7 +3739,8 @@ function renderSpawnByMon(dex) {
   // "Best spot" = entry with the highest weight (biome name, or structure/site
   // for legendaries that only appear at a fixed location).
   const best = rows.slice().sort((a, b) => (b.w || 0) - (a.w || 0))[0];
-  const bestLoc = best ? (best.b[0] || (best.st && best.st[0])) : null;
+  const bestLocRaw = best ? (best.b[0] || (best.st && best.st[0])) : null;
+  const bestLoc = bestLocRaw && isIngameBiome(bestLocRaw) ? biomeLabel(bestLocRaw) : bestLocRaw;
   const bestLine = bestLoc
     ? `<p class="hint">⭐ ${best.b.length ? "Best AFK spot" : "Find at"}: <b>${bestLoc}</b> (${best.r}${best.t ? ", " + best.t : ""})</p>` : "";
   const list = rows
@@ -4607,12 +4622,19 @@ function egaNoteText(note, name) {
 // the spawn rate. In-game biomes give the accurate pool.
 function biomesForLabels(labels) {
   let biomes;
+  const exact = new Set(); // ids named directly (Legendary Encounters) — see below
   if (LABEL_BIOMES && BIOME_SPAWNS) {
     const set = new Set();
     for (const l of labels) {
       if (l === "any overworld" || l === "any biome") {
         const all = l === "any biome";
         for (const id in BIOME_SPAWNS) if (all || biomeIsOverworld(id)) set.add(id);
+      } else if (isIngameBiome(l) && BIOME_SPAWNS[l]) {
+        // The row names this EXACT biome (not a label) — e.g. Latios only in
+        // ["minecraft:jagged_peaks", …]. A real, more precise restriction than any
+        // label covers, so it's kept as its own candidate below (not dedup-collapsed
+        // with other biomes that merely share its category labels).
+        set.add(l); exact.add(l);
       } else for (const id of (LABEL_BIOMES[l] || [])) set.add(id);
     }
     biomes = [...set];
@@ -4625,9 +4647,12 @@ function biomesForLabels(labels) {
   }
   // Collapse biomes with an identical spawn pool (same label set) — same odds, so this
   // avoids recomputing for the many real biomes that share a pool (e.g. any-overworld mons).
+  // Exact-id biomes are never collapsed: two biomes with the same category labels can
+  // still differ on which one a Legendary Encounters row actually names.
   const bySig = new Map();
   for (const id of biomes) {
-    const sig = isIngameBiome(id) ? ingameLabels(id).slice().sort().join("|") + (biomeIsOverworld(id) ? "#ow" : "") : id;
+    const sig = exact.has(id) ? "exact:" + id
+      : isIngameBiome(id) ? ingameLabels(id).slice().sort().join("|") + (biomeIsOverworld(id) ? "#ow" : "") : id;
     if (!bySig.has(sig)) bySig.set(sig, id);
   }
   return [...bySig.values()];

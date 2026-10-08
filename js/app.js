@@ -4633,7 +4633,10 @@ function biomesForLabels(labels) {
   return [...bySig.values()];
 }
 
-function bestSnackFor(dex, egaCap) {
+// `prioritizeSpawn`: normally ranks by fewest snacks-to-shiny (spawn share × shiny
+// boost); when true, ranks by raw spawn share alone, ignoring the shiny multiplier
+// — for "just get me lots of this mon" rather than "get me a shiny of it".
+function bestSnackFor(dex, egaCap, prioritizeSpawn = false) {
   const sp = DEX_BY_NUM[dex];
   if (!sp) return null;
   const labels = [...new Set((SPAWNS[dex] || []).flatMap((e) => e.b))];
@@ -4646,7 +4649,7 @@ function bestSnackFor(dex, egaCap) {
       const r = computeAttraction(biome, combo).ranked.find((x) => x.dex === dex);
       if (!r || r.p <= 0) continue;
       const shiny = snackTotals(combo).shiny;
-      const metric = 1 / (r.p * shiny); // ∝ snacks-to-shiny (baseRate is a constant scale)
+      const metric = prioritizeSpawn ? 1 / r.p : 1 / (r.p * shiny); // ∝ snacks-to-shiny (baseRate is a constant scale), or just 1/spawn-share
       if (!best || metric < best.metric) best = { biome, combo, p: r.p, shiny, metric };
     }
   }
@@ -4655,7 +4658,7 @@ function bestSnackFor(dex, egaCap) {
 
 // Same search, but for a specific lurable regional/cosmetic-form variant (its
 // per-roll chance from computeAttraction's variantP) — mirrors bestBaitVariantFor.
-function bestSnackVariantFor(variantId, egaCap) {
+function bestSnackVariantFor(variantId, egaCap, prioritizeSpawn = false) {
   const v = VARIANT_BY_ID[variantId];
   const sp = v && DEX_BY_NUM[v.dex];
   if (!sp) return null;
@@ -4675,7 +4678,7 @@ function bestSnackVariantFor(variantId, egaCap) {
       const p = computeAttraction(biome, combo).variantP.get(variantId);
       if (!p || p <= 0) continue;
       const shiny = snackTotals(combo).shiny;
-      const metric = 1 / (p * shiny);
+      const metric = prioritizeSpawn ? 1 / p : 1 / (p * shiny);
       if (!best || metric < best.metric) best = { biome, combo, p, shiny, metric, variantId };
     }
   }
@@ -4734,16 +4737,20 @@ function resolveSnackQuery(raw) {
 function renderBestSnack(raw) {
   const hit = resolveSnackQuery(raw);
   if (!hit) { els.snackBestOut.innerHTML = `<p class="hint">No species or lurable variant matching "${raw}".</p>`; return; }
+  const prioritizeSpawn = !!(els.snackPrioritizeSpawn && els.snackPrioritizeSpawn.checked);
+  const goalNote = prioritizeSpawn
+    ? `Optimised for the highest <em>spawn share</em> alone (shiny odds ignored) — for "lure as many as possible", not a shiny hunt.`
+    : `Optimised for the fewest snacks to a <em>shiny</em> (spawn rate × shiny boost).`;
 
   if (hit.variant) {
     const v = hit.variant;
-    const b0 = bestSnackVariantFor(v.id, 0);
+    const b0 = bestSnackVariantFor(v.id, 0, prioritizeSpawn);
     if (!b0) {
       els.snackBestOut.innerHTML = `<p class="hint">${v.base} — ${v.name} has no natural Poké Snack spawn indexed, so a snack can't lure it.</p>`;
       return;
     }
     const baseRate = Number(els.snackBaseRate.value) || state.config.baseShinyRate;
-    const { tiers, note } = egaTiers(b0, bestSnackVariantFor(v.id, 1), bestSnackVariantFor(v.id, 3));
+    const { tiers, note } = egaTiers(b0, bestSnackVariantFor(v.id, 1, prioritizeSpawn), bestSnackVariantFor(v.id, 3, prioritizeSpawn));
     const art = variantArt(v, true);
     els.snackBestOut.innerHTML =
       `<div class="find-row" style="border:0;padding:0 0 8px"><img src="${art.src}" onerror="this.src='${art.fb}'" alt=""/>
@@ -4751,20 +4758,19 @@ function renderBestSnack(raw) {
       `<div class="snack-best-grid">` +
         tiers.map(([title, plan]) => planCard(title, plan, DEX_BY_NUM[v.dex], baseRate)).join("") +
       `</div>${egaNoteText(note, `${v.base} — ${v.name}`)}` +
-      `<p class="hint">Optimised for the fewest snacks to a <em>shiny of this variant</em> (spawn rate × shiny boost).
-        Its share is a slice of ${v.base}'s bucket weight. Base shiny rate ${baseRate} (edit it in "Snacks to a shiny").</p>`;
+      `<p class="hint">${goalNote} Its share is a slice of ${v.base}'s bucket weight. Base shiny rate ${baseRate} (edit it in "Snacks to a shiny").</p>`;
     return;
   }
 
   const sp = hit.sp;
-  const b0 = bestSnackFor(sp.dex, 0);
+  const b0 = bestSnackFor(sp.dex, 0, prioritizeSpawn);
   if (!b0) {
     els.snackBestOut.innerHTML = `<p class="hint">${sp.name.replace(/-/g, " ")} has no natural Poké Snack spawn in base
       Cobblemon, so a snack can't lure it.</p>`;
     return;
   }
   const baseRate = Number(els.snackBaseRate.value) || state.config.baseShinyRate;
-  const { tiers, note } = egaTiers(b0, bestSnackFor(sp.dex, 1), bestSnackFor(sp.dex, 3));
+  const { tiers, note } = egaTiers(b0, bestSnackFor(sp.dex, 1, prioritizeSpawn), bestSnackFor(sp.dex, 3, prioritizeSpawn));
   els.snackBestOut.innerHTML =
     `<div class="find-row" style="border:0;padding:0 0 8px"><img src="${spriteUrl(sp.dex, true)}" alt=""/>
        <span class="find-name">Best plan · ${sp.name.replace(/-/g, " ")}</span></div>` +
@@ -4772,8 +4778,7 @@ function renderBestSnack(raw) {
       tiers.map(([title, plan]) => planCard(title, plan, sp, baseRate)).join("") +
     `</div>${egaNoteText(note, sp.name.replace(/-/g, " "))}` +
     (SNACK_BLACKLIST.has(sp.dex) ? `<p class="hint">${SNACK_LURE_NOTE}</p>` : "") +
-    `<p class="hint">Optimised for the fewest snacks to a <em>shiny of this species</em> (spawn rate × shiny boost).
-      Base shiny rate ${baseRate} (edit it in "Snacks to a shiny"). "Load into builder" fills the controls above.</p>`;
+    `<p class="hint">${goalNote} Base shiny rate ${baseRate} (edit it in "Snacks to a shiny"). "Load into builder" fills the controls above.</p>`;
 }
 
 // Apply a recommended plan to the manual builder so the full visitor list + estimate show.
@@ -5563,7 +5568,7 @@ function simSpotP(dex, spot, seasonings) {
 
 // Search spot conditions (phase 1) then seasonings on the best spots (phase 2) for
 // the lowest snacks-to-shiny = max spawn-share × shiny multiplier.
-function optimizeSpawn(dex, egaCap) {
+function optimizeSpawn(dex, egaCap, prioritizeSpawn = false) {
   const sp = DEX_BY_NUM[dex];
   if (!sp || !SIM.spawns[dex]) return null;
   const hb = SIM.hitbox[dex];
@@ -5585,7 +5590,7 @@ function optimizeSpawn(dex, egaCap) {
     const p = simSpotP(dex, s, combo);
     if (!p) continue;
     const shiny = snackTotals(combo).shiny;
-    const metric = 1 / (p * shiny);
+    const metric = prioritizeSpawn ? 1 / p : 1 / (p * shiny);
     if (!best || metric < best.metric) best = { spot: s, combo, p, shiny, metric };
   }
   return best;
@@ -5624,7 +5629,8 @@ function simPlanCard(title, plan, idx, baseRate) {
 function renderSimBest(raw) {
   const sp = findSpecies(raw);
   if (!sp) { els.simBestOut.innerHTML = `<p class="hint">No species matching "${raw}".</p>`; return; }
-  const b0 = optimizeSpawn(sp.dex, 0);   // no EGA
+  const prioritizeSpawn = !!(els.simPrioritizeSpawn && els.simPrioritizeSpawn.checked);
+  const b0 = optimizeSpawn(sp.dex, 0, prioritizeSpawn);   // no EGA
   if (!b0) {
     els.simBestOut.innerHTML = `<p class="hint">${sp.name.replace(/-/g, " ")} has no simulatable wild spawn in the
       Cobbleverse data (event / evolution / trade only), so there's no spot to optimize.</p>`;
@@ -5633,7 +5639,7 @@ function renderSimBest(raw) {
   const blacklisted = isSnackBlacklisted(sp.dex);
   // Blacklisted mons can't be lured, so all EGA tiers are identical (no snack).
   const { tiers, note } = blacklisted ? { tiers: [["Natural spot (no snack)", b0]], note: "" }
-    : egaTiers(b0, optimizeSpawn(sp.dex, 1), optimizeSpawn(sp.dex, 3));
+    : egaTiers(b0, optimizeSpawn(sp.dex, 1, prioritizeSpawn), optimizeSpawn(sp.dex, 3, prioritizeSpawn));
   tiers.forEach(([, plan]) => { if (plan) plan.targetDex = sp.dex; });
   simBestPlans = tiers.map(([, plan]) => plan);
   if (!els.simBaseRate.value) els.simBaseRate.value = state.config.baseShinyRate;
@@ -5641,14 +5647,16 @@ function renderSimBest(raw) {
   const blacklistNote = blacklisted
     ? `<p class="hint">⛔ ${sp.name.replace(/-/g, " ")} is <b>blacklisted from Poké Snacks</b> (Cobbleverse lumymon config), so seasonings can't lure it — this is the best <em>natural</em> spot.</p>`
     : (SNACK_BLACKLIST.has(sp.dex) ? `<p class="hint">${SNACK_LURE_NOTE}</p>` : "");
+  const goalNote = prioritizeSpawn
+    ? `Spawn chance = this mon's per-roll chance at that spot. Optimised for the highest spawn share alone (shiny odds ignored).`
+    : `Spawn chance = this mon's per-roll chance at that spot (bucket odds × in-bucket weight), matching PokéNav.`;
   els.simBestOut.innerHTML =
     `<div class="find-row" style="border:0;padding:0 0 8px"><img src="${spriteUrl(sp.dex, true)}" alt=""/>
        <span class="find-name">Best spot · ${sp.name.replace(/-/g, " ")}</span></div>` +
     `<div class="snack-best-grid">` +
       tiers.map(([title, plan], i) => simPlanCard(title, plan, i, baseRate)).join("") +
     `</div>${blacklistNote}${egaNoteText(note, sp.name.replace(/-/g, " "))}` +
-    `<p class="hint">Spawn chance = this mon's per-roll chance at that spot (bucket odds × in-bucket weight), matching PokéNav.
-      "Load into simulator" fills the controls so you can see the full visitor list.</p>`;
+    `<p class="hint">${goalNote} "Load into simulator" fills the controls so you can see the full visitor list.</p>`;
 }
 
 function applySimPlan(plan) {
@@ -5677,7 +5685,7 @@ function applySimPlan(plan) {
  * holds the spot exactly as configured above and only searches seasonings — "I'm
  * already standing here, what snack should I cook?" Reuses the same combo search
  * (combosFor/egaTiers) as every other "best X" feature in the app. */
-function bestSnackForSpot(dex, o, egaCap) {
+function bestSnackForSpot(dex, o, egaCap, prioritizeSpawn = false) {
   const sp = DEX_BY_NUM[dex];
   if (!sp) return null;
   const blacklisted = isSnackBlacklisted(dex);
@@ -5687,7 +5695,7 @@ function bestSnackForSpot(dex, o, egaCap) {
     const r = computeSpawns({ ...o, seasonings: combo }).ranked.find((x) => x.dex === dex);
     if (!r || r.p <= 0) continue;
     const shiny = snackTotals(combo).shiny;
-    const metric = 1 / (r.p * shiny);
+    const metric = prioritizeSpawn ? 1 / r.p : 1 / (r.p * shiny);
     if (!best || metric < best.metric) best = { combo, p: r.p, shiny, metric };
   }
   return best;
@@ -5712,8 +5720,9 @@ function renderBestSnackForSpot(raw) {
   if (!out) return;
   const sp = findSpecies(raw);
   if (!sp) { out.innerHTML = `<p class="hint">No species matching "${raw}".</p>`; return; }
+  const prioritizeSpawn = !!document.getElementById("sim-spot-prioritize-spawn")?.checked;
   const o = currentSimSpot();
-  const b0 = bestSnackForSpot(sp.dex, o, 0);
+  const b0 = bestSnackForSpot(sp.dex, o, 0, prioritizeSpawn);
   if (!b0) {
     out.innerHTML = `<p class="hint">${sp.name.replace(/-/g, " ")} can't spawn at this exact spot — check the
       biome/Y/light/sky/water/blocks above against its conditions in the Spawns tab.</p>`;
@@ -5721,9 +5730,12 @@ function renderBestSnackForSpot(raw) {
   }
   const blacklisted = isSnackBlacklisted(sp.dex);
   const { tiers, note } = blacklisted ? { tiers: [["Natural here (no snack)", b0]], note: "" }
-    : egaTiers(b0, bestSnackForSpot(sp.dex, o, 1), bestSnackForSpot(sp.dex, o, 3));
+    : egaTiers(b0, bestSnackForSpot(sp.dex, o, 1, prioritizeSpawn), bestSnackForSpot(sp.dex, o, 3, prioritizeSpawn));
   if (!els.simBaseRate.value) els.simBaseRate.value = state.config.baseShinyRate;
   const baseRate = Number(els.simBaseRate.value) || state.config.baseShinyRate;
+  const goalNote = prioritizeSpawn
+    ? "Only seasonings are searched, for the highest spawn share alone (shiny odds ignored)."
+    : "Holds the spot above exactly as configured — only seasonings are searched.";
   out.innerHTML =
     `<div class="find-row" style="border:0;padding:0 0 8px"><img src="${spriteUrl(sp.dex, true)}" alt=""/>
        <span class="find-name">Best snack here · ${sp.name.replace(/-/g, " ")}</span></div>` +
@@ -5731,7 +5743,7 @@ function renderBestSnackForSpot(raw) {
       tiers.map(([title, plan]) => spotSnackPlanCard(title, plan, baseRate)).join("") +
     `</div>${egaNoteText(note, sp.name.replace(/-/g, " "))}` +
     (blacklisted ? `<p class="hint">⛔ ${sp.name.replace(/-/g, " ")} is blacklisted from Poké Snacks (Cobbleverse lumymon config) — this is just its natural chance here, no seasoning can lure it.</p>` : "") +
-    `<p class="hint">Holds the spot above exactly as configured — only seasonings are searched. "Use this snack" fills the seasoning slots below.</p>`;
+    `<p class="hint">${goalNote} "Use this snack" fills the seasoning slots below.</p>`;
 }
 
 /* ---------- seed map: live seed → structure coordinates (Chunkbase-style) ---------- */
@@ -6723,6 +6735,7 @@ function grabEls() {
     snackTarget: document.getElementById("snack-target"),
     snackShinyOut: document.getElementById("snack-shiny-out"),
     snackBestInput: document.getElementById("snack-best-input"),
+    snackPrioritizeSpawn: document.getElementById("snack-best-prioritize-spawn"),
     snackBestOut: document.getElementById("snack-best-out"),
     snackResults: document.getElementById("snack-results"),
     simBiome: document.getElementById("sim-biome"),
@@ -6739,6 +6752,7 @@ function grabEls() {
     simTarget: document.getElementById("sim-target"),
     simShinyOut: document.getElementById("sim-shiny-out"),
     simBestInput: document.getElementById("sim-best-input"),
+    simPrioritizeSpawn: document.getElementById("sim-best-prioritize-spawn"),
     simBestOut: document.getElementById("sim-best-out"),
     simSummary: document.getElementById("sim-summary"),
     simResults: document.getElementById("sim-results"),
@@ -7305,6 +7319,9 @@ function wire() {
   // Best place & snack optimiser
   document.getElementById("snack-best-go").addEventListener("click", () => renderBestSnack(els.snackBestInput.value));
   els.snackBestInput.addEventListener("keydown", (e) => { if (e.key === "Enter") renderBestSnack(els.snackBestInput.value); });
+  if (els.snackPrioritizeSpawn) els.snackPrioritizeSpawn.addEventListener("change", () => {
+    if (els.snackBestInput.value && els.snackBestOut.innerHTML) renderBestSnack(els.snackBestInput.value);
+  });
   els.snackBestOut.addEventListener("click", (e) => {
     const btn = e.target.closest(".plan-apply"); if (!btn) return;
     applySnackPlan(btn.dataset.biome, btn.dataset.combo ? btn.dataset.combo.split(",") : [], Number(btn.dataset.dex), btn.dataset.variant);
@@ -7367,12 +7384,19 @@ function wire() {
       const btn = e.target.closest(".sim-plan-apply");
       if (btn && simBestPlans[+btn.dataset.plan]) applySimPlan(simBestPlans[+btn.dataset.plan]);
     });
+    if (els.simPrioritizeSpawn) els.simPrioritizeSpawn.addEventListener("change", () => {
+      if (els.simBestInput.value && els.simBestOut.innerHTML) renderSimBest(els.simBestInput.value);
+    });
     // Best snack for the CURRENT spot: only searches seasonings, never moves you.
     const simSpotBestInput = document.getElementById("sim-spot-best-input");
     const simSpotBestGo = document.getElementById("sim-spot-best-go");
     const simSpotBestOut = document.getElementById("sim-spot-best-out");
+    const simSpotPrioritize = document.getElementById("sim-spot-prioritize-spawn");
     if (simSpotBestGo) simSpotBestGo.addEventListener("click", () => renderBestSnackForSpot(simSpotBestInput.value));
     if (simSpotBestInput) simSpotBestInput.addEventListener("keydown", (e) => { if (e.key === "Enter") renderBestSnackForSpot(simSpotBestInput.value); });
+    if (simSpotPrioritize) simSpotPrioritize.addEventListener("change", () => {
+      if (simSpotBestInput.value && simSpotBestOut.innerHTML) renderBestSnackForSpot(simSpotBestInput.value);
+    });
     if (simSpotBestOut) simSpotBestOut.addEventListener("click", (e) => {
       const btn = e.target.closest(".sim-spot-snack-apply");
       if (!btn) return;

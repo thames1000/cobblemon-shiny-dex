@@ -369,6 +369,11 @@
           boost. You get a budget plan and one that's allowed an Enchanted Golden Apple.</p>
         <input list="snack-search-list" id="snack-best-input" class="search" placeholder="Target Pokémon or variant (e.g. Alolan Rattata)…" style="width:100%" />
         <datalist id="snack-search-list"></datalist>
+        <label class="check-row" style="margin-top:8px">
+          <input type="checkbox" id="snack-best-prioritize-spawn" />
+          <span>Prioritize spawn chance over shiny odds
+            <span class="muted">— picks the setup with the highest raw spawn share, ignoring the shiny multiplier; for luring lots of this mon rather than shiny-hunting it</span></span>
+        </label>
         <div class="controls" style="margin-top:8px"><button id="snack-best-go" class="ctrl-btn good">Find best setup</button></div>
         <div id="snack-best-out" style="margin-top:12px"></div>
       </div>
@@ -493,6 +498,11 @@
         <p class="hint" style="margin-top:0">Pick a target — I'll search its spawn conditions and PokéSnack seasonings
           for the spot that gives it the biggest spawn share (fewest snacks to a shiny), then you can load it below.</p>
         <input list="species-list" id="sim-best-input" class="search" placeholder="Target Pokémon (name or #dex)…" style="width:100%" />
+        <label class="check-row" style="margin-top:8px">
+          <input type="checkbox" id="sim-best-prioritize-spawn" />
+          <span>Prioritize spawn chance over shiny odds
+            <span class="muted">— picks the spot/snack with the highest raw spawn share, ignoring the shiny multiplier</span></span>
+        </label>
         <div class="controls" style="margin-top:8px"><button id="sim-best-go" class="ctrl-btn good">Find best spot</button></div>
         <div id="sim-best-out" style="margin-top:12px"></div>
       </div>
@@ -553,6 +563,11 @@
           target and I'll search only the seasonings for the combo that gets the most spawns-to-shiny <em>right
           here</em>. Unlike "Auto-optimize" above, this won't suggest moving anywhere.</p>
         <input list="species-list" id="sim-spot-best-input" class="search" placeholder="Target Pokémon (name or #dex)…" style="width:100%" />
+        <label class="check-row" style="margin-top:8px">
+          <input type="checkbox" id="sim-spot-prioritize-spawn" />
+          <span>Prioritize spawn chance over shiny odds
+            <span class="muted">— picks the snack with the highest raw spawn share here, ignoring the shiny multiplier</span></span>
+        </label>
         <div class="controls" style="margin-top:8px"><button id="sim-spot-best-go" class="ctrl-btn good">Find best snack here</button></div>
         <div id="sim-spot-best-out" style="margin-top:12px"></div>
       </div>
